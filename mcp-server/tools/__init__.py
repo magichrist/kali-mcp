@@ -17,6 +17,9 @@ from tools.crackmapexec import CrackmapexecTool
 from tools.bloodhound import BloodhoundTool
 from tools.theharvester import TheharvesterTool
 from tools.spiderfoot import SpiderfootTool
+from tools.naabu import NaabuTool
+from tools.arjun import ArjunTool
+from tools.whatweb import WhatwebTool
 
 ALL_TOOLS = [
     GenericCommandTool(),
@@ -36,4 +39,7 @@ ALL_TOOLS = [
     BloodhoundTool(),
     TheharvesterTool(),
     SpiderfootTool(),
+    NaabuTool(),
+    ArjunTool(),
+    WhatwebTool(),
 ]
