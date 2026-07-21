@@ -5,7 +5,7 @@ from typing import Any
 
 from tools.base import BaseTool
 from execution import engine
-from validation import validate_required, validate_ip, validate_cidr, validate_timeout
+from validation import validate_required, validate_enum, validate_timeout
 from models import ToolError
 from responses import success_response, error_response
 
@@ -17,7 +17,7 @@ class NaabuTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Run naabu for fast SYN/CONNECT port scanning."
+        return "Run naabu for fast TCP/UDP port scanning with SYN/connect scan support."
 
     @property
     def default_timeout(self) -> int:
@@ -28,8 +28,8 @@ class NaabuTool(BaseTool):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "Target IP, CIDR, or hostname"},
-                "ports": {"type": "string", "description": "Port range (e.g. '80-443', '80,443')"},
-                "scan_type": {"type": "string", "description": "Scan type: 's' (SYN, default) or 'c' (CONNECT)"},
+                "ports": {"type": "string", "description": "Port spec (e.g. '80,443', '1-1000')"},
+                "scan_type": {"type": "string", "description": "Scan type: 'syn' (default) or 'connect'", "default": "syn"},
                 "extra_args": {"type": "string", "description": "Additional naabu arguments"},
                 "timeout": {"type": "integer", "description": "Timeout in seconds (default 300)", "default": 300},
             },
@@ -38,24 +38,18 @@ class NaabuTool(BaseTool):
 
     def validate(self, arguments: dict[str, Any]) -> None:
         validate_required(arguments, "target")
-        target = arguments["target"]
-        try:
-            validate_ip(target)
-        except ValueError:
-            try:
-                validate_cidr(target)
-            except ValueError:
-                if not all(c.isalnum() or c in ".-_" for c in target):
-                    raise ValueError(f"Invalid target: {target}")
+        if "scan_type" in arguments:
+            validate_enum(arguments["scan_type"], ["syn", "connect"])
         if "timeout" in arguments:
             validate_timeout(arguments["timeout"])
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["naabu", "-host", arguments["target"]]
         if "ports" in arguments:
-            cmd.extend(["-ports", arguments["ports"]])
-        if "scan_type" in arguments:
-            cmd.extend(["-scan-type", arguments["scan_type"]])
+            cmd.extend(["-p", arguments["ports"]])
+        scan = arguments.get("scan_type", "syn")
+        if scan == "syn":
+            cmd.append("-s")
         if "extra_args" in arguments:
             cmd.extend(arguments["extra_args"].split())
         return cmd
