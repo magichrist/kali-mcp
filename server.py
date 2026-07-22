@@ -45,6 +45,8 @@ mcp = FastMCP(
         "All tools return structured JSON with stdout, stderr, exit_code, and timing."
     ),
     lifespan=lifespan,
+    host=config.host,
+    port=config.port
 )
 
 
