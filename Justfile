@@ -1,30 +1,45 @@
-# Kali MCP Server
+# Kali MCP Server — Just Commands
 
+set dotenv := true
+
+# Show available commands
 default:
-	@just --list
-
-# Start the MCP server
-run:
-	cd mcp-server && python server.py
-
-# Start in debug mode
-debug:
-	cd mcp-server && MCP_DEBUG=true python server.py
+    @just --list
 
 # Install dependencies
 install:
-	cd mcp-server && pip install -r requirements.txt
+    cd mcp-server && pip install -r requirements.txt
+
+# Start the server (foreground)
+start:
+    cd mcp-server && python server.py
+
+# Start in debug mode
+debug:
+    cd mcp-server && MCP_DEBUG=true python server.py
 
 # Run smoke tests
 test:
-	cd mcp-server && python test_server.py
+    cd mcp-server && python test_server.py
 
-# Clean logs and artifacts
+# Show server health (requires running server)
+health:
+    curl -s http://127.0.0.1:8399/health 2>/dev/null || echo "Server not running"
+
+# View logs
+logs:
+    tail -f mcp-server/logs/server.log
+
+# View execution logs
+exec-logs:
+    tail -f mcp-server/logs/executions.jsonl
+
+# Clean build artifacts
 clean:
-	rm -rf mcp-server/logs/* mcp-server/artifacts/*
+    rm -rf mcp-server/logs/*.log mcp-server/logs/*.jsonl
+    rm -rf mcp-server/artifacts/*
+    find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
-# Show server status
-status:
-	@echo "=== Kali MCP Server ==="
-	@echo "Tools: $(cd mcp-server && python3 -c 'from registry import registry; from tools import ALL_TOOLS; print(len(ALL_TOOLS))')"
-	@echo "Port: 8399"
+# Show all registered tools (requires running server)
+tools:
+    cd mcp-server && python -c "from tools import ALL_TOOLS; [print(f'  {t.name:20s} {t.description[:60]}') for t in ALL_TOOLS]"
