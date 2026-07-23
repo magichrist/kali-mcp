@@ -24,6 +24,7 @@ from tools.naabu import NaabuTool
 from tools.arjun import ArjunTool
 from tools.whatweb import WhatwebTool
 from tools.dursgo import DursgoTool
+from tools.zighound import ZighoundTool
 
 ALL_TOOLS = [
     GenericCommandTool(),
@@ -50,4 +51,5 @@ ALL_TOOLS = [
     ArjunTool(),
     WhatwebTool(),
     DursgoTool(),
+    ZighoundTool(),
 ]
