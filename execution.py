@@ -59,7 +59,7 @@ class ExecutionEngine:
                     )
                 except asyncio.TimeoutError:
                     timed_out = True
-                    await kill_process_tree(proc.pid)
+                    await kill_process_tree(proc)
                     stdout_bytes = b""
                     stderr_bytes = f"Timed out after {effective_timeout} seconds".encode()
 
