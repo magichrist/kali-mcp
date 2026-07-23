@@ -43,11 +43,14 @@ def test_registry():
     from registry import ToolRegistry
     from tools.base import BaseTool
     class Dummy(BaseTool):
-        name = "dummy"
-        description = "test"
+        @property
+        def name(self): return "dummy"
+        @property
+        def description(self): return "test"
         def input_schema(self): return {}
         def validate(self, a): pass
         def build_command(self, a): return ["echo"]
+        async def execute(self, a): return {"content": [{"type": "text", "text": "ok"}], "isError": False}
     reg = ToolRegistry()
     reg.register(Dummy())
     assert reg.get("dummy") is not None
