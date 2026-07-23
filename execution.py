@@ -8,6 +8,8 @@ from typing import Any
 
 from config import config
 from models import ExecutionResult, utc_now_iso
+from security import sanitize_command_parts
+from logging_utils import log_execution
 from utils.process import kill_process_tree
 
 logger = logging.getLogger("kali_mcp.execution")
@@ -29,6 +31,7 @@ class ExecutionEngine:
     ) -> ExecutionResult:
         """Execute a command and return structured result."""
         effective_timeout = min(timeout or config.default_timeout, config.max_timeout)
+        command = sanitize_command_parts(command)
         command_str = " ".join(command)
 
         logger.info("executing tool=%s command=%s timeout=%d", tool, command_str, effective_timeout)
@@ -93,6 +96,8 @@ class ExecutionEngine:
             "tool=%s exit_code=%d success=%s duration=%.3fs stdout_len=%d stderr_len=%d",
             tool, exit_code, result.success, duration, len(stdout), len(stderr),
         )
+
+        log_execution(result)
 
         return result
 

@@ -37,3 +37,8 @@ class BaseTool(abc.ABC):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         """Build the command argument list (no shell)."""
         ...
+
+    @abc.abstractmethod
+    async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Execute the tool and return MCP-formatted result."""
+        ...
