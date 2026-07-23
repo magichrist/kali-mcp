@@ -308,6 +308,122 @@ else
     echo "  $HEALTH_BODY" | head -3
 fi
 
+# ── dursgo validation ─────────────────────────────────────────────────
+log "Testing dursgo (validation check)"
+DURSGO_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"dursgo","arguments":{}}}' /dev/stdout)
+DURSGO_STATUS=$(echo "$DURSGO_RESULT" | head -1)
+DURSGO_BODY=$(echo "$DURSGO_RESULT" | tail -n +2)
+DURSGO_CHECK=$(echo "$DURSGO_BODY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+result = d.get('result',{})
+is_err = result.get('isError', False)
+text = ''
+for c in result.get('content',[]):
+    if c.get('type') == 'text':
+        text = c['text']
+        break
+print('ERROR' if is_err else 'OK')
+print(text[:400])
+" 2>/dev/null || echo "PARSE_ERROR")
+
+DURSGO_STATUS_LINE=$(echo "$DURSGO_CHECK" | head -1)
+DURSGO_BODY_LINE=$(echo "$DURSGO_CHECK" | tail -n +2)
+
+if [ "$DURSGO_STATUS_LINE" = "ERROR" ] && echo "$DURSGO_BODY_LINE" | grep -q "target"; then
+    ok "dursgo rejects missing target"
+else
+    err "dursgo validation failed"
+    echo "  $DURSGO_BODY_LINE" | head -3
+fi
+
+# ── zighound validation ───────────────────────────────────────────────
+log "Testing zighound (validation check)"
+ZH_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"zighound","arguments":{}}}' /dev/stdout)
+ZH_STATUS=$(echo "$ZH_RESULT" | head -1)
+ZH_BODY=$(echo "$ZH_RESULT" | tail -n +2)
+ZH_CHECK=$(echo "$ZH_BODY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+result = d.get('result',{})
+is_err = result.get('isError', False)
+text = ''
+for c in result.get('content',[]):
+    if c.get('type') == 'text':
+        text = c['text']
+        break
+print('ERROR' if is_err else 'OK')
+print(text[:400])
+" 2>/dev/null || echo "PARSE_ERROR")
+
+ZH_STATUS_LINE=$(echo "$ZH_CHECK" | head -1)
+ZH_BODY_LINE=$(echo "$ZH_CHECK" | tail -n +2)
+
+if [ "$ZH_STATUS_LINE" = "ERROR" ] && echo "$ZH_BODY_LINE" | grep -q "command"; then
+    ok "zighound rejects missing command"
+else
+    err "zighound validation failed"
+    echo "  $ZH_BODY_LINE" | head -3
+fi
+
+# ── searchsploit validation ──────────────────────────────────────────
+log "Testing searchsploit (validation check)"
+SS_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":32,"method":"tools/call","params":{"name":"searchsploit","arguments":{}}}' /dev/stdout)
+SS_STATUS=$(echo "$SS_RESULT" | head -1)
+SS_BODY=$(echo "$SS_RESULT" | tail -n +2)
+SS_CHECK=$(echo "$SS_BODY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+result = d.get('result',{})
+is_err = result.get('isError', False)
+text = ''
+for c in result.get('content',[]):
+    if c.get('type') == 'text':
+        text = c['text']
+        break
+print('ERROR' if is_err else 'OK')
+print(text[:400])
+" 2>/dev/null || echo "PARSE_ERROR")
+
+SS_STATUS_LINE=$(echo "$SS_CHECK" | head -1)
+SS_BODY_LINE=$(echo "$SS_CHECK" | tail -n +2)
+
+if [ "$SS_STATUS_LINE" = "ERROR" ] && echo "$SS_BODY_LINE" | grep -q "query\|cve\|edb"; then
+    ok "searchsploit rejects missing query/cve/edb_id"
+else
+    err "searchsploit validation failed"
+    echo "  $SS_BODY_LINE" | head -3
+fi
+
+# ── farsight validation ──────────────────────────────────────────────
+log "Testing farsight (validation check)"
+FS_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":33,"method":"tools/call","params":{"name":"farsight","arguments":{}}}' /dev/stdout)
+FS_STATUS=$(echo "$FS_RESULT" | head -1)
+FS_BODY=$(echo "$FS_RESULT" | tail -n +2)
+FS_CHECK=$(echo "$FS_BODY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+result = d.get('result',{})
+is_err = result.get('isError', False)
+text = ''
+for c in result.get('content',[]):
+    if c.get('type') == 'text':
+        text = c['text']
+        break
+print('ERROR' if is_err else 'OK')
+print(text[:400])
+" 2>/dev/null || echo "PARSE_ERROR")
+
+FS_STATUS_LINE=$(echo "$FS_CHECK" | head -1)
+FS_BODY_LINE=$(echo "$FS_CHECK" | tail -n +2)
+
+if [ "$FS_STATUS_LINE" = "ERROR" ] && echo "$FS_BODY_LINE" | grep -q "domain"; then
+    ok "farsight rejects missing domain"
+else
+    err "farsight validation failed"
+    echo "  $FS_BODY_LINE" | head -3
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
