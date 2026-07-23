@@ -1,6 +1,7 @@
 """Auto-import all tool modules to trigger registration."""
 
 from tools.generic_command import GenericCommandTool
+from tools.python_command import PythonCommandTool
 from tools.nmap import NmapTool
 from tools.httpx import HttpxTool
 from tools.nuclei import NucleiTool
@@ -23,6 +24,7 @@ from tools.whatweb import WhatwebTool
 
 ALL_TOOLS = [
     GenericCommandTool(),
+    PythonCommandTool(),
     NmapTool(),
     HttpxTool(),
     NucleiTool(),
