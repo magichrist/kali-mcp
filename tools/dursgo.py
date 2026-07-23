@@ -19,7 +19,11 @@ class DursgoTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Run DursGo web application security scanner for automated security audits and penetration testing."
+        return (
+            "Run DursGo web application security scanner. "
+            "Supports XSS, SQLi, LFI, SSRF, IDOR, CSRF, command injection, SSTI, "
+            "CORS, file upload, BOLA, mass assignment, GraphQL, DOM XSS, and more."
+        )
 
     @property
     def default_timeout(self) -> int:
@@ -31,16 +35,63 @@ class DursgoTool(BaseTool):
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "Target URL to scan (e.g. 'https://example.com')",
+                    "description": "Target URL to scan (e.g. 'http://example.com')",
                 },
-                "scan_type": {
+                "scanners": {
                     "type": "string",
-                    "description": "Scan mode (e.g. 'full', 'quick', 'passive')",
-                    "default": "full",
+                    "description": (
+                        "Comma-separated scanners: xss,sqli,lfi,openredirect,ssrf,exposed,"
+                        "idor,csrf,cmdinjection,ssti,securityheaders,cors,fileupload,"
+                        "bola,massassignment,graphql,blindssrf,domxss,subdomain. "
+                        "Use 'all' for all scanners, 'none' for crawling only."
+                    ),
+                    "default": "all",
+                },
+                "concurrency": {
+                    "type": "integer",
+                    "description": "Number of concurrent workers (default 0 = auto)",
+                    "default": 0,
+                },
+                "depth": {
+                    "type": "integer",
+                    "description": "Maximum crawling depth (default 0 = unlimited)",
+                    "default": 0,
+                },
+                "delay": {
+                    "type": "integer",
+                    "description": "Delay between requests in milliseconds",
+                },
+                "retries": {
+                    "type": "integer",
+                    "description": "Maximum retries for failed requests",
+                },
+                "oast": {
+                    "type": "boolean",
+                    "description": "Enable OAST for blind vulnerabilities (Blind SSRF, Blind CMDi)",
+                },
+                "render_js": {
+                    "type": "boolean",
+                    "description": "Enable JS rendering via headless browser (required for domxss)",
+                },
+                "enrich": {
+                    "type": "boolean",
+                    "description": "Enable vulnerability enrichment with CISA KEV data",
+                },
+                "enable_ai": {
+                    "type": "boolean",
+                    "description": "Enable AI-powered analysis for found vulnerabilities",
+                },
+                "output_json": {
+                    "type": "string",
+                    "description": "Path to save JSON report (e.g. 'report.json')",
+                },
+                "insecure": {
+                    "type": "boolean",
+                    "description": "Skip TLS certificate verification",
                 },
                 "extra_args": {
                     "type": "string",
-                    "description": "Additional DursGo arguments (e.g. '-depth 3 -threads 10')",
+                    "description": "Additional DursGo arguments not covered above",
                 },
                 "timeout": {
                     "type": "integer",
@@ -59,13 +110,29 @@ class DursgoTool(BaseTool):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["dursgo", "-u", arguments["target"]]
 
-        scan_type = arguments.get("scan_type", "full")
-        if scan_type == "quick":
-            cmd.extend(["-mode", "quick"])
-        elif scan_type == "passive":
-            cmd.extend(["-mode", "passive"])
-        else:
-            cmd.extend(["-mode", "full"])
+        scanners = arguments.get("scanners", "all")
+        cmd.extend(["-s", scanners])
+
+        if arguments.get("concurrency"):
+            cmd.extend(["-c", str(arguments["concurrency"])])
+        if arguments.get("depth"):
+            cmd.extend(["-d", str(arguments["depth"])])
+        if arguments.get("delay"):
+            cmd.extend(["-delay", str(arguments["delay"])])
+        if arguments.get("retries"):
+            cmd.extend(["-r", str(arguments["retries"])])
+        if arguments.get("oast"):
+            cmd.append("-oast")
+        if arguments.get("render_js"):
+            cmd.append("-render-js")
+        if arguments.get("enrich"):
+            cmd.append("-enrich")
+        if arguments.get("enable_ai"):
+            cmd.append("--enable-ai")
+        if arguments.get("output_json"):
+            cmd.extend(["-output-json", arguments["output_json"]])
+        if arguments.get("insecure"):
+            cmd.append("-insecure")
 
         if "extra_args" in arguments:
             cmd.extend(shlex.split(arguments["extra_args"]))
