@@ -61,3 +61,20 @@ def validate_enum(value: str, allowed: list[str], label: str = "value") -> None:
     """Raise ValueError if value is not in allowed list."""
     if value not in allowed:
         raise ValueError(f"Invalid {label}: '{value}'. Allowed: {', '.join(allowed)}")
+
+
+def validate_ports(value: str, label: str = "ports") -> None:
+    """Raise ValueError if value is not a valid port specification."""
+    pattern = re.compile(r"^(\d{1,5}(-\d{1,5})?)(,\d{1,5}(-\d{1,5})?)*$")
+    if not pattern.match(value):
+        raise ValueError(f"Invalid {label}: {value}")
+    for part in value.split(","):
+        if "-" in part:
+            start, end = part.split("-", 1)
+            s, e = int(start), int(end)
+            if s < 1 or e > 65535 or s > e:
+                raise ValueError(f"Invalid {label} range: {part}")
+        else:
+            p = int(part)
+            if p < 1 or p > 65535:
+                raise ValueError(f"Invalid {label}: {part}")

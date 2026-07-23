@@ -1,6 +1,8 @@
 """BloodHound collection tool."""
 
 from __future__ import annotations
+
+import shlex
 from typing import Any
 
 from tools.base import BaseTool
@@ -17,7 +19,7 @@ class BloodhoundTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Run SharpHound/BloodHound collection for Active Directory enumeration."
+        return "Run BloodHound Python collection for Active Directory enumeration."
 
     def input_schema(self) -> dict[str, Any]:
         return {
@@ -25,7 +27,7 @@ class BloodhoundTool(BaseTool):
             "properties": {
                 "collection": {"type": "string", "description": "Collection method (e.g. 'All', 'Group', 'LocalAdmin')", "default": "All"},
                 "domain": {"type": "string", "description": "Target domain (optional)"},
-                "extra_args": {"type": "string", "description": "Additional sharpound arguments"},
+                "extra_args": {"type": "string", "description": "Additional bloodhound-python arguments"},
                 "timeout": {"type": "integer", "default": 900},
             },
             "required": [],
@@ -36,11 +38,11 @@ class BloodhoundTool(BaseTool):
             validate_timeout(arguments["timeout"], max_val=3600)
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        cmd = ["sharpound", "-c", arguments.get("collection", "All")]
+        cmd = ["bloodhound-python", "-c", arguments.get("collection", "All")]
         if "domain" in arguments:
             cmd.extend(["-d", arguments["domain"]])
         if "extra_args" in arguments:
-            cmd.extend(arguments["extra_args"].split())
+            cmd.extend(shlex.split(arguments["extra_args"]))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

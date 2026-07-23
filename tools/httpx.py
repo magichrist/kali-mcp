@@ -1,6 +1,8 @@
 """httpx HTTP toolkit tool."""
 
 from __future__ import annotations
+
+import shlex
 from typing import Any
 
 from tools.base import BaseTool
@@ -43,9 +45,9 @@ class HttpxTool(BaseTool):
             cmd.extend(["-l", arguments["input_file"]])
         else:
             cmd.extend(["-u", arguments["target"]])
-        cmd.extend(arguments.get("scan_type", "-status-code -title -tech-detect").split())
+            cmd.extend(shlex.split(arguments.get("scan_type", "-status-code -title -tech-detect")))
         if "extra_args" in arguments:
-            cmd.extend(arguments["extra_args"].split())
+            cmd.extend(shlex.split(arguments["extra_args"]))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

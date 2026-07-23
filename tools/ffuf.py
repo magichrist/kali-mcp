@@ -1,6 +1,8 @@
 """FFUF web fuzzer tool."""
 
 from __future__ import annotations
+
+import shlex
 from typing import Any
 
 from tools.base import BaseTool
@@ -44,9 +46,9 @@ class FfufTool(BaseTool):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["ffuf", "-u", arguments["target"], "-w", arguments["wordlist"]]
         if "filter" in arguments:
-            cmd.extend(arguments["filter"].split())
+            cmd.extend(shlex.split(arguments["filter"]))
         if "extra_args" in arguments:
-            cmd.extend(arguments["extra_args"].split())
+            cmd.extend(shlex.split(arguments["extra_args"]))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

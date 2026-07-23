@@ -1,6 +1,8 @@
 """Nuclei vulnerability scanner tool."""
 
 from __future__ import annotations
+
+import shlex
 from typing import Any
 
 from tools.base import BaseTool
@@ -48,7 +50,7 @@ class NucleiTool(BaseTool):
         if "severity" in arguments:
             cmd.extend(["-severity", arguments["severity"]])
         if "extra_args" in arguments:
-            cmd.extend(arguments["extra_args"].split())
+            cmd.extend(shlex.split(arguments["extra_args"]))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

@@ -1,6 +1,8 @@
 """SpiderFoot OSINT automation tool."""
 
 from __future__ import annotations
+
+import shlex
 from typing import Any
 
 from tools.base import BaseTool
@@ -45,7 +47,7 @@ class SpiderfootTool(BaseTool):
         if "modules" in arguments and arguments["modules"] != "all":
             cmd.extend(["-m", arguments["modules"]])
         if "extra_args" in arguments:
-            cmd.extend(arguments["extra_args"].split())
+            cmd.extend(shlex.split(arguments["extra_args"]))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

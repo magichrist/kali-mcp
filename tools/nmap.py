@@ -1,6 +1,8 @@
 """Nmap network scanner tool."""
 
 from __future__ import annotations
+
+import shlex
 from typing import Any
 
 from tools.base import BaseTool
@@ -56,7 +58,7 @@ class NmapTool(BaseTool):
         if "ports" in arguments:
             cmd.extend(["-p", arguments["ports"]])
         if "extra_args" in arguments:
-            cmd.extend(arguments["extra_args"].split())
+            cmd.extend(shlex.split(arguments["extra_args"]))
         cmd.append(arguments["target"])
         return cmd
 
