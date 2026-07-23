@@ -26,6 +26,7 @@ from tools.whatweb import WhatwebTool
 from tools.dursgo import DursgoTool
 from tools.zighound import ZighoundTool
 from tools.searchsploit import SearchsploitTool
+from tools.farsight import FarsightTool
 
 ALL_TOOLS = [
     GenericCommandTool(),
@@ -54,4 +55,5 @@ ALL_TOOLS = [
     DursgoTool(),
     ZighoundTool(),
     SearchsploitTool(),
+    FarsightTool(),
 ]
