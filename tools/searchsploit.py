@@ -71,9 +71,9 @@ class SearchsploitTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        has_query = "query" in arguments and arguments["query"].strip()
-        has_cve = "cve" in arguments and arguments["cve"].strip()
-        has_edb = "edb_id" in arguments and arguments["edb_id"].strip()
+        has_query = bool(arguments.get("query", "").strip())
+        has_cve = bool(arguments.get("cve", "").strip())
+        has_edb = bool(arguments.get("edb_id", "").strip())
         if not has_query and not has_cve and not has_edb:
             raise ValueError("At least one of query, cve, or edb_id is required")
         if "timeout" in arguments:
