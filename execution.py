@@ -14,6 +14,8 @@ from utils.process import kill_process_tree
 
 logger = logging.getLogger("kali_mcp.execution")
 
+MAX_OUTPUT = 100_000  # 100KB per stream to prevent memory blowup
+
 
 class ExecutionEngine:
     """Runs subprocess commands with timeout, captures output, returns structured results."""
@@ -29,7 +31,7 @@ class ExecutionEngine:
         cwd: str | None = None,
         env: dict[str, str] | None = None,
     ) -> ExecutionResult:
-        """Execute a command and return structured result."""
+        """Execute a command and return structured result. Never raises."""
         effective_timeout = min(timeout or config.default_timeout, config.max_timeout)
         command = sanitize_command_parts(command)
         command_str = " ".join(command)
@@ -39,67 +41,70 @@ class ExecutionEngine:
         start_time = utc_now_iso()
         start_monotonic = asyncio.get_event_loop().time()
 
-        async with self._semaphore:
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
-                env=env,
-            )
-
-            timed_out = False
-            try:
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    proc.communicate(),
-                    timeout=effective_timeout,
+        try:
+            async with self._semaphore:
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd,
+                    env=env,
                 )
-            except asyncio.TimeoutError:
-                timed_out = True
-                await kill_process_tree(proc)
+
+                timed_out = False
                 try:
                     stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                        proc.communicate(), timeout=5.0
+                        proc.communicate(),
+                        timeout=effective_timeout,
                     )
-                except Exception:
+                except asyncio.TimeoutError:
+                    timed_out = True
+                    await kill_process_tree(proc.pid)
                     stdout_bytes = b""
-                    stderr_bytes = b"Process killed after timeout"
-                logger.warning("tool=%s timed_out after %ds", tool, effective_timeout)
+                    stderr_bytes = f"Timed out after {effective_timeout} seconds".encode()
 
-        end_time = utc_now_iso()
-        duration = round(asyncio.get_event_loop().time() - start_monotonic, 3)
+                end_time = utc_now_iso()
+                duration = asyncio.get_event_loop().time() - start_monotonic
 
-        stdout = stdout_bytes.decode(config.default_encoding, errors="replace") if stdout_bytes else ""
-        stderr = stderr_bytes.decode(config.default_encoding, errors="replace") if stderr_bytes else ""
-        exit_code = proc.returncode if proc.returncode is not None else -1
+                # Truncate output to prevent memory blowup
+                if stdout_bytes and len(stdout_bytes) > MAX_OUTPUT:
+                    stdout_bytes = stdout_bytes[:MAX_OUTPUT] + b"\n... [truncated at 100KB]"
+                if stderr_bytes and len(stderr_bytes) > MAX_OUTPUT:
+                    stderr_bytes = stderr_bytes[:MAX_OUTPUT] + b"\n... [truncated at 100KB]"
 
-        max_output = 1_000_000
-        if len(stdout) > max_output:
-            stdout = stdout[:max_output] + f"\n... [truncated at {max_output} chars]"
-        if len(stderr) > max_output:
-            stderr = stderr[:max_output] + f"\n... [truncated at {max_output} chars]"
+                result = ExecutionResult(
+                    tool=tool,
+                    command=command_str,
+                    stdout=stdout_bytes.decode("utf-8", errors="replace"),
+                    stderr=stderr_bytes.decode("utf-8", errors="replace"),
+                    exit_code=proc.returncode or 0,
+                    success=(proc.returncode == 0),
+                    timed_out=timed_out,
+                    duration=duration,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
 
-        result = ExecutionResult(
-            tool=tool,
-            command=command_str,
-            stdout=stdout,
-            stderr=stderr,
-            exit_code=exit_code,
-            success=exit_code == 0 and not timed_out,
-            timed_out=timed_out,
-            duration=duration,
-            start_time=start_time,
-            end_time=end_time,
-        )
+                log_execution(result)
+                return result
 
-        logger.info(
-            "tool=%s exit_code=%d success=%s duration=%.3fs stdout_len=%d stderr_len=%d",
-            tool, exit_code, result.success, duration, len(stdout), len(stderr),
-        )
-
-        log_execution(result)
-
-        return result
+        except Exception as e:
+            # Last resort — never let an exception escape and crash the ASGI server
+            logger.exception("CRITICAL: execution engine failed for tool=%s", tool)
+            end_time = utc_now_iso()
+            duration = asyncio.get_event_loop().time() - start_monotonic
+            return ExecutionResult(
+                tool=tool,
+                command=command_str,
+                stdout="",
+                stderr=f"Internal error: {e}",
+                exit_code=1,
+                success=False,
+                timed_out=False,
+                duration=duration,
+                start_time=start_time,
+                end_time=end_time,
+            )
 
 
 engine = ExecutionEngine()
