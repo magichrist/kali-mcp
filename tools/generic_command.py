@@ -65,8 +65,8 @@ class GenericCommandTool(BaseTool):
             validate_timeout(arguments["timeout"])
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        """Parse command string into argument list using shlex."""
-        return shlex.split(arguments["command"])
+        """Wrap command in bash -c so pipes, redirects, &&, etc. work."""
+        return ["bash", "-c", arguments["command"]]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         try:
