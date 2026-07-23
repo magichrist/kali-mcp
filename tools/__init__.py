@@ -2,6 +2,8 @@
 
 from tools.generic_command import GenericCommandTool
 from tools.python_command import PythonCommandTool
+from tools.file_read import FileReadTool
+from tools.file_write import FileWriteTool
 from tools.nmap import NmapTool
 from tools.httpx import HttpxTool
 from tools.nuclei import NucleiTool
@@ -25,6 +27,8 @@ from tools.whatweb import WhatwebTool
 ALL_TOOLS = [
     GenericCommandTool(),
     PythonCommandTool(),
+    FileReadTool(),
+    FileWriteTool(),
     NmapTool(),
     HttpxTool(),
     NucleiTool(),
