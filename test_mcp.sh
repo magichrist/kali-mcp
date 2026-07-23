@@ -424,6 +424,35 @@ else
     echo "  $FS_BODY_LINE" | head -3
 fi
 
+# ── flowlyt validation ───────────────────────────────────────────────
+log "Testing flowlyt (validation check)"
+FL_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":34,"method":"tools/call","params":{"name":"flowlyt","arguments":{}}}' /dev/stdout)
+FL_STATUS=$(echo "$FL_RESULT" | head -1)
+FL_BODY=$(echo "$FL_RESULT" | tail -n +2)
+FL_CHECK=$(echo "$FL_BODY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+result = d.get('result',{})
+is_err = result.get('isError', False)
+text = ''
+for c in result.get('content',[]):
+    if c.get('type') == 'text':
+        text = c['text']
+        break
+print('ERROR' if is_err else 'OK')
+print(text[:400])
+" 2>/dev/null || echo "PARSE_ERROR")
+
+FL_STATUS_LINE=$(echo "$FL_CHECK" | head -1)
+FL_BODY_LINE=$(echo "$FL_CHECK" | tail -n +2)
+
+if [ "$FL_STATUS_LINE" = "ERROR" ] && echo "$FL_BODY_LINE" | grep -q "repo"; then
+    ok "flowlyt rejects missing repo"
+else
+    err "flowlyt validation failed"
+    echo "  $FL_BODY_LINE" | head -3
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

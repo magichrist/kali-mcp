@@ -27,6 +27,7 @@ from tools.dursgo import DursgoTool
 from tools.zighound import ZighoundTool
 from tools.searchsploit import SearchsploitTool
 from tools.farsight import FarsightTool
+from tools.flowlyt import FlowlytTool
 
 ALL_TOOLS = [
     GenericCommandTool(),
@@ -56,4 +57,5 @@ ALL_TOOLS = [
     ZighoundTool(),
     SearchsploitTool(),
     FarsightTool(),
+    FlowlytTool(),
 ]
