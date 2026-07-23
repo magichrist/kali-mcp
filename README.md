@@ -15,7 +15,7 @@ just start
 just debug
 ```
 
-The server runs on `http://0.0.0.0:8399/sse` by default. Point your AI agent's MCP client at this URL to connect.
+The server runs on `http://0.0.0.0:8399/mcp` by default. Point your AI agent's MCP client at this URL to connect.
 
 ## Configuration
 
@@ -32,7 +32,7 @@ Copy `.env` and adjust values:
 | `MCP_ARTIFACT_DIR` | `artifacts` | Command output artifacts |
 | `MCP_DEBUG` | `false` | Enable verbose debug logging |
 
-## Available Tools (20)
+## Available Tools (23)
 
 ### Reconnaissance
 
@@ -73,11 +73,19 @@ Copy `.env` and adjust values:
 | `crackmapexec` | Legacy CME wrapper (routes to netexec if unavailable) |
 | `bloodhound` | SharpHound/BloodHound AD collection |
 
-### Escape Hatch
+### File Operations
 
 | Tool | Description |
 |------|-------------|
-| `generic_command` | Execute any arbitrary shell command not covered by native tools |
+| `file_read` | Read files from the Kali machine with offset and truncation support |
+| `file_write` | Create/write files on the Kali machine (auto-creates directories) |
+
+### Generic Execution
+
+| Tool | Description |
+|------|-------------|
+| `generic_command` | Execute arbitrary shell commands (pipes, redirects, `&&` supported) |
+| `python_command` | Execute Python code directly (imports, loops, data processing) |
 
 ## Adding a New Tool
 
