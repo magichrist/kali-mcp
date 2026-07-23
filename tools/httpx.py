@@ -47,7 +47,7 @@ class HttpxTool(BaseTool):
             cmd.extend(["-u", arguments["target"]])
             cmd.extend(shlex.split(arguments.get("scan_type", "-status-code -title -tech-detect")))
         if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

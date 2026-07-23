@@ -47,7 +47,7 @@ class SpiderfootTool(BaseTool):
         if "modules" in arguments and arguments["modules"] != "all":
             cmd.extend(["-m", arguments["modules"]])
         if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

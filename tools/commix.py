@@ -45,7 +45,7 @@ class CommixTool(BaseTool):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["commix", "-u", arguments["target"]]
         if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

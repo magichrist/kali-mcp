@@ -58,7 +58,7 @@ class NmapTool(BaseTool):
         if "ports" in arguments:
             cmd.extend(["-p", arguments["ports"]])
         if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
         cmd.append(arguments["target"])
         return cmd
 

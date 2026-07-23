@@ -41,14 +41,14 @@ class CrackmapexecTool(BaseTool):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["crackmapexec", arguments["protocol"], arguments["target"]]
         if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
         return cmd
 
     def _build_fallback_command(self, arguments: dict[str, Any]) -> list[str]:
         """Build command using netexec as fallback."""
         cmd = ["nxc", arguments["protocol"], arguments["target"]]
         if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
