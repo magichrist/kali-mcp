@@ -106,7 +106,7 @@ class FarsightTool(BaseTool):
     def _build_full(self, arguments: dict[str, Any]) -> tuple[list[str], Path]:
         report_path = config.artifact_dir / f"farsight_{uuid.uuid4().hex[:8]}.md"
 
-        cmd = ["python3", "-m", "farsight", "scan", arguments["domain"]]
+        cmd = ["farsight", "scan", arguments["domain"]]
         cmd.extend(["-o", str(report_path)])
 
         depth = arguments.get("depth", 1)

@@ -97,6 +97,24 @@ async def test_nmap_validation():
     print("PASS: nmap validation")
 
 
+async def test_farsight_validation():
+    from tools.farsight import FarsightTool
+    tool = FarsightTool()
+    # Should reject missing domain
+    result = await tool.execute({})
+    assert result["isError"] is True
+    # Should reject invalid depth
+    result = await tool.execute({"domain": "example.com", "depth": 5})
+    assert result["isError"] is True
+    # build_command produces correct structure
+    cmd, report_path = tool._build_full({"domain": "example.com"})
+    assert cmd[0] == "farsight"
+    assert cmd[1] == "scan"
+    assert cmd[2] == "example.com"
+    assert "-o" in cmd
+    print("PASS: farsight validation")
+
+
 def main():
     test_config()
     test_models()
@@ -106,6 +124,7 @@ def main():
     asyncio.run(test_execution())
     asyncio.run(test_generic_command())
     asyncio.run(test_nmap_validation())
+    asyncio.run(test_farsight_validation())
     print("\nAll tests passed!")
 
 
