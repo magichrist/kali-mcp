@@ -6,6 +6,8 @@ import json
 import logging
 import sys
 import os
+import inspect
+from typing import Optional
 from contextlib import asynccontextmanager
 
 # Add project root to path
@@ -56,12 +58,30 @@ for tool_instance in ALL_TOOLS:
     registry.register(tool_instance)
 
     def _make_handler(t):
+        schema = t.input_schema()
+        props = schema.get("properties", {})
+        required = set(schema.get("required", []))
+
+        # Build explicit parameter list so func_metadata generates a
+        # Pydantic model that matches the tool's JSON Schema exactly.
+        params = []
+        defaults = []
+        for pname, pdef in props.items():
+            ptype = pdef.get("type", "string")
+            pytype = {"string": str, "integer": int, "number": float, "boolean": bool}.get(ptype, str)
+            if pname not in required:
+                pytype = Optional[pytype]
+                default_val = pdef.get("default", None)
+                params.append(inspect.Parameter(pname, inspect.Parameter.KEYWORD_ONLY, default=default_val, annotation=pytype))
+            else:
+                params.append(inspect.Parameter(pname, inspect.Parameter.KEYWORD_ONLY, annotation=pytype))
+
+        sig = inspect.Signature(params)
+
         async def handler(**kwargs) -> str:
             try:
                 logger.info("tool=%s args=%s", t.name, list(kwargs.keys()))
                 result = await t.execute(kwargs)
-                # result is {"content": [...], "isError": bool} — extract the text
-                # so FastMCP re-wraps it in a single TextContent without double-encoding.
                 if isinstance(result, dict) and "content" in result:
                     for block in result["content"]:
                         if isinstance(block, dict) and block.get("type") == "text":
@@ -73,12 +93,11 @@ for tool_instance in ALL_TOOLS:
 
         handler.__name__ = t.name
         handler.__doc__ = t.description
+        handler.__signature__ = sig
         return handler
 
     tool_fn = _make_handler(tool_instance)
 
-    # Build MCPTool directly with the tool's input_schema so the agent
-    # receives the full JSON Schema for parameters.
     fm = func_metadata(tool_fn)
     mcp_tool = MCPTool(
         fn=tool_fn,
