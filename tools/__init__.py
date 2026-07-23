@@ -28,6 +28,7 @@ from tools.zighound import ZighoundTool
 from tools.searchsploit import SearchsploitTool
 from tools.farsight import FarsightTool
 from tools.flowlyt import FlowlytTool
+from tools.zizmor import ZizmorTool
 
 ALL_TOOLS = [
     GenericCommandTool(),
@@ -58,4 +59,5 @@ ALL_TOOLS = [
     SearchsploitTool(),
     FarsightTool(),
     FlowlytTool(),
+    ZizmorTool(),
 ]

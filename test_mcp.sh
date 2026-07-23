@@ -453,6 +453,35 @@ else
     echo "  $FL_BODY_LINE" | head -3
 fi
 
+# ── zizmor validation ────────────────────────────────────────────────
+log "Testing zizmor (validation check)"
+ZM_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":35,"method":"tools/call","params":{"name":"zizmor","arguments":{}}}' /dev/stdout)
+ZM_STATUS=$(echo "$ZM_RESULT" | head -1)
+ZM_BODY=$(echo "$ZM_RESULT" | tail -n +2)
+ZM_CHECK=$(echo "$ZM_BODY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+result = d.get('result',{})
+is_err = result.get('isError', False)
+text = ''
+for c in result.get('content',[]):
+    if c.get('type') == 'text':
+        text = c['text']
+        break
+print('ERROR' if is_err else 'OK')
+print(text[:400])
+" 2>/dev/null || echo "PARSE_ERROR")
+
+ZM_STATUS_LINE=$(echo "$ZM_CHECK" | head -1)
+ZM_BODY_LINE=$(echo "$ZM_CHECK" | tail -n +2)
+
+if [ "$ZM_STATUS_LINE" = "ERROR" ] && echo "$ZM_BODY_LINE" | grep -q "target"; then
+    ok "zizmor rejects missing target"
+else
+    err "zizmor validation failed"
+    echo "  $ZM_BODY_LINE" | head -3
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
