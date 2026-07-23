@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import signal
 import sys
 import os
 import inspect
+import uuid
 from typing import Optional
 from contextlib import asynccontextmanager
 
@@ -34,6 +36,16 @@ async def lifespan(app):
     """Server lifecycle — startup and shutdown."""
     logger.info("Server starting up...")
     logger.info("Registered %d tools: %s", len(ALL_TOOLS), [t.name for t in ALL_TOOLS])
+
+    # Verify critical binaries exist at startup
+    import shutil
+    critical_bins = ["nmap", "curl"]
+    for bin_name in critical_bins:
+        if shutil.which(bin_name):
+            logger.info("Startup check OK: %s found", bin_name)
+        else:
+            logger.warning("Startup check WARN: %s not found in PATH", bin_name)
+
     yield
     logger.info("Server shutting down...")
 
@@ -59,28 +71,31 @@ for tool_instance in ALL_TOOLS:
 
     def _make_handler(t):
         schema = t.input_schema()
-        props = schema.get("properties", {})
-        required = set(schema.get("required", []))
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
 
-        # Build explicit parameter list so func_metadata generates a
-        # Pydantic model that matches the tool's JSON Schema exactly.
         params = []
-        defaults = []
-        for pname, pdef in props.items():
-            ptype = pdef.get("type", "string")
-            pytype = {"string": str, "integer": int, "number": float, "boolean": bool}.get(ptype, str)
-            if pname not in required:
-                pytype = Optional[pytype]
-                default_val = pdef.get("default", None)
-                params.append(inspect.Parameter(pname, inspect.Parameter.KEYWORD_ONLY, default=default_val, annotation=pytype))
+        for name, prop in properties.items():
+            has_default = "default" in prop
+            default = prop.get("default") if has_default else inspect.Parameter.empty
+            annotation = str if name not in required else str
+            if has_default:
+                params.append(inspect.Parameter(
+                    name, inspect.Parameter.KEYWORD_ONLY,
+                    default=default, annotation=annotation,
+                ))
             else:
-                params.append(inspect.Parameter(pname, inspect.Parameter.KEYWORD_ONLY, annotation=pytype))
+                params.append(inspect.Parameter(
+                    name, inspect.Parameter.KEYWORD_ONLY,
+                    annotation=annotation,
+                ))
 
         sig = inspect.Signature(params)
 
         async def handler(**kwargs) -> str:
+            request_id = uuid.uuid4().hex[:12]
             try:
-                logger.info("tool=%s args=%s", t.name, list(kwargs.keys()))
+                logger.info("request=%s tool=%s args=%s", request_id, t.name, list(kwargs.keys()))
                 result = await t.execute(kwargs)
                 if isinstance(result, dict) and "content" in result:
                     for block in result["content"]:
@@ -88,11 +103,11 @@ for tool_instance in ALL_TOOLS:
                             return block["text"]
                 return json.dumps(result, indent=2)
             except asyncio.CancelledError:
-                logger.warning("tool=%s request cancelled by client", t.name)
+                logger.warning("request=%s tool=%s request cancelled by client", request_id, t.name)
                 return json.dumps({"error": "Request cancelled"})
             except Exception as e:
-                logger.exception("Unhandled error in tool %s", t.name)
-                return json.dumps({"error": str(e)}, indent=2)
+                logger.exception("request=%s unhandled error in tool %s", request_id, t.name)
+                return json.dumps({"error": "Tool execution failed"}, indent=2)
 
         handler.__name__ = t.name
         handler.__doc__ = t.description
@@ -155,14 +170,6 @@ if __name__ == "__main__":
     import uvicorn
     from starlette.middleware.cors import CORSMiddleware
 
-    logger.info(
-        "Starting %s v%s on %s:%d",
-        config.server_name,
-        config.server_version,
-        config.host,
-        config.port,
-    )
-
     if config.transport == "streamable-http":
         app = mcp.streamable_http_app()
         logger.info("Transport: streamable-http")
@@ -170,9 +177,10 @@ if __name__ == "__main__":
         app = mcp.sse_app()
         logger.info("Transport: sse")
 
+    origins = [o.strip() for o in config.allowed_origins.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -183,5 +191,12 @@ if __name__ == "__main__":
         logger.info("API token authentication enabled")
     else:
         logger.warning("No MCP_API_TOKEN set — server is open. Set MCP_API_TOKEN in .env for production.")
+
+    # Graceful shutdown on SIGTERM/SIGINT
+    def _shutdown_handler(signum, frame):
+        logger.info("Received signal %d, shutting down gracefully...", signum)
+
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+    signal.signal(signal.SIGINT, _shutdown_handler)
 
     uvicorn.run(app, host=config.host, port=config.port)

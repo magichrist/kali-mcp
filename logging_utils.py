@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from config import config
@@ -24,8 +25,13 @@ class JSONFormatter(logging.Formatter):
 
 
 def setup_logging() -> None:
-    """Configure structured logging to file and console."""
+    """Configure structured logging to file and console with rotation."""
     root = logging.getLogger("kali_mcp")
+
+    # Prevent duplicate handlers on re-init
+    if root.handlers:
+        return
+
     root.setLevel(logging.DEBUG if config.debug else logging.INFO)
 
     console = logging.StreamHandler()
@@ -34,13 +40,17 @@ def setup_logging() -> None:
     root.addHandler(console)
 
     log_file = config.log_dir / "server.log"
-    file_handler = logging.FileHandler(log_file)
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=10_000_000, backupCount=5  # 10MB, 5 backups
+    )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(JSONFormatter())
     root.addHandler(file_handler)
 
     exec_file = config.log_dir / "executions.jsonl"
-    exec_handler = logging.FileHandler(exec_file)
+    exec_handler = RotatingFileHandler(
+        exec_file, maxBytes=10_000_000, backupCount=5
+    )
     exec_handler.setLevel(logging.INFO)
     exec_handler.setFormatter(JSONFormatter())
     exec_logger = logging.getLogger("kali_mcp.executions")
@@ -50,9 +60,12 @@ def setup_logging() -> None:
 
 def log_execution(result) -> None:
     """Log a completed execution to the executions log."""
-    logger = logging.getLogger("kali_mcp.executions")
-    logger.info(
-        "tool=%s command=%s exit_code=%d success=%s duration=%.3fs timed_out=%s stdout_len=%d stderr_len=%d",
-        result.tool, result.command, result.exit_code, result.success,
-        result.duration, result.timed_out, len(result.stdout), len(result.stderr),
-    )
+    try:
+        logger = logging.getLogger("kali_mcp.executions")
+        logger.info(
+            "tool=%s command=%s exit_code=%d success=%s duration=%.3fs timed_out=%s",
+            result.tool, result.command, result.exit_code,
+            result.success, result.duration, result.timed_out,
+        )
+    except Exception:
+        pass  # Never let logging failure crash the handler

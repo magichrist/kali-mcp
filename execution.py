@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from typing import Any
 
 from config import config
@@ -22,6 +23,7 @@ class ExecutionEngine:
 
     def __init__(self) -> None:
         self._semaphore = asyncio.Semaphore(config.max_concurrent)
+        self._active: dict[str, str] = {}  # request_id → tool name
 
     async def execute(
         self,
@@ -30,26 +32,59 @@ class ExecutionEngine:
         timeout: int | None = None,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
+        request_id: str | None = None,
     ) -> ExecutionResult:
         """Execute a command and return structured result. Never raises."""
+        req_id = request_id or uuid.uuid4().hex[:12]
         effective_timeout = min(timeout or config.default_timeout, config.max_timeout)
         command = sanitize_command_parts(command)
         command_str = " ".join(command)
 
-        logger.info("executing tool=%s command=%s timeout=%d", tool, command_str, effective_timeout)
+        logger.info("request=%s executing tool=%s command=%s timeout=%d", req_id, tool, command_str, effective_timeout)
 
         start_time = utc_now_iso()
         start_monotonic = asyncio.get_event_loop().time()
 
         try:
             async with self._semaphore:
-                proc = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=cwd,
-                    env=env,
-                )
+                self._active[req_id] = tool
+                try:
+                    proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=cwd,
+                        env=env,
+                    )
+                except FileNotFoundError:
+                    elapsed = asyncio.get_event_loop().time() - start_monotonic
+                    return ExecutionResult(
+                        tool=tool, command=command_str, stdout="",
+                        stderr=f"Binary not found: {command[0]}",
+                        exit_code=-1, success=False, timed_out=False,
+                        duration=round(elapsed, 3),
+                        start_time=start_time, end_time=utc_now_iso(),
+                    )
+                except PermissionError:
+                    elapsed = asyncio.get_event_loop().time() - start_monotonic
+                    return ExecutionResult(
+                        tool=tool, command=command_str, stdout="",
+                        stderr=f"Permission denied: {command[0]}",
+                        exit_code=-1, success=False, timed_out=False,
+                        duration=round(elapsed, 3),
+                        start_time=start_time, end_time=utc_now_iso(),
+                    )
+                except OSError as e:
+                    elapsed = asyncio.get_event_loop().time() - start_monotonic
+                    return ExecutionResult(
+                        tool=tool, command=command_str, stdout="",
+                        stderr=f"OS error: {e}",
+                        exit_code=-1, success=False, timed_out=False,
+                        duration=round(elapsed, 3),
+                        start_time=start_time, end_time=utc_now_iso(),
+                    )
+                finally:
+                    self._active.pop(req_id, None)
 
                 timed_out = False
                 try:
@@ -66,7 +101,6 @@ class ExecutionEngine:
                 end_time = utc_now_iso()
                 duration = asyncio.get_event_loop().time() - start_monotonic
 
-                # Truncate output to prevent memory blowup
                 if stdout_bytes and len(stdout_bytes) > MAX_OUTPUT:
                     stdout_bytes = stdout_bytes[:MAX_OUTPUT] + b"\n... [truncated at 100KB]"
                 if stderr_bytes and len(stderr_bytes) > MAX_OUTPUT:
@@ -86,25 +120,38 @@ class ExecutionEngine:
                 )
 
                 log_execution(result)
+                logger.info(
+                    "request=%s tool=%s exit_code=%d success=%s duration=%.3fs timed_out=%s",
+                    req_id, tool, result.exit_code, result.success, result.duration, result.timed_out,
+                )
                 return result
 
-        except Exception as e:
-            # Last resort — never let an exception escape and crash the ASGI server
-            logger.exception("CRITICAL: execution engine failed for tool=%s", tool)
-            end_time = utc_now_iso()
-            duration = asyncio.get_event_loop().time() - start_monotonic
+        except asyncio.CancelledError:
+            logger.warning("request=%s execution cancelled", req_id)
+            elapsed = asyncio.get_event_loop().time() - start_monotonic
             return ExecutionResult(
-                tool=tool,
-                command=command_str,
-                stdout="",
-                stderr=f"Internal error: {e}",
-                exit_code=1,
-                success=False,
-                timed_out=False,
-                duration=duration,
-                start_time=start_time,
-                end_time=end_time,
+                tool=tool, command=command_str, stdout="",
+                stderr="Execution cancelled",
+                exit_code=-1, success=False, timed_out=False,
+                duration=round(elapsed, 3),
+                start_time=start_time, end_time=utc_now_iso(),
             )
+        except Exception as e:
+            elapsed = asyncio.get_event_loop().time() - start_monotonic
+            logger.exception("request=%s unexpected execution error", req_id)
+            return ExecutionResult(
+                tool=tool, command=command_str, stdout="",
+                stderr=f"Internal error: {type(e).__name__}",
+                exit_code=-1, success=False, timed_out=False,
+                duration=round(elapsed, 3),
+                start_time=start_time, end_time=utc_now_iso(),
+            )
+        finally:
+            self._active.pop(req_id, None)
+
+    @property
+    def active_count(self) -> int:
+        return len(self._active)
 
 
 engine = ExecutionEngine()

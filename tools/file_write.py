@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import os
+import json
 from typing import Any
 
 from tools.base import BaseTool
 from validation import validate_required
 from models import ExecutionResult, ToolError, utc_now_iso
 from responses import success_response, error_response
+
+# Allowed directories for file writes (configurable via env)
+import os as _os
+_ALLOWED_DIRS_ENV = _os.getenv("MCP_ALLOWED_WRITE_DIRS", "/home/kali,/tmp,/var/tmp,/root")
+ALLOWED_WRITE_DIRS = [d.strip() for d in _ALLOWED_DIRS_ENV.split(",") if d.strip()]
 
 
 class FileWriteTool(BaseTool):
@@ -59,6 +65,13 @@ class FileWriteTool(BaseTool):
         content = arguments["content"]
         if not isinstance(content, str):
             raise ValueError("Content must be a string")
+        # Path containment check
+        resolved = os.path.realpath(path)
+        if not any(resolved.startswith(d + "/") or resolved == d for d in ALLOWED_WRITE_DIRS):
+            raise ValueError(
+                f"Path not in allowed directories: {resolved}. "
+                f"Allowed: {', '.join(ALLOWED_WRITE_DIRS)}"
+            )
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         return ["true"]
@@ -82,7 +95,6 @@ class FileWriteTool(BaseTool):
 
             file_size = os.path.getsize(path)
 
-            import json
             result = ExecutionResult(
                 tool=self.name,
                 command=f"write {len(content)} bytes to {path}",
@@ -102,8 +114,14 @@ class FileWriteTool(BaseTool):
             )
 
             return success_response(result)
-        except Exception as e:
+
+        except PermissionError:
+            return error_response(ToolError(
+                error="Permission denied",
+                details=f"Cannot write to {path}",
+            ))
+        except OSError as e:
             return error_response(ToolError(
                 error="Write failed",
-                details=str(e),
+                details=f"{type(e).__name__}: {e}",
             ))
