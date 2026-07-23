@@ -141,7 +141,12 @@ if __name__ == "__main__":
         config.port,
     )
 
-    app = mcp.sse_app()
+    if config.transport == "streamable-http":
+        app = mcp.streamable_http_app()
+        logger.info("Transport: streamable-http")
+    else:
+        app = mcp.sse_app()
+        logger.info("Transport: sse")
 
     app.add_middleware(
         CORSMiddleware,
