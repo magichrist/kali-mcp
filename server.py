@@ -87,6 +87,9 @@ for tool_instance in ALL_TOOLS:
                         if isinstance(block, dict) and block.get("type") == "text":
                             return block["text"]
                 return json.dumps(result, indent=2)
+            except asyncio.CancelledError:
+                logger.warning("tool=%s request cancelled by client", t.name)
+                return json.dumps({"error": "Request cancelled"})
             except Exception as e:
                 logger.exception("Unhandled error in tool %s", t.name)
                 return json.dumps({"error": str(e)}, indent=2)
