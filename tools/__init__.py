@@ -25,6 +25,7 @@ from tools.arjun import ArjunTool
 from tools.whatweb import WhatwebTool
 from tools.dursgo import DursgoTool
 from tools.zighound import ZighoundTool
+from tools.searchsploit import SearchsploitTool
 
 ALL_TOOLS = [
     GenericCommandTool(),
@@ -52,4 +53,5 @@ ALL_TOOLS = [
     WhatwebTool(),
     DursgoTool(),
     ZighoundTool(),
+    SearchsploitTool(),
 ]
