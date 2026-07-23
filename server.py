@@ -105,7 +105,34 @@ def health_check() -> str:
     }, indent=2)
 
 
+class TokenAuthMiddleware:
+    """Check Bearer token or ?token= query param against configured API token."""
+
+    def __init__(self, app, token: str):
+        self.app = app
+        self.token = token
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and self.token:
+            from starlette.requests import Request
+            from starlette.responses import JSONResponse
+
+            request = Request(scope, receive)
+            auth = request.headers.get("authorization", "")
+            query_token = request.query_params.get("token", "")
+            provided = auth.removeprefix("Bearer ").strip() or query_token
+            if provided != self.token:
+                response = JSONResponse({"error": "Unauthorized"}, status_code=401)
+                await response(scope, receive, send)
+                return
+
+        await self.app(scope, receive, send)
+
+
 if __name__ == "__main__":
+    import uvicorn
+    from starlette.middleware.cors import CORSMiddleware
+
     logger.info(
         "Starting %s v%s on %s:%d",
         config.server_name,
@@ -114,11 +141,8 @@ if __name__ == "__main__":
         config.port,
     )
 
-    # Build the Starlette ASGI app with CORS so browsers can reach the SSE
-    # endpoint without getting 405 on OPTIONS preflight.
-    from starlette.middleware.cors import CORSMiddleware
-
     app = mcp.sse_app()
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -126,5 +150,11 @@ if __name__ == "__main__":
         allow_headers=["*"],
     )
 
-    import uvicorn
+    api_token = os.getenv("MCP_API_TOKEN", "")
+    if api_token:
+        app.add_middleware(TokenAuthMiddleware, token=api_token)
+        logger.info("API token authentication enabled")
+    else:
+        logger.warning("No MCP_API_TOKEN set — server is open. Set MCP_API_TOKEN in .env for production.")
+
     uvicorn.run(app, host=config.host, port=config.port)

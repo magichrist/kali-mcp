@@ -1,5 +1,6 @@
 # Kali MCP Server — Just Commands
 set dotenv-load
+
 # Show available commands
 default:
     @just --list
@@ -22,7 +23,7 @@ test:
 
 # Show server health (requires running server)
 health:
-    curl -s http://127.0.0.1:8399/health 2>/dev/null || echo "Server not running"
+    @curl -sf http://127.0.0.1:8399/sse -o /dev/null && echo "Server running" || echo "Server not running"
 
 # View logs
 logs:
@@ -34,10 +35,10 @@ exec-logs:
 
 # Clean build artifacts
 clean:
-    rm -rf mcp-server/logs/*.log mcp-server/logs/*.jsonl
-    rm -rf mcp-server/artifacts/*
+    rm -rf logs/*.log logs/*.jsonl
+    rm -rf artifacts/*
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
-# Show all registered tools (requires running server)
+# Show all registered tools
 tools:
     python -c "from tools import ALL_TOOLS; [print(f'  {t.name:20s} {t.description[:60]}') for t in ALL_TOOLS]"

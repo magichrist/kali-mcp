@@ -32,6 +32,9 @@ class Config:
     # Debug
     debug: bool = field(default_factory=lambda: os.getenv("MCP_DEBUG", "false").lower() in ("1", "true", "yes"))
 
+    # Auth
+    api_token: str = field(default_factory=lambda: os.getenv("MCP_API_TOKEN", ""))
+
     def __post_init__(self) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
