@@ -79,7 +79,7 @@ class GenericCommandTool(BaseTool):
 
         command_str = self.build_command(arguments)
         timeout = arguments.get("timeout", self.default_timeout)
-        cwd = arguments.get("cwd")
+        cwd = arguments.get("cwd") or None
         env = arguments.get("env")
 
         exec_env = os.environ.copy()

@@ -104,6 +104,9 @@ class ExecutionEngine:
         if not use_shell:
             command = sanitize_command_parts(command)
 
+        if cwd is not None and not cwd.strip():
+            cwd = None
+
         logger.info(
             "request=%s executing tool=%s command=%s timeout=%d shell=%s",
             req_id, tool, command_str, effective_timeout, use_shell,
