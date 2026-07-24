@@ -61,8 +61,8 @@ class Config:
     # CORS
     allowed_origins: str = field(default_factory=lambda: os.getenv("MCP_ALLOWED_ORIGINS", "*"))
 
-    # Rate limiting
-    rate_limit_per_minute: int = field(default_factory=lambda: _int_env("MCP_RATE_LIMIT", 60))
+    # Rate limiting (0 = unlimited)
+    rate_limit_per_minute: int = field(default_factory=lambda: _int_env("MCP_RATE_LIMIT", 0))
 
     def __post_init__(self) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)

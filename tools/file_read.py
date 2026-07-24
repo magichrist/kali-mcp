@@ -13,7 +13,7 @@ from responses import success_response, error_response
 
 # Allowed directories for file reads (configurable via env)
 import os as _os
-_ALLOWED_DIRS_ENV = _os.getenv("MCP_ALLOWED_READ_DIRS", "/home/kali,/tmp,/var/tmp,/root,/etc,/usr,/opt")
+_ALLOWED_DIRS_ENV = _os.getenv("MCP_ALLOWED_READ_DIRS", "")
 ALLOWED_READ_DIRS = [d.strip() for d in _ALLOWED_DIRS_ENV.split(",") if d.strip()]
 
 
@@ -61,13 +61,14 @@ class FileReadTool(BaseTool):
         path = arguments["path"]
         if not isinstance(path, str) or not path.strip():
             raise ValueError("Path must be a non-empty string")
-        # Path containment check
-        resolved = os.path.realpath(path)
-        if not any(resolved.startswith(d + "/") or resolved == d for d in ALLOWED_READ_DIRS):
-            raise ValueError(
-                f"Path not in allowed directories: {resolved}. "
-                f"Allowed: {', '.join(ALLOWED_READ_DIRS)}"
-            )
+        # Path containment check (skip if no dirs configured = unrestricted)
+        if ALLOWED_READ_DIRS:
+            resolved = os.path.realpath(path)
+            if not any(resolved.startswith(d + "/") or resolved == d for d in ALLOWED_READ_DIRS):
+                raise ValueError(
+                    f"Path not in allowed directories: {resolved}. "
+                    f"Allowed: {', '.join(ALLOWED_READ_DIRS)}"
+                )
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         return ["cat", arguments["path"]]

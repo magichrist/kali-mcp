@@ -13,7 +13,7 @@ from responses import success_response, error_response
 
 # Allowed directories for file writes (configurable via env)
 import os as _os
-_ALLOWED_DIRS_ENV = _os.getenv("MCP_ALLOWED_WRITE_DIRS", "/home/kali,/tmp,/var/tmp,/root")
+_ALLOWED_DIRS_ENV = _os.getenv("MCP_ALLOWED_WRITE_DIRS", "")
 ALLOWED_WRITE_DIRS = [d.strip() for d in _ALLOWED_DIRS_ENV.split(",") if d.strip()]
 
 
@@ -65,13 +65,14 @@ class FileWriteTool(BaseTool):
         content = arguments["content"]
         if not isinstance(content, str):
             raise ValueError("Content must be a string")
-        # Path containment check
-        resolved = os.path.realpath(path)
-        if not any(resolved.startswith(d + "/") or resolved == d for d in ALLOWED_WRITE_DIRS):
-            raise ValueError(
-                f"Path not in allowed directories: {resolved}. "
-                f"Allowed: {', '.join(ALLOWED_WRITE_DIRS)}"
-            )
+        # Path containment check (skip if no dirs configured = unrestricted)
+        if ALLOWED_WRITE_DIRS:
+            resolved = os.path.realpath(path)
+            if not any(resolved.startswith(d + "/") or resolved == d for d in ALLOWED_WRITE_DIRS):
+                raise ValueError(
+                    f"Path not in allowed directories: {resolved}. "
+                    f"Allowed: {', '.join(ALLOWED_WRITE_DIRS)}"
+                )
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         return ["true"]
