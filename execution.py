@@ -142,15 +142,20 @@ class ExecutionEngine:
                                 env=exec_env,
                             )
                     except FileNotFoundError:
-                        binary = command if use_shell else (command[0] if command else "unknown")
                         elapsed = time.monotonic() - start_monotonic
+                        if use_shell:
+                            binary = "/bin/bash"
+                            hint = "install it with 'apt install bash'"
+                        else:
+                            binary = command[0] if command else "unknown"
+                            hint = f"install it with 'apt install {binary}' or check PATH"
                         logger.warning(
                             "request=%s tool=%s binary not found: %s",
                             req_id, tool, binary,
                         )
                         result = ExecutionResult(
                             tool=tool, command=command_str, stdout="",
-                            stderr=f"Binary not found: {binary} — install it with 'apt install {binary}' or check PATH",
+                            stderr=f"Binary not found: {binary} — {hint}",
                             exit_code=-1, success=False, timed_out=False,
                             duration=round(elapsed, 3),
                             start_time=start_time, end_time=utc_now_iso(),
