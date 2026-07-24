@@ -113,8 +113,9 @@ class ExecutionEngine:
                 try:
                     try:
                         exec_env = env if env is not None else os.environ.copy()
-                        if "PATH" not in exec_env or not exec_env["PATH"].strip():
-                            exec_env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games"
+                        system_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games"
+                        existing = exec_env.get("PATH", "")
+                        exec_env["PATH"] = f"{existing}:{system_path}" if existing else system_path
                         proc = await asyncio.create_subprocess_exec(
                             *command,
                             stdout=asyncio.subprocess.PIPE,
@@ -124,20 +125,46 @@ class ExecutionEngine:
                         )
                     except FileNotFoundError as e:
                         binary = command[0] if command else "unknown"
-                        elapsed = time.monotonic() - start_monotonic
-                        logger.warning(
-                            "request=%s tool=%s binary not found: %s",
-                            req_id, tool, binary,
-                        )
-                        result = ExecutionResult(
-                            tool=tool, command=command_str, stdout="",
-                            stderr=f"Binary not found: {binary} — install it with 'apt install {binary}' or check PATH",
-                            exit_code=-1, success=False, timed_out=False,
-                            duration=round(elapsed, 3),
-                            start_time=start_time, end_time=utc_now_iso(),
-                        )
-                        log_execution(result)
-                        return result
+                        if os.path.exists(binary):
+                            shell_cmd = " ".join(command)
+                            try:
+                                proc = await asyncio.create_subprocess_shell(
+                                    shell_cmd,
+                                    stdout=asyncio.subprocess.PIPE,
+                                    stderr=asyncio.subprocess.PIPE,
+                                    cwd=cwd,
+                                    env=exec_env,
+                                )
+                            except Exception as e2:
+                                elapsed = time.monotonic() - start_monotonic
+                                logger.warning(
+                                    "request=%s tool=%s shell fallback failed: %s",
+                                    req_id, tool, e2,
+                                )
+                                result = ExecutionResult(
+                                    tool=tool, command=command_str, stdout="",
+                                    stderr=f"Binary exists but cannot execute: {binary} — {e2}",
+                                    exit_code=-1, success=False, timed_out=False,
+                                    duration=round(elapsed, 3),
+                                    start_time=start_time, end_time=utc_now_iso(),
+                                )
+                                log_execution(result)
+                                return result
+                        else:
+                            elapsed = time.monotonic() - start_monotonic
+                            logger.warning(
+                                "request=%s tool=%s binary not found: %s",
+                                req_id, tool, binary,
+                            )
+                            result = ExecutionResult(
+                                tool=tool, command=command_str, stdout="",
+                                stderr=f"Binary not found: {binary} — install it with 'apt install {binary}' or check PATH",
+                                exit_code=-1, success=False, timed_out=False,
+                                duration=round(elapsed, 3),
+                                start_time=start_time, end_time=utc_now_iso(),
+                            )
+                            log_execution(result)
+                            return result
 
                     try:
                         stdout_bytes, stderr_bytes = await asyncio.wait_for(
