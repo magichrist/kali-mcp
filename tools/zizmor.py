@@ -74,8 +74,9 @@ class ZizmorTool(BaseTool):
 
         cmd.append(arguments["target"])
 
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
 
         gh_token = os.getenv("GH_TOKEN", "")
         if gh_token:

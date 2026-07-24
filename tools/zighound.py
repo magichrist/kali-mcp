@@ -119,8 +119,9 @@ class ZighoundTool(BaseTool):
             if arguments.get("install"):
                 cmd.append("--install")
 
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
 
         return cmd
 

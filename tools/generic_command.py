@@ -66,7 +66,9 @@ class GenericCommandTool(BaseTool):
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         """Wrap command in bash -c so pipes, redirects, &&, etc. work."""
-        return ["bash", "-c", arguments["command"]]
+        import shutil
+        bash = shutil.which("bash") or "/bin/bash"
+        return [bash, "-c", arguments["command"]]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         try:

@@ -42,8 +42,9 @@ class BloodhoundTool(BaseTool):
         cmd = ["bloodhound-python", "-c", arguments.get("collection", "All")]
         if "domain" in arguments:
             cmd.extend(["-d", arguments["domain"]])
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

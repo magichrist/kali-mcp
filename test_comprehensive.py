@@ -751,7 +751,7 @@ def test_command_building():
 
     # generic_command wraps in bash -c
     cmd = tool_map["generic_command"].build_command({"command": "echo hi"})
-    check("generic: bash -c wrapper", cmd[0] == "bash" and cmd[1] == "-c" and cmd[2] == "echo hi")
+    check("generic: bash -c wrapper", cmd[0].endswith("bash") and cmd[1] == "-c" and cmd[2] == "echo hi")
 
     # python_command uses python3
     cmd = tool_map["python_command"].build_command({"code": "print(1)"})

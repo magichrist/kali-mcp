@@ -91,16 +91,21 @@ class SearchsploitTool(BaseTool):
         if arguments.get("exclude"):
             cmd.extend(["--exclude", arguments["exclude"]])
 
-        if "cve" in arguments and arguments["cve"].strip():
-            cmd.extend(["--cve", arguments["cve"].strip()])
-        elif "edb_id" in arguments and arguments["edb_id"].strip():
-            cmd.extend(["-p", arguments["edb_id"].strip()])
+        cve = arguments.get("cve")
+        if cve and cve.strip():
+            cmd.extend(["--cve", cve.strip()])
 
-        if "query" in arguments and arguments["query"].strip():
-            cmd.extend(shlex.split(arguments["query"]))
+        edb_id = arguments.get("edb_id")
+        if edb_id and edb_id.strip():
+            cmd.extend(["-p", edb_id.strip()])
 
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+        query = arguments.get("query")
+        if query and query.strip():
+            cmd.extend(shlex.split(query))
+
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
 
         return cmd
 

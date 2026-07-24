@@ -136,8 +136,9 @@ class DursgoTool(BaseTool):
         if arguments.get("insecure"):
             cmd.append("-insecure")
 
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
 
         return cmd
 

@@ -50,8 +50,9 @@ class ArjunTool(BaseTool):
         cmd = ["arjun", "-u", arguments["target"], "-m", arguments.get("method", "GET")]
         if "wordlist" in arguments:
             cmd.extend(["-w", arguments["wordlist"]])
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

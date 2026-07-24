@@ -56,13 +56,11 @@ class NaabuTool(BaseTool):
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["naabu", "-host", arguments["target"]]
-        if "ports" in arguments:
+        if arguments.get("ports"):
             cmd.extend(["-p", arguments["ports"]])
-        scan = arguments.get("scan_type", "syn")
-        if scan == "syn":
-            cmd.append("-s")
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

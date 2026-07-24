@@ -48,8 +48,9 @@ class AmassTool(BaseTool):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         mode = arguments.get("mode", "enum")
         cmd = ["amass", mode, "-d", arguments["domain"]]
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

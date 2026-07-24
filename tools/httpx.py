@@ -41,13 +41,15 @@ class HttpxTool(BaseTool):
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["httpx"]
-        if "input_file" in arguments:
+        if arguments.get("input_file"):
             cmd.extend(["-l", arguments["input_file"]])
-        else:
+        elif arguments.get("target"):
             cmd.extend(["-u", arguments["target"]])
-            cmd.extend(shlex.split(arguments.get("scan_type", "-status-code -title -tech-detect")))
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
+            scan_type = arguments.get("scan_type") or "-status-code -title -tech-detect"
+            cmd.extend(shlex.split(scan_type))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

@@ -52,8 +52,9 @@ class NucleiTool(BaseTool):
             cmd.extend(["-t", arguments["templates"]])
         if "severity" in arguments:
             cmd.extend(["-severity", arguments["severity"]])
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

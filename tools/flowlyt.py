@@ -68,8 +68,9 @@ class FlowlytTool(BaseTool):
 
         cmd.append(arguments["repo"])
 
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments["extra_args"]))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
 
         return cmd
 

@@ -57,8 +57,9 @@ class NmapTool(BaseTool):
         cmd.append(arguments.get("scan_type", "-sV"))
         if "ports" in arguments:
             cmd.extend(["-p", arguments["ports"]])
-        if "extra_args" in arguments:
-            cmd.extend(shlex.split(arguments.get("extra_args") or ""))
+        extra = arguments.get("extra_args")
+        if extra:
+            cmd.extend(shlex.split(extra))
         cmd.append(arguments["target"])
         return cmd
 
