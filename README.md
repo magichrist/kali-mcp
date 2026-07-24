@@ -32,262 +32,228 @@ Copy `.env` and adjust values:
 | `MCP_ARTIFACT_DIR` | `artifacts` | Command output artifacts |
 | `MCP_DEBUG` | `false` | Enable verbose debug logging |
 
-## Available Tools (23)
+## Available Tools (30)
 
-### Reconnaissance
+### General Execution
 
 | Tool | Description |
 |------|-------------|
-| `nmap` | Network port scanner with service/version detection |
+| `generic_command` | Execute arbitrary shell commands on the Kali machine — the escape hatch for any tool not wrapped natively |
+| `python_command` | Execute Python scripts directly on the Kali machine — access any installed Python library (scapy, impacket, requests, etc.) |
+| `file_read` | Read files from the Kali machine |
+| `file_write` | Write/create files on the Kali machine |
+| `file_download` | Generate download links for files on the Kali machine |
+
+### Reconnaissance & Enumeration
+
+| Tool | Description |
+|------|-------------|
+| `nmap` | Network port scanner with service/version detection and NSE scripts |
 | `naabu` | Fast TCP/UDP port scanner (SYN scan support) |
-| `subfinder` | Passive subdomain discovery |
-| `amass` | Attack surface mapping and subdomain enumeration |
+| `subfinder` | Passive subdomain discovery from multiple sources |
+| `amass` | Attack surface mapping and deep subdomain enumeration |
 | `theharvester` | Email, subdomain, and name harvesting from public sources |
 | `spiderfoot` | OSINT automation and reconnaissance |
 | `katana` | Web crawler and URL discovery |
+| `farsight` | Domain intelligence — recon, asset discovery, threat intel, typosquat detection |
+| `whatweb` | Web technology fingerprinting — CMS, frameworks, libraries, plugins |
 
-### Web Application
+### Web Application Testing
 
 | Tool | Description |
 |------|-------------|
 | `httpx` | HTTP probing, technology detection, and web recon |
-| `nuclei` | Template-based vulnerability scanner |
-| `ffuf` | Web fuzzer — directory discovery, parameter fuzzing |
-| `whatweb` | Web technology fingerprinting (CMS, frameworks, libraries) |
-| `arjun` | HTTP parameter discovery — finds hidden GET/POST/JSON params |
-
-### Vulnerability Assessment
-
-| Tool | Description |
-|------|-------------|
+| `nuclei` | Template-based vulnerability scanner with severity filtering |
+| `ffuf` | Web fuzzer — directory discovery, parameter fuzzing, vhost enumeration |
+| `dursgo` | Full web app security scanner — XSS, SQLi, LFI, SSRF, IDOR, CSRF, CMDi, SSTI, CORS, file upload, BOLA, mass assignment, GraphQL, DOM XSS, subdomain discovery |
+| `arjun` | HTTP parameter discovery — finds hidden GET/POST/JSON parameters |
 | `sqlmap` | SQL injection detection and exploitation |
 | `commix` | Command injection detection and exploitation |
-| `wpscan` | WordPress vulnerability scanner |
-
-### Active Directory
-
-| Tool | Description |
-|------|-------------|
+| `wpscan` | WordPress vulnerability scanning and enumeration |
 | `enum4linux` | SMB/Samba enumeration |
-| `netexec` | Network protocol execution (SMB, WinRM, SSH, LDAP, RDP) |
-| `crackmapexec` | Legacy CME wrapper (routes to netexec if unavailable) |
-| `bloodhound` | SharpHound/BloodHound AD collection |
 
-### File Operations
+### Network & Infrastructure
 
 | Tool | Description |
 |------|-------------|
-| `file_read` | Read files from the Kali machine with offset and truncation support |
-| `file_write` | Create/write files on the Kali machine (auto-creates directories) |
+| `netexec` | Network protocol execution — SMB, WinRM, SSH, LDAP, RDP, MSSQL, FTP |
+| `crackmapexec` | Network authentication testing and exploitation |
+| `bloodhound` | Active Directory enumeration and attack path analysis |
 
-### Generic Execution
+### Security Analysis & Audit
 
 | Tool | Description |
 |------|-------------|
-| `generic_command` | Execute arbitrary shell commands (pipes, redirects, `&&` supported) |
-| `python_command` | Execute Python code directly (imports, loops, data processing) |
+| `searchsploit` | Exploit-DB search — by keyword, CVE, or EDB-ID with exploit details |
+| `flowlyt` | CI/CD pipeline security analyzer for GitHub/GitLab/Bitbucket workflows |
+| `zizmor` | GitHub Actions workflow static security auditor |
+| `zighound` | Red team network framework — network scanning, C2 listener, agent deployment, evasion simulation |
 
-## Adding a New Tool
+## Tool Details
 
-Creating a new tool takes ~30 lines. Here's the full process:
+### generic_command
 
-### 1. Create the tool file
+The escape hatch for any command not covered by a native tool. Runs shell commands directly on the Kali machine.
 
-Create `mcp-server/tools/your_tool.py`:
-
-```python
-"""YourTool description."""
-
-from __future__ import annotations
-from typing import Any
-
-from tools.base import BaseTool
-from execution import engine
-from validation import validate_required, validate_timeout
-from models import ToolError
-from responses import success_response, error_response
-
-
-class YourTool(BaseTool):
-    @property
-    def name(self) -> str:
-        return "yourtool"  # CLI name of the tool on the Kali machine
-
-    @property
-    def description(self) -> str:
-        return "Human-readable description shown to the AI agent."
-
-    @property
-    def default_timeout(self) -> int:
-        return 300  # seconds
-
-    def input_schema(self) -> dict[str, Any]:
-        """JSON Schema for tool parameters. Becomes the tool's input contract."""
-        return {
-            "type": "object",
-            "properties": {
-                "target": {
-                    "type": "string",
-                    "description": "What to scan",
-                },
-                "extra_args": {
-                    "type": "string",
-                    "description": "Additional CLI arguments (e.g. '-v --output json')",
-                },
-                "timeout": {
-                    "type": "integer",
-                    "description": "Timeout in seconds",
-                    "default": 300,
-                },
-            },
-            "required": ["target"],
-        }
-
-    def validate(self, arguments: dict[str, Any]) -> None:
-        """Validate inputs before building command. Raise ValueError on bad input."""
-        validate_required(arguments, "target")
-        if "timeout" in arguments:
-            validate_timeout(arguments["timeout"])
-
-    def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        """Convert validated arguments into a command list (no shell injection)."""
-        cmd = ["yourtool", arguments["target"]]
-        if "extra_args" in arguments:
-            cmd.extend(arguments["extra_args"].split())
-        return cmd
-
-    async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        """Run the tool via the execution engine."""
-        try:
-            self.validate(arguments)
-        except ValueError as e:
-            return error_response(ToolError(error="Validation error", details=str(e)))
-
-        result = await engine.execute(
-            command=self.build_command(arguments),
-            tool=self.name,
-            timeout=arguments.get("timeout", self.default_timeout),
-        )
-        return success_response(result)
+```json
+{
+  "command": "nmap -sV 10.0.0.1",
+  "timeout": 300,
+  "cwd": "/tmp"
+}
 ```
 
-### 2. Register it
+- Supports full bash scripting: pipes, redirects, here docs, functions, arrays, arithmetic
+- Returns structured output: stdout, stderr, exit code, timing
+- Timeout protection prevents hung commands
 
-Add to `mcp-server/tools/__init__.py`:
+### python_command
 
-```python
-from tools.your_tool import YourTool  # add this import
+Execute Python scripts on the Kali machine. This is a superpower — any Python library installed on the system is available.
+
+```json
+{
+  "code": "import requests; r = requests.get('https://example.com'); print(r.status_code, len(r.text))"
+}
 ```
 
-And append to `ALL_TOOLS`:
+- Runs as a standalone Python process with its own timeout
+- Full access to system Python libraries
+- Supports multi-line scripts with functions, classes, imports
 
-```python
-ALL_TOOLS = [
-    # ... existing tools ...
-    YourTool(),  # add this line
-]
+### nmap
+
+Network port scanner with full Nmap feature support.
+
+```json
+{
+  "target": "10.0.0.1",
+  "scan_type": "-sV -sC",
+  "ports": "1-1000",
+  "extra_args": "--script vuln"
+}
 ```
 
-### 3. Verify
+### nuclei
 
-```bash
-cd mcp-server
-python3 -c "from tools.your_tool import YourTool; t = YourTool(); print(t.name, t.description)"
-just test  # run smoke tests
+Template-based vulnerability scanner. Scan targets against the full Nuclei template library.
+
+```json
+{
+  "target": "https://example.com",
+  "templates": "cves/",
+  "severity": "critical,high"
+}
 ```
 
-That's it. The server auto-registers it on next start.
+### dursgo
 
-## Available Validators
+Comprehensive web application security scanner with AI-powered analysis. Covers 16+ vulnerability classes in a single scan.
 
-Use these in your `validate()` method:
-
-| Validator | Usage |
-|-----------|-------|
-| `validate_required(args, "field")` | Ensure field is present |
-| `validate_ip("10.0.0.1")` | Validate IPv4 address |
-| `validate_cidr("10.0.0.0/24")` | Validate CIDR notation |
-| `validate_domain("example.com")` | Validate domain name |
-| `validate_url("https://example.com")` | Validate full URL |
-| `validate_enum(value, ["a","b"])` | Validate against allowed values |
-| `validate_timeout(seconds)` | Validate timeout bounds |
-| `validate_ports("80,443,1-1024")` | Validate port specification |
+```json
+{
+  "target": "https://example.com",
+  "scanners": "xss,sqli,lfi,ssrf,csrf",
+  "render_js": true,
+  "enable_ai": true,
+  "enrich": true
+}
+```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│  AI Agent (Claude, GPT, Gemini, etc.)           │
-└────────────────────┬────────────────────────────┘
-                     │ MCP (SSE)
-┌────────────────────▼────────────────────────────┐
-│  FastMCP Server (server.py)                     │
-│  ┌──────────────┐  ┌─────────────────────────┐  │
-│  │ ToolRegistry │  │ Health Check             │  │
-│  └──────┬───────┘  └─────────────────────────┘  │
-│         │                                        │
-│  ┌──────▼──────────────────────────────────┐     │
-│  │ Tools (20 native + generic_command)     │     │
-│  │  validate → build_command → execute     │     │
-│  └──────┬──────────────────────────────────┘     │
-│         │                                        │
-│  ┌──────▼──────────────────────────────────┐     │
-│  │ ExecutionEngine (async subprocess)      │     │
-│  │  semaphore → run → log → return         │     │
-│  └──────┬──────────────────────────────────┘     │
-│         │                                        │
-│  ┌──────▼──────────────────────────────────┐     │
-│  │ Structured JSON Response                │     │
-│  │  stdout, stderr, exit_code, timing      │     │
-│  └─────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    MCP Client (AI Agent)                 │
+└───────────────────────┬─────────────────────────────────┘
+                        │ HTTP/SSE
+┌───────────────────────▼─────────────────────────────────┐
+│                  Kali MCP Server (:8399)                 │
+│  ┌──────────┐  ┌──────────────┐  ┌───────────────────┐  │
+│  │ Security │  │   Execution  │  │   Tool Registry   │  │
+│  │          │  │   Engine     │  │                   │  │
+│  │ Allowlist│  │ ┌──────────┐ │  │ 30 tools with    │  │
+│  │ Input    │→ │ │ asyncio  │ │  │ validated schemas │  │
+│  │ Validate │  │ │ timeout  │ │  │                   │  │
+│  │ Sanitize │  │ │ watchdog │ │  └───────────────────┘  │
+│  │ Block    │  │ │ semaphor │ │                         │
+│  └──────────┘  │ └──────────┘ │                         │
+│                └──────┬───────┘                         │
+│                       │ subprocess                      │
+│                ┌──────▼───────┐                         │
+│                │  Kali Linux  │                         │
+│                │  30 tools    │                         │
+│                └──────────────┘                         │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Just Commands
+### Security Layers
+
+1. **Allowlist** — Commands must match a strict allowlist pattern
+2. **Input Validation** — Arguments validated against JSON schemas
+3. **Shell Injection Prevention** — All arguments sanitized before execution
+4. **Timeout Protection** — 3-layer defense: asyncio timeout, watchdog thread, semaphore
+5. **Output Truncation** — stdout/stderr capped at 100KB to prevent memory exhaustion
+
+### Resilience
+
+- **3-layer timeout defense**: asyncio.wait_for → watchdog thread → semaphore
+- **Automatic process cleanup**: Zombie processes killed via process tree termination
+- **Concurrent execution limits**: Semaphore prevents resource exhaustion
+- **Graceful degradation**: All errors return structured responses, never crash
+
+## Directory Structure
 
 ```
-just install    — Install Python dependencies
-just start      — Start the server (foreground)
-just debug      — Start with debug logging
-just test       — Run smoke tests
-just health     — Check if server is running
-just logs       — Tail server logs
-just exec-logs  — Tail execution audit logs
-just tools      — List all registered tools
-just clean      — Clear logs and artifacts
-```
-
-## Project Structure
-
-```
-mcp-server/
-├── server.py              ← Entry point — FastMCP SSE server
-├── config.py              ← Environment-based configuration
-├── models.py              ← ExecutionResult, ToolError dataclasses
-├── execution.py           ← Async subprocess execution engine
-├── validation.py          ← Input validators (IP, domain, URL, etc.)
-├── logging_utils.py       ← Structured JSON logging
-├── responses.py           ← MCP response builders
-├── security.py            ← Command sanitization
-├── registry.py            ← Tool name → instance registry
-├── requirements.txt       ← Python dependencies
-├── test_server.py         ← Smoke tests
-├── tools/
-│   ├── __init__.py        ← Auto-imports all tools
-│   ├── base.py            ← BaseTool abstract class
-│   ├── generic_command.py ← Escape hatch
-│   ├── nmap.py            ├── naabu.py
-│   ├── httpx.py           ├── nuclei.py
-│   ├── ffuf.py            ├── katana.py
-│   ├── subfinder.py       ├── amass.py
-│   ├── sqlmap.py          ├── commix.py
-│   ├── wpscan.py          ├── whatweb.py
-│   ├── arjun.py           ├── enum4linux.py
-│   ├── netexec.py         ├── crackmapexec.py
-│   ├── bloodhound.py      ├── theharvester.py
-│   └── spiderfoot.py
+kali-mcp/
+├── server.py              ← HTTP/SSE server, tool dispatch, health monitor
+├── execution.py           ← 3-layer hardened execution engine
+├── security.py            ← Allowlist, input validation, shell injection prevention
+├── config.py              ← Configuration loading with validation
+├── models.py              ← ExecutionResult, ToolError, ToolDefinition dataclasses
+├── responses.py           ← Standardized JSON response builders
+├── registry.py            ← Tool registration and lookup
+├── logging_utils.py       ← Structured logging with execution tracking
 ├── utils/
-│   └── process.py         ← Kill process tree helper
-├── logs/                  ← Runtime logs
-└── artifacts/             ← Command output artifacts
+│   └── process.py         ← Process tree cleanup
+├── tools/
+│   ├── __init__.py        ← Tool registration
+│   ├── base.py            ← BaseTool ABC — all tools extend this
+│   ├── generic_command.py ← GenericCommandTool — shell escape hatch
+│   ├── python_command.py  ← PythonCommandTool — Python execution
+│   ├── file_read.py       ← FileReadTool — file reading
+│   ├── file_write.py      ← FileWriteTool — file writing
+│   ├── file_download.py   ← FileDownloadTool — file download links
+│   ├── nmap.py            ← NmapTool — port scanner
+│   ├── httpx.py           ← HttpxTool — HTTP probing
+│   ├── nuclei.py          ← NucleiTool — vuln scanner
+│   ├── ffuf.py            ← FfufTool — web fuzzer
+│   ├── katana.py          ← KatanaTool — web crawler
+│   ├── subfinder.py       ← SubfinderTool — subdomain discovery
+│   ├── amass.py           ← AmassTool — attack surface mapping
+│   ├── sqlmap.py          ← SqlmapTool — SQL injection
+│   ├── commix.py          ← CommixTool — command injection
+│   ├── wpscan.py          ← WpscanTool — WordPress scanner
+│   ├── enum4linux.py      ← Enum4linuxTool — SMB enumeration
+│   ├── netexec.py         ← NetexecTool — network protocol execution
+│   ├── crackmapexec.py    ← CrackmapexecTool — network auth testing
+│   ├── bloodhound.py      ← BloodhoundTool — AD enumeration
+│   ├── theharvester.py    ← TheharvesterTool — OSINT harvesting
+│   ├── spiderfoot.py      ← SpiderfootTool — OSINT automation
+│   ├── naabu.py           ← NaabuTool — fast port scanner
+│   ├── arjun.py           ← ArjunTool — parameter discovery
+│   ├── whatweb.py         ← WhatwebTool — technology fingerprinting
+│   ├── dursgo.py          ← DursgoTool — web app scanner
+│   ├── zighound.py        ← ZighoundTool — red team framework
+│   ├── searchsploit.py    ← SearchsploitTool — exploit search
+│   ├── farsight.py        ← FarsightTool — domain intelligence
+│   ├── flowlyt.py         ← FlowlytTool — CI/CD security
+│   └── zizmor.py          ← ZizmorTool — GitHub Actions audit
+├── tests/
+├── logs/
+├── artifacts/
+├── .env
+├── justfile
+├── pyproject.toml
+└── uv.lock
 ```
