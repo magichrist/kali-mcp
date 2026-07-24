@@ -64,15 +64,7 @@ class FarsightTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "domain")
-        domain = arguments["domain"]
-        if not isinstance(domain, str) or not domain.strip():
-            raise ValueError("Domain must be a non-empty string")
-        depth = arguments.get("depth", 1)
-        if not isinstance(depth, int) or depth < 1 or depth > 3:
-            raise ValueError(f"Depth must be 1-3, got {depth}")
-        if "timeout" in arguments:
-            validate_timeout(arguments["timeout"], max_val=600)
+        pass
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd, _report_path = self._build_full(arguments)

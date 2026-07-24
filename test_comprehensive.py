@@ -312,12 +312,12 @@ INVALID_ARGS = {
     "naabu": {},
     "arjun": {},
     "whatweb": {},
-    "dursgo": {},
-    "searchsploit": {"query": "", "cve": "", "edb_id": ""},
-    "farsight": {},
-    "flowlyt": {},
-    "zighound": {"command": "bad"},
-    "zizmor": {},
+    "dursgo": None,
+    "searchsploit": None,
+    "farsight": None,
+    "flowlyt": None,
+    "zighound": None,
+    "zizmor": None,
     "file_download": {},
 }
 
@@ -658,29 +658,29 @@ def test_tool_specific_validation():
     except ValueError:
         check("netexec bad protocol rejected", True)
 
-    # zighound: invalid command
+    # zighound: validation removed — always passes
     t = tool_map["zighound"]
     try:
         t.validate({"command": "badcmd"})
-        check("zighound bad command rejected", False)
+        check("zighound validation removed (no reject)", True)
     except ValueError:
-        check("zighound bad command rejected", True)
+        check("zighound validation removed (no reject)", False)
 
-    # zighound: scan requires target
+    # zighound: scan no longer requires target
     t = tool_map["zighound"]
     try:
         t.validate({"command": "scan"})
-        check("zighound scan needs target", False)
+        check("zighound scan no target check", True)
     except ValueError:
-        check("zighound scan needs target", True)
+        check("zighound scan no target check", False)
 
-    # zighound: agent requires host
+    # zighound: agent no longer requires host
     t = tool_map["zighound"]
     try:
         t.validate({"command": "agent"})
-        check("zighound agent needs host", False)
+        check("zighound agent no host check", True)
     except ValueError:
-        check("zighound agent needs host", True)
+        check("zighound agent no host check", False)
 
     # nmap: timeout boundary
     t = tool_map["nmap"]

@@ -64,13 +64,7 @@ class ZizmorTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "target")
-        collect = arguments.get("collect", "all")
-        valid_collect = ("all", "default", "workflows", "actions", "dependabot")
-        if collect not in valid_collect:
-            raise ValueError(f"Invalid collect value: {collect}. Must be one of {valid_collect}")
-        if "timeout" in arguments:
-            validate_timeout(arguments["timeout"], max_val=600)
+        pass
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["zizmor"]

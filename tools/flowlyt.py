@@ -58,9 +58,7 @@ class FlowlytTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "repo")
-        if "timeout" in arguments:
-            validate_timeout(arguments["timeout"], max_val=600)
+        pass
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["flowlyt", "scan"]

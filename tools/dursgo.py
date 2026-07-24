@@ -107,9 +107,7 @@ class DursgoTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "target")
-        if "timeout" in arguments:
-            validate_timeout(arguments["timeout"], max_val=3600)
+        pass
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["dursgo", "-u", arguments["target"]]

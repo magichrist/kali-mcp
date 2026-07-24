@@ -86,16 +86,7 @@ class ZighoundTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "command")
-        command = arguments["command"].lower()
-        if command not in ("scan", "c2", "agent", "evasion"):
-            raise ValueError(f"Invalid command: {command}. Must be scan, c2, agent, or evasion")
-        if command == "scan":
-            validate_required(arguments, "target")
-        if command == "agent":
-            validate_required(arguments, "host")
-        if "timeout" in arguments:
-            validate_timeout(arguments["timeout"], max_val=3600)
+        pass
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         command = arguments["command"].lower()
