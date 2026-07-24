@@ -272,7 +272,7 @@ TOOL_ARGS = {
     "enum4linux": {"target": "127.0.0.1"},
     "netexec": {"target": "127.0.0.1", "protocol": "smb"},
     "crackmapexec": {"target": "127.0.0.1", "protocol": "smb"},
-    "bloodhound": {},
+    "bloodhound": {"domain": "corp.local"},
     "theharvester": {"domain": "example.com"},
     "spiderfoot": {"target": "127.0.0.1"},
     "naabu": {"target": "127.0.0.1"},
@@ -284,6 +284,7 @@ TOOL_ARGS = {
     "flowlyt": {"repo": "owner/repo"},
     "zighound": {"command": "scan", "target": "127.0.0.1"},
     "zizmor": {"target": "owner/repo"},
+    "file_download": {"server_path": "/etc/hosts"},
 }
 
 # Arguments that should FAIL validation
@@ -305,7 +306,7 @@ INVALID_ARGS = {
     "enum4linux": {},
     "netexec": {"target": "1.2.3.4"},
     "crackmapexec": {"target": "1.2.3.4"},
-    "bloodhound": None,  # no invalid — everything optional
+    "bloodhound": {},  # domain is required
     "theharvester": {},
     "spiderfoot": {},
     "naabu": {},
@@ -317,6 +318,7 @@ INVALID_ARGS = {
     "flowlyt": {},
     "zighound": {"command": "bad"},
     "zizmor": {},
+    "file_download": {},
 }
 
 
@@ -325,8 +327,8 @@ def test_all_tool_schemas():
     from tools import ALL_TOOLS
 
     names = {t.name for t in ALL_TOOLS}
-    check("29 tools loaded", len(ALL_TOOLS) == 29, f"got {len(ALL_TOOLS)}")
-    check("no duplicate names", len(names) == 29)
+    check("30 tools loaded", len(ALL_TOOLS) == 30, f"got {len(ALL_TOOLS)}")
+    check("no duplicate names", len(names) == 30)
 
     for t in ALL_TOOLS:
         schema = t.input_schema()
@@ -696,13 +698,13 @@ def test_tool_specific_validation():
     except ValueError:
         check("ffuf needs wordlist", True)
 
-    # bloodhound: no required params — always valid
+    # bloodhound: domain is now required
     t = tool_map["bloodhound"]
     try:
         t.validate({})
-        check("bloodhound empty args valid", True)
+        check("bloodhound empty args rejected", False)
     except ValueError:
-        check("bloodhound empty args valid", False)
+        check("bloodhound empty args rejected", True)
 
     # searchsploit: no required params in schema, but validate enforces at least one
     t = tool_map["searchsploit"]

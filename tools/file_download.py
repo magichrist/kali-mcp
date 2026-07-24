@@ -75,7 +75,7 @@ class FileDownloadTool(BaseTool):
             raise ValueError(f"File not found: {path}")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        return []
+        return ["file_download", arguments.get("server_path", "")]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         try:
