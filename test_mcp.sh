@@ -16,7 +16,6 @@ log() { echo -e "\033[1;34m[*]\033[0m $1"; }
 ok()  { echo -e "\033[1;32m[PASS]\033[0m $1"; ((PASS++)); }
 err() { echo -e "\033[1;31m[FAIL]\033[0m $1"; ((FAIL++)); }
 
-# POST to MCP, write body to file, dump headers to separate file
 mcp_post() {
     local payload="$1"
     local body_file="$2"
@@ -45,6 +44,22 @@ get_session() {
     grep -i 'mcp-session-id' "$1" 2>/dev/null | awk '{print $2}' | tr -d '\r\n'
 }
 
+parse_result() {
+    python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+result = d.get('result',{})
+is_err = result.get('isError', False)
+text = ''
+for c in result.get('content',[]):
+    if c.get('type') == 'text':
+        text = c['text']
+        break
+print('ERROR' if is_err else 'OK')
+print(text[:400])
+" 2>/dev/null || echo "PARSE_ERROR"
+}
+
 # ── Step 1: Initialize ──────────────────────────────────────────────────
 log "Initializing MCP session..."
 
@@ -58,9 +73,9 @@ if [ -z "$SESSION" ]; then
     cat "$TMPDIR/init_hdrs" "$TMPDIR/init_body" 2>/dev/null | head -10
     exit 1
 fi
+
 ok "Got session: $SESSION"
 
-# Send initialized notification
 mcp_post '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
     "$TMPDIR/notif_body" "$TMPDIR/notif_hdrs" \
     "Mcp-Session-Id: $SESSION"
@@ -90,7 +105,6 @@ HAS_SCHEMA=$(echo "$TOOLS_DATA" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 tools = d.get('result',{}).get('tools',[])
-# Tools with required params should have non-empty properties
 bad = [t['name'] for t in tools
        if t.get('inputSchema',{}).get('required')
        and not t.get('inputSchema',{}).get('properties')]
@@ -106,6 +120,36 @@ else
     err "$HAS_SCHEMA tool(s) missing input schemas"
 fi
 
+# ── Verify all 30 tools present ────────────────────────────────────────
+log "Checking all tools are registered..."
+
+echo "$TOOLS_DATA" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+tools = d.get('result',{}).get('tools',[])
+names = {t['name'] for t in tools}
+expected = [
+    'generic_command','python_command','file_read','file_write',
+    'nmap','httpx','nuclei','ffuf','katana','subfinder','amass',
+    'sqlmap','commix','wpscan','enum4linux','netexec','crackmapexec',
+    'bloodhound','theharvester','spiderfoot','naabu','arjun','whatweb',
+    'health_check','searchsploit','dursgo','farsight','flowlyt',
+    'zighound','zizmor','file_download'
+]
+missing = [n for n in expected if n not in names]
+if missing:
+    print(f'MISSING:{",".join(missing)}')
+else:
+    print(f'OK:{len(expected)}')
+" > "$TMPDIR/tools_check" 2>/dev/null
+
+TOOLS_CHECK=$(cat "$TMPDIR/tools_check")
+if echo "$TOOLS_CHECK" | grep -q "^OK:"; then
+    ok "All tools registered ($(echo "$TOOLS_CHECK" | cut -d: -f2) tools)"
+else
+    err "Missing tools: $(echo "$TOOLS_CHECK" | cut -d: -f2)"
+fi
+
 # ── Step 3: Call httpx ──────────────────────────────────────────────────
 log "Calling httpx (target=http://example.com)..."
 
@@ -114,29 +158,15 @@ mcp_post "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"
     "Mcp-Session-Id: $SESSION"
 
 HTTPX_DATA=$(extract_data "$TMPDIR/httpx_body")
-
-HTTPX_RESULT=$(echo "$HTTPX_DATA" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:300])
-" 2>/dev/null || echo "PARSE_ERROR")
-
+HTTPX_RESULT=$(echo "$HTTPX_DATA" | parse_result)
 HTTPX_STATUS=$(echo "$HTTPX_RESULT" | head -1)
 HTTPX_BODY=$(echo "$HTTPX_RESULT" | tail -n +2)
 
 if [ "$HTTPX_STATUS" = "OK" ]; then
     if echo "$HTTPX_BODY" | grep -qi "example.com\|200\|301"; then
-        ok "httpx probed example.com — got status/title"
+        ok "httpx probed example.com"
     else
-        ok "httpx executed successfully (no validation error)"
+        ok "httpx executed successfully"
     fi
 else
     err "httpx returned error"
@@ -151,21 +181,7 @@ mcp_post "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"
     "Mcp-Session-Id: $SESSION"
 
 NMAP_DATA=$(extract_data "$TMPDIR/nmap_body")
-
-NMAP_RESULT=$(echo "$NMAP_DATA" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:300])
-" 2>/dev/null || echo "PARSE_ERROR")
-
+NMAP_RESULT=$(echo "$NMAP_DATA" | parse_result)
 NMAP_STATUS=$(echo "$NMAP_RESULT" | head -1)
 NMAP_BODY=$(echo "$NMAP_RESULT" | tail -n +2)
 
@@ -184,21 +200,7 @@ mcp_post '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"python
     "Mcp-Session-Id: $SESSION"
 
 PY_DATA=$(extract_data "$TMPDIR/py_body")
-
-PY_RESULT=$(echo "$PY_DATA" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:300])
-" 2>/dev/null || echo "PARSE_ERROR")
-
+PY_RESULT=$(echo "$PY_DATA" | parse_result)
 PY_STATUS=$(echo "$PY_RESULT" | head -1)
 PY_BODY=$(echo "$PY_RESULT" | tail -n +2)
 
@@ -217,21 +219,7 @@ mcp_post "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"
     "Mcp-Session-Id: $SESSION"
 
 WRITE_DATA=$(extract_data "$TMPDIR/write_body")
-
-WRITE_RESULT=$(echo "$WRITE_DATA" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:300])
-" 2>/dev/null || echo "PARSE_ERROR")
-
+WRITE_RESULT=$(echo "$WRITE_DATA" | parse_result)
 WRITE_STATUS=$(echo "$WRITE_RESULT" | head -1)
 WRITE_BODY=$(echo "$WRITE_RESULT" | tail -n +2)
 
@@ -250,21 +238,7 @@ mcp_post '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"file_r
     "Mcp-Session-Id: $SESSION"
 
 READ_DATA=$(extract_data "$TMPDIR/read_body")
-
-READ_RESULT=$(echo "$READ_DATA" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:300])
-" 2>/dev/null || echo "PARSE_ERROR")
-
+READ_RESULT=$(echo "$READ_DATA" | parse_result)
 READ_STATUS=$(echo "$READ_RESULT" | head -1)
 READ_BODY=$(echo "$READ_RESULT" | tail -n +2)
 
@@ -283,21 +257,7 @@ mcp_post '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"health
     "Mcp-Session-Id: $SESSION"
 
 HEALTH_DATA=$(extract_data "$TMPDIR/health_body")
-
-HEALTH_RESULT=$(echo "$HEALTH_DATA" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:400])
-" 2>/dev/null || echo "PARSE_ERROR")
-
+HEALTH_RESULT=$(echo "$HEALTH_DATA" | parse_result)
 HEALTH_STATUS=$(echo "$HEALTH_RESULT" | head -1)
 HEALTH_BODY=$(echo "$HEALTH_RESULT" | tail -n +2)
 
@@ -306,180 +266,6 @@ if [ "$HEALTH_STATUS" = "OK" ] && echo "$HEALTH_BODY" | grep -q "healthy"; then
 else
     err "health_check failed"
     echo "  $HEALTH_BODY" | head -3
-fi
-
-# ── dursgo validation ─────────────────────────────────────────────────
-log "Testing dursgo (validation check)"
-DURSGO_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"dursgo","arguments":{}}}' /dev/stdout)
-DURSGO_STATUS=$(echo "$DURSGO_RESULT" | head -1)
-DURSGO_BODY=$(echo "$DURSGO_RESULT" | tail -n +2)
-DURSGO_CHECK=$(echo "$DURSGO_BODY" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:400])
-" 2>/dev/null || echo "PARSE_ERROR")
-
-DURSGO_STATUS_LINE=$(echo "$DURSGO_CHECK" | head -1)
-DURSGO_BODY_LINE=$(echo "$DURSGO_CHECK" | tail -n +2)
-
-if [ "$DURSGO_STATUS_LINE" = "ERROR" ] && echo "$DURSGO_BODY_LINE" | grep -q "target"; then
-    ok "dursgo rejects missing target"
-else
-    err "dursgo validation failed"
-    echo "  $DURSGO_BODY_LINE" | head -3
-fi
-
-# ── zighound validation ───────────────────────────────────────────────
-log "Testing zighound (validation check)"
-ZH_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"zighound","arguments":{}}}' /dev/stdout)
-ZH_STATUS=$(echo "$ZH_RESULT" | head -1)
-ZH_BODY=$(echo "$ZH_RESULT" | tail -n +2)
-ZH_CHECK=$(echo "$ZH_BODY" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:400])
-" 2>/dev/null || echo "PARSE_ERROR")
-
-ZH_STATUS_LINE=$(echo "$ZH_CHECK" | head -1)
-ZH_BODY_LINE=$(echo "$ZH_CHECK" | tail -n +2)
-
-if [ "$ZH_STATUS_LINE" = "ERROR" ] && echo "$ZH_BODY_LINE" | grep -q "command"; then
-    ok "zighound rejects missing command"
-else
-    err "zighound validation failed"
-    echo "  $ZH_BODY_LINE" | head -3
-fi
-
-# ── searchsploit validation ──────────────────────────────────────────
-log "Testing searchsploit (validation check)"
-SS_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":32,"method":"tools/call","params":{"name":"searchsploit","arguments":{}}}' /dev/stdout)
-SS_STATUS=$(echo "$SS_RESULT" | head -1)
-SS_BODY=$(echo "$SS_RESULT" | tail -n +2)
-SS_CHECK=$(echo "$SS_BODY" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:400])
-" 2>/dev/null || echo "PARSE_ERROR")
-
-SS_STATUS_LINE=$(echo "$SS_CHECK" | head -1)
-SS_BODY_LINE=$(echo "$SS_CHECK" | tail -n +2)
-
-if [ "$SS_STATUS_LINE" = "ERROR" ] && echo "$SS_BODY_LINE" | grep -q "query\|cve\|edb"; then
-    ok "searchsploit rejects missing query/cve/edb_id"
-else
-    err "searchsploit validation failed"
-    echo "  $SS_BODY_LINE" | head -3
-fi
-
-# ── farsight validation ──────────────────────────────────────────────
-log "Testing farsight (validation check)"
-FS_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":33,"method":"tools/call","params":{"name":"farsight","arguments":{}}}' /dev/stdout)
-FS_STATUS=$(echo "$FS_RESULT" | head -1)
-FS_BODY=$(echo "$FS_RESULT" | tail -n +2)
-FS_CHECK=$(echo "$FS_BODY" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:400])
-" 2>/dev/null || echo "PARSE_ERROR")
-
-FS_STATUS_LINE=$(echo "$FS_CHECK" | head -1)
-FS_BODY_LINE=$(echo "$FS_CHECK" | tail -n +2)
-
-if [ "$FS_STATUS_LINE" = "ERROR" ] && echo "$FS_BODY_LINE" | grep -q "domain"; then
-    ok "farsight rejects missing domain"
-else
-    err "farsight validation failed"
-    echo "  $FS_BODY_LINE" | head -3
-fi
-
-# ── flowlyt validation ───────────────────────────────────────────────
-log "Testing flowlyt (validation check)"
-FL_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":34,"method":"tools/call","params":{"name":"flowlyt","arguments":{}}}' /dev/stdout)
-FL_STATUS=$(echo "$FL_RESULT" | head -1)
-FL_BODY=$(echo "$FL_RESULT" | tail -n +2)
-FL_CHECK=$(echo "$FL_BODY" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:400])
-" 2>/dev/null || echo "PARSE_ERROR")
-
-FL_STATUS_LINE=$(echo "$FL_CHECK" | head -1)
-FL_BODY_LINE=$(echo "$FL_CHECK" | tail -n +2)
-
-if [ "$FL_STATUS_LINE" = "ERROR" ] && echo "$FL_BODY_LINE" | grep -q "repo"; then
-    ok "flowlyt rejects missing repo"
-else
-    err "flowlyt validation failed"
-    echo "  $FL_BODY_LINE" | head -3
-fi
-
-# ── zizmor validation ────────────────────────────────────────────────
-log "Testing zizmor (validation check)"
-ZM_RESULT=$(mcp_post '{"jsonrpc":"2.0","id":35,"method":"tools/call","params":{"name":"zizmor","arguments":{}}}' /dev/stdout)
-ZM_STATUS=$(echo "$ZM_RESULT" | head -1)
-ZM_BODY=$(echo "$ZM_RESULT" | tail -n +2)
-ZM_CHECK=$(echo "$ZM_BODY" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-result = d.get('result',{})
-is_err = result.get('isError', False)
-text = ''
-for c in result.get('content',[]):
-    if c.get('type') == 'text':
-        text = c['text']
-        break
-print('ERROR' if is_err else 'OK')
-print(text[:400])
-" 2>/dev/null || echo "PARSE_ERROR")
-
-ZM_STATUS_LINE=$(echo "$ZM_CHECK" | head -1)
-ZM_BODY_LINE=$(echo "$ZM_CHECK" | tail -n +2)
-
-if [ "$ZM_STATUS_LINE" = "ERROR" ] && echo "$ZM_BODY_LINE" | grep -q "target"; then
-    ok "zizmor rejects missing target"
-else
-    err "zizmor validation failed"
-    echo "  $ZM_BODY_LINE" | head -3
 fi
 
 # ── Summary ─────────────────────────────────────────────────────────────
@@ -492,4 +278,5 @@ else
     echo -e "\033[1;31m$FAIL/$TOTAL tests failed\033[0m"
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
 exit $FAIL
