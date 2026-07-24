@@ -183,29 +183,37 @@ for tool_instance in ALL_TOOLS:
         properties = schema.get("properties", {})
         required = schema.get("required", [])
 
+        # Map JSON schema types to Python types
+        TYPE_MAP = {
+            "string": str,
+            "integer": int,
+            "number": float,
+            "boolean": bool,
+        }
+
         params = []
         for name, prop in properties.items():
             has_default = "default" in prop
             is_required = name in required
+            json_type = prop.get("type", "string")
+            py_type = TYPE_MAP.get(json_type, str)
 
             if has_default:
-                # Has explicit default — use it
                 default = prop.get("default")
                 params.append(inspect.Parameter(
                     name, inspect.Parameter.KEYWORD_ONLY,
-                    default=default, annotation=str,
+                    default=default, annotation=py_type,
                 ))
             elif is_required:
-                # Required — no default, caller must provide
                 params.append(inspect.Parameter(
                     name, inspect.Parameter.KEYWORD_ONLY,
-                    annotation=str,
+                    annotation=py_type,
                 ))
             else:
-                # Optional but no default — default to None so Pydantic doesn't reject it
+                # Optional — default to None, type is Optional[py_type]
                 params.append(inspect.Parameter(
                     name, inspect.Parameter.KEYWORD_ONLY,
-                    default=None, annotation=str | None,
+                    default=None, annotation=py_type | None,
                 ))
 
         sig = inspect.Signature(params)

@@ -89,7 +89,10 @@ class ExecutionEngine:
         """Execute a command and return structured result. Never raises."""
         self._start_watchdog()
         req_id = request_id or uuid.uuid4().hex[:12]
-        effective_timeout = min(timeout or config.default_timeout, config.max_timeout)
+        try:
+            effective_timeout = min(int(timeout or config.default_timeout), config.max_timeout)
+        except (ValueError, TypeError):
+            effective_timeout = config.default_timeout
         command = sanitize_command_parts(command)
         command_str = " ".join(command)
 
