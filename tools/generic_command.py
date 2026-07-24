@@ -64,13 +64,9 @@ class GenericCommandTool(BaseTool):
         if "timeout" in arguments:
             validate_timeout(arguments["timeout"])
 
-    def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        """Wrap command in bash -c so pipes, redirects, &&, etc. work."""
-        import os
-        for candidate in ["/bin/bash", "/usr/bin/bash", "/usr/local/bin/bash"]:
-            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-                return [candidate, "-c", arguments["command"]]
-        return ["/bin/bash", "-c", arguments["command"]]
+    def build_command(self, arguments: dict[str, Any]) -> str:
+        """Return the raw shell command string — execution engine handles shell mode."""
+        return arguments["command"]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -81,7 +77,7 @@ class GenericCommandTool(BaseTool):
             logger.exception("Tool %s failed", self.name)
             return error_response(ToolError(error="Execution failed", details=str(e)))
 
-        command_parts = self.build_command(arguments)
+        command_str = self.build_command(arguments)
         timeout = arguments.get("timeout", self.default_timeout)
         cwd = arguments.get("cwd")
         env = arguments.get("env")
@@ -91,7 +87,7 @@ class GenericCommandTool(BaseTool):
             exec_env.update(env)
 
         result = await engine.execute(
-            command=command_parts,
+            command=command_str,
             tool=self.name,
             timeout=timeout,
             cwd=cwd,

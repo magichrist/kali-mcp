@@ -363,8 +363,8 @@ def test_all_tool_validate_and_build():
             cmd = t.build_command(args)
             check(
                 f"{t.name}: validate+build OK",
-                isinstance(cmd, list) and len(cmd) > 0,
-                f"cmd={cmd[:4]}",
+                isinstance(cmd, (list, str)) and len(cmd) > 0,
+                f"cmd={str(cmd)[:60]}",
             )
         except Exception as e:
             check(f"{t.name}: validate+build OK", False, str(e))
@@ -749,9 +749,9 @@ def test_command_building():
     from tools import ALL_TOOLS
     tool_map = {t.name: t for t in ALL_TOOLS}
 
-    # generic_command wraps in bash -c
+    # generic_command returns raw shell command string (shell mode)
     cmd = tool_map["generic_command"].build_command({"command": "echo hi"})
-    check("generic: bash -c wrapper", cmd[0].endswith("bash") and cmd[1] == "-c" and cmd[2] == "echo hi")
+    check("generic: returns command string", cmd == "echo hi")
 
     # python_command uses python3
     cmd = tool_map["python_command"].build_command({"code": "print(1)"})

@@ -80,26 +80,33 @@ class ExecutionEngine:
 
     async def execute(
         self,
-        command: list[str],
+        command: list[str] | str,
         tool: str = "generic_command",
         timeout: int | None = None,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
         request_id: str | None = None,
     ) -> ExecutionResult:
-        """Execute a command and return structured result. Never raises."""
+        """Execute a command and return structured result. Never raises.
+
+        If command is a str, runs via create_subprocess_shell (for shell commands).
+        If command is a list, runs via create_subprocess_exec (for direct binary exec).
+        """
         self._start_watchdog()
         req_id = request_id or uuid.uuid4().hex[:12]
         try:
             effective_timeout = min(int(timeout or config.default_timeout), config.max_timeout)
         except (ValueError, TypeError):
             effective_timeout = config.default_timeout
-        command = sanitize_command_parts(command)
-        command_str = " ".join(command)
+
+        use_shell = isinstance(command, str)
+        command_str = command if use_shell else " ".join(command)
+        if not use_shell:
+            command = sanitize_command_parts(command)
 
         logger.info(
-            "request=%s executing tool=%s command=%s timeout=%d",
-            req_id, tool, command_str, effective_timeout,
+            "request=%s executing tool=%s command=%s timeout=%d shell=%s",
+            req_id, tool, command_str, effective_timeout, use_shell,
         )
 
         start_time = utc_now_iso()
@@ -111,46 +118,30 @@ class ExecutionEngine:
                 self._request_times[req_id] = start_monotonic
 
                 try:
-                    try:
-                        exec_env = env if env is not None else os.environ.copy()
-                        system_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games"
-                        existing = exec_env.get("PATH", "")
-                        exec_env["PATH"] = f"{existing}:{system_path}" if existing else system_path
-                        proc = await asyncio.create_subprocess_exec(
-                            *command,
+                    exec_env = env if env is not None else os.environ.copy()
+                    system_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games"
+                    existing = exec_env.get("PATH", "")
+                    exec_env["PATH"] = f"{existing}:{system_path}" if existing else system_path
+
+                    if use_shell:
+                        proc = await asyncio.create_subprocess_shell(
+                            command,
                             stdout=asyncio.subprocess.PIPE,
                             stderr=asyncio.subprocess.PIPE,
                             cwd=cwd,
                             env=exec_env,
                         )
-                    except FileNotFoundError as e:
-                        binary = command[0] if command else "unknown"
-                        if os.path.exists(binary):
-                            shell_cmd = " ".join(command)
-                            try:
-                                proc = await asyncio.create_subprocess_shell(
-                                    shell_cmd,
-                                    stdout=asyncio.subprocess.PIPE,
-                                    stderr=asyncio.subprocess.PIPE,
-                                    cwd=cwd,
-                                    env=exec_env,
-                                )
-                            except Exception as e2:
-                                elapsed = time.monotonic() - start_monotonic
-                                logger.warning(
-                                    "request=%s tool=%s shell fallback failed: %s",
-                                    req_id, tool, e2,
-                                )
-                                result = ExecutionResult(
-                                    tool=tool, command=command_str, stdout="",
-                                    stderr=f"Binary exists but cannot execute: {binary} — {e2}",
-                                    exit_code=-1, success=False, timed_out=False,
-                                    duration=round(elapsed, 3),
-                                    start_time=start_time, end_time=utc_now_iso(),
-                                )
-                                log_execution(result)
-                                return result
-                        else:
+                    else:
+                        try:
+                            proc = await asyncio.create_subprocess_exec(
+                                *command,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE,
+                                cwd=cwd,
+                                env=exec_env,
+                            )
+                        except FileNotFoundError:
+                            binary = command[0] if command else "unknown"
                             elapsed = time.monotonic() - start_monotonic
                             logger.warning(
                                 "request=%s tool=%s binary not found: %s",
