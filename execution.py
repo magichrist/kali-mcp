@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import logging
+import os
 import resource
 import threading
 import time
@@ -111,12 +112,15 @@ class ExecutionEngine:
 
                 try:
                     try:
+                        exec_env = env if env is not None else os.environ.copy()
+                        if "PATH" not in exec_env or not exec_env["PATH"].strip():
+                            exec_env["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games"
                         proc = await asyncio.create_subprocess_exec(
                             *command,
                             stdout=asyncio.subprocess.PIPE,
                             stderr=asyncio.subprocess.PIPE,
                             cwd=cwd,
-                            env=env,
+                            env=exec_env,
                         )
                     except FileNotFoundError as e:
                         binary = command[0] if command else "unknown"

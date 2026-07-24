@@ -1,4 +1,4 @@
-"""httpx HTTP toolkit tool."""
+"""httpx HTTP toolkit tool (ProjectDiscovery httpx-toolkit)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ from execution import engine
 from validation import validate_required, validate_timeout
 from models import ToolError
 from responses import success_response, error_response
+
+HTTPX_BIN = "/usr/bin/httpx-toolkit"
 
 
 class HttpxTool(BaseTool):
@@ -40,26 +42,12 @@ class HttpxTool(BaseTool):
             validate_timeout(arguments["timeout"])
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        cmd = ["httpx"]
+        cmd = [HTTPX_BIN]
         if arguments.get("input_file"):
             cmd.extend(["-l", arguments["input_file"]])
         elif arguments.get("target"):
-            scan_type = arguments.get("scan_type") or "-status-code -title -tech-detect"
             cmd.extend(["-u", arguments["target"]])
-            cmd.extend(shlex.split(scan_type))
-        extra = arguments.get("extra_args")
-        if extra:
-            cmd.extend(shlex.split(extra))
-        return cmd
-
-    def _build_compat(self, arguments: dict[str, Any]) -> list[str]:
-        """Build command for httpx variants that don't support -u flag."""
-        cmd = ["httpx"]
-        if arguments.get("input_file"):
-            cmd.extend(["-l", arguments["input_file"]])
-        elif arguments.get("target"):
             scan_type = arguments.get("scan_type") or "-status-code -title -tech-detect"
-            cmd.append(arguments["target"])
             cmd.extend(shlex.split(scan_type))
         extra = arguments.get("extra_args")
         if extra:
@@ -71,17 +59,10 @@ class HttpxTool(BaseTool):
             self.validate(arguments)
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
-        cmd = self.build_command(arguments)
-        result = await engine.execute(
-            command=cmd,
-            tool=self.name,
-            timeout=arguments.get("timeout", self.default_timeout),
-        )
-        if result.exit_code != 0 and "No such option" in (result.stderr or ""):
-            cmd = self._build_compat(arguments)
-            result = await engine.execute(
-                command=cmd,
+        return success_response(
+            await engine.execute(
+                command=self.build_command(arguments),
                 tool=self.name,
                 timeout=arguments.get("timeout", self.default_timeout),
             )
-        return success_response(result)
+        )
