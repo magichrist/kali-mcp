@@ -51,11 +51,7 @@ class PythonCommandTool(BaseTool):
                 "cwd": {
                     "type": "string",
                     "description": "Working directory for execution (optional)",
-                },
-                "env": {
-                    "type": "object",
-                    "description": "Additional environment variables as key-value pairs (optional)",
-                    "additionalProperties": {"type": "string"},
+                    "default": "",
                 },
             },
             "required": ["code"],
@@ -83,8 +79,7 @@ class PythonCommandTool(BaseTool):
 
         code = arguments["code"]
         timeout = arguments.get("timeout", self.default_timeout)
-        cwd = arguments.get("cwd")
-        env = arguments.get("env")
+        cwd = arguments.get("cwd") or None
 
         # Write code to a temp file and execute with python3
         tmp = tempfile.NamedTemporaryFile(
@@ -94,16 +89,11 @@ class PythonCommandTool(BaseTool):
             tmp.write(code)
             tmp.close()
 
-            exec_env = os.environ.copy()
-            if env:
-                exec_env.update(env)
-
             result = await engine.execute(
                 command=["python3", tmp.name],
                 tool=self.name,
                 timeout=timeout,
                 cwd=cwd,
-                env=exec_env,
             )
 
             return success_response(result)

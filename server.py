@@ -186,17 +186,26 @@ for tool_instance in ALL_TOOLS:
         params = []
         for name, prop in properties.items():
             has_default = "default" in prop
-            default = prop.get("default") if has_default else inspect.Parameter.empty
-            annotation = str if name not in required else str
+            is_required = name in required
+
             if has_default:
+                # Has explicit default — use it
+                default = prop.get("default")
                 params.append(inspect.Parameter(
                     name, inspect.Parameter.KEYWORD_ONLY,
-                    default=default, annotation=annotation,
+                    default=default, annotation=str,
+                ))
+            elif is_required:
+                # Required — no default, caller must provide
+                params.append(inspect.Parameter(
+                    name, inspect.Parameter.KEYWORD_ONLY,
+                    annotation=str,
                 ))
             else:
+                # Optional but no default — default to None so Pydantic doesn't reject it
                 params.append(inspect.Parameter(
                     name, inspect.Parameter.KEYWORD_ONLY,
-                    annotation=annotation,
+                    default=None, annotation=str | None,
                 ))
 
         sig = inspect.Signature(params)

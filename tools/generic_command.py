@@ -50,11 +50,7 @@ class GenericCommandTool(BaseTool):
                 "cwd": {
                     "type": "string",
                     "description": "Working directory for command execution (optional)",
-                },
-                "env": {
-                    "type": "object",
-                    "description": "Additional environment variables as key-value pairs (optional)",
-                    "additionalProperties": {"type": "string"},
+                    "default": "",
                 },
             },
             "required": ["command"],
