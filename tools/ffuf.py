@@ -48,8 +48,9 @@ class FfufTool(BaseTool):
         if not target.startswith(("http://", "https://")):
             target = f"http://{target}"
         cmd = ["ffuf", "-u", target, "-w", arguments["wordlist"]]
-        if "filter" in arguments:
-            cmd.extend(shlex.split(arguments["filter"]))
+        filter_val = arguments.get("filter")
+        if filter_val:
+            cmd.extend(shlex.split(filter_val))
         extra = arguments.get("extra_args")
         if extra:
             cmd.extend(shlex.split(extra))
