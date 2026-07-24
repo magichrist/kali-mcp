@@ -133,7 +133,7 @@ expected = [
     'nmap','httpx','nuclei','ffuf','katana','subfinder','amass',
     'sqlmap','commix','wpscan','enum4linux','netexec','crackmapexec',
     'bloodhound','theharvester','spiderfoot','naabu','arjun','whatweb',
-    'health_check','searchsploit','dursgo','farsight','flowlyt',
+    'searchsploit','dursgo','farsight','flowlyt',
     'zighound','zizmor','file_download'
 ]
 missing = [n for n in expected if n not in names]
@@ -249,23 +249,17 @@ else
     echo "  $READ_BODY" | head -2
 fi
 
-# ── Step 8: health_check ────────────────────────────────────────────────
+# ── Step 8: health_check (HTTP endpoint) ───────────────────────────────
 log "Calling health_check..."
 
-mcp_post '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"health_check","arguments":{}}}' \
-    "$TMPDIR/health_body" "$TMPDIR/health_hdrs" \
-    "Mcp-Session-Id: $SESSION"
+HEALTH_URL=$(echo "$URL" | sed 's|/mcp$||')
+HEALTH_HTTP=$(curl -sf --max-time 5 "${HEALTH_URL}/health" 2>/dev/null || echo "CURL_FAIL")
 
-HEALTH_DATA=$(extract_data "$TMPDIR/health_body")
-HEALTH_RESULT=$(echo "$HEALTH_DATA" | parse_result)
-HEALTH_STATUS=$(echo "$HEALTH_RESULT" | head -1)
-HEALTH_BODY=$(echo "$HEALTH_RESULT" | tail -n +2)
-
-if [ "$HEALTH_STATUS" = "OK" ] && echo "$HEALTH_BODY" | grep -q "healthy"; then
+if echo "$HEALTH_HTTP" | grep -q "healthy"; then
     ok "health_check reports status=healthy"
 else
     err "health_check failed"
-    echo "  $HEALTH_BODY" | head -3
+    echo "  $HEALTH_HTTP" | head -3
 fi
 
 # ── Summary ─────────────────────────────────────────────────────────────
