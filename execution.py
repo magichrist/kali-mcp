@@ -123,16 +123,17 @@ class ExecutionEngine:
                     existing = exec_env.get("PATH", "")
                     exec_env["PATH"] = f"{existing}:{system_path}" if existing else system_path
 
-                    if use_shell:
-                        proc = await asyncio.create_subprocess_shell(
-                            command,
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=asyncio.subprocess.PIPE,
-                            cwd=cwd,
-                            env=exec_env,
-                        )
-                    else:
-                        try:
+                    try:
+                        if use_shell:
+                            proc = await asyncio.create_subprocess_shell(
+                                command,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE,
+                                cwd=cwd,
+                                env=exec_env,
+                                executable="/bin/bash",
+                            )
+                        else:
                             proc = await asyncio.create_subprocess_exec(
                                 *command,
                                 stdout=asyncio.subprocess.PIPE,
@@ -140,22 +141,22 @@ class ExecutionEngine:
                                 cwd=cwd,
                                 env=exec_env,
                             )
-                        except FileNotFoundError:
-                            binary = command[0] if command else "unknown"
-                            elapsed = time.monotonic() - start_monotonic
-                            logger.warning(
-                                "request=%s tool=%s binary not found: %s",
-                                req_id, tool, binary,
-                            )
-                            result = ExecutionResult(
-                                tool=tool, command=command_str, stdout="",
-                                stderr=f"Binary not found: {binary} — install it with 'apt install {binary}' or check PATH",
-                                exit_code=-1, success=False, timed_out=False,
-                                duration=round(elapsed, 3),
-                                start_time=start_time, end_time=utc_now_iso(),
-                            )
-                            log_execution(result)
-                            return result
+                    except FileNotFoundError:
+                        binary = command if use_shell else (command[0] if command else "unknown")
+                        elapsed = time.monotonic() - start_monotonic
+                        logger.warning(
+                            "request=%s tool=%s binary not found: %s",
+                            req_id, tool, binary,
+                        )
+                        result = ExecutionResult(
+                            tool=tool, command=command_str, stdout="",
+                            stderr=f"Binary not found: {binary} — install it with 'apt install {binary}' or check PATH",
+                            exit_code=-1, success=False, timed_out=False,
+                            duration=round(elapsed, 3),
+                            start_time=start_time, end_time=utc_now_iso(),
+                        )
+                        log_execution(result)
+                        return result
 
                     try:
                         stdout_bytes, stderr_bytes = await asyncio.wait_for(
