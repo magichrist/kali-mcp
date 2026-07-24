@@ -107,13 +107,30 @@ class ExecutionEngine:
                 self._request_times[req_id] = start_monotonic
 
                 try:
-                    proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        cwd=cwd,
-                        env=env,
-                    )
+                    try:
+                        proc = await asyncio.create_subprocess_exec(
+                            *command,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                            cwd=cwd,
+                            env=env,
+                        )
+                    except FileNotFoundError as e:
+                        binary = command[0] if command else "unknown"
+                        elapsed = time.monotonic() - start_monotonic
+                        logger.warning(
+                            "request=%s tool=%s binary not found: %s",
+                            req_id, tool, binary,
+                        )
+                        result = ExecutionResult(
+                            tool=tool, command=command_str, stdout="",
+                            stderr=f"Binary not found: {binary} — install it with 'apt install {binary}' or check PATH",
+                            exit_code=-1, success=False, timed_out=False,
+                            duration=round(elapsed, 3),
+                            start_time=start_time, end_time=utc_now_iso(),
+                        )
+                        log_execution(result)
+                        return result
 
                     try:
                         stdout_bytes, stderr_bytes = await asyncio.wait_for(
