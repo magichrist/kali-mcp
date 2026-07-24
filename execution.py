@@ -125,13 +125,12 @@ class ExecutionEngine:
 
                     try:
                         if use_shell:
-                            proc = await asyncio.create_subprocess_shell(
-                                command,
+                            proc = await asyncio.create_subprocess_exec(
+                                "/bin/bash", "-c", command,
                                 stdout=asyncio.subprocess.PIPE,
                                 stderr=asyncio.subprocess.PIPE,
                                 cwd=cwd,
                                 env=exec_env,
-                                executable="/bin/bash",
                             )
                         else:
                             proc = await asyncio.create_subprocess_exec(
