@@ -11,46 +11,26 @@ logger = logging.getLogger("kali_mcp.process")
 
 
 async def kill_process_tree(proc: asyncio.subprocess.Process) -> None:
-    """Kill a process and its entire process group."""
+    """Kill a process. Never raises."""
     try:
         if proc.returncode is not None:
             return
 
-        # Try to kill the process group
+        # Try process group kill first
         try:
             pgid = os.getpgid(proc.pid)
-            os.killpg(pgid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError, OSError) as e:
-            logger.warning("Failed to kill process group %d: %s", proc.pid, e)
-            # Fallback to killing just the process
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
             try:
-                proc.terminate()
-            except ProcessLookupError:
+                proc.kill()
+            except (ProcessLookupError, OSError):
                 pass
 
+        # Wait briefly for it to die
         try:
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            await asyncio.wait_for(proc.wait(), timeout=2.0)
         except asyncio.TimeoutError:
             pass
 
-        if proc.returncode is None:
-            try:
-                pgid = os.getpgid(proc.pid)
-                os.killpg(pgid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OSError) as e:
-                logger.warning("Failed to force-kill process group %d: %s", proc.pid, e)
-                try:
-                    proc.kill()
-                except ProcessLookupError:
-                    pass
-
-            try:
-                await asyncio.wait_for(proc.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("Process %d did not terminate after SIGKILL", proc.pid)
-
-        if proc.returncode is None:
-            logger.warning("Process %d could not be killed (may be zombie)", proc.pid)
-
     except Exception as e:
-        logger.warning("Error killing process tree: %s", e)
+        logger.warning("Error killing process %s: %s", getattr(proc, 'pid', '?'), e)

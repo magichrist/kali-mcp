@@ -1,15 +1,18 @@
-"""MCP Server — SSE transport, tool registration, request handling."""
+"""MCP Server — hardened SSE transport, tool registration, request handling."""
 
 from __future__ import annotations
 
+import asyncio
+import gc
 import json
 import logging
 import signal
 import sys
 import os
 import inspect
+import threading
+import time
 import uuid
-from typing import Optional
 from contextlib import asynccontextmanager
 
 # Add project root to path
@@ -20,6 +23,7 @@ from mcp.server.fastmcp.tools.base import Tool as MCPTool
 from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 
 from config import config
+from execution import engine
 from registry import registry
 from responses import success_response, error_response_from_exception
 from logging_utils import setup_logging
@@ -31,26 +35,132 @@ setup_logging()
 logger = logging.getLogger("kali_mcp.server")
 
 
+# ── Health Monitor ──────────────────────────────────────────────
+class HealthMonitor:
+    """Background thread that monitors server health and cleans up stuck state."""
+
+    def __init__(self) -> None:
+        self._running = False
+        self._last_gc = time.monotonic()
+        self._request_count = 0
+        self._error_count = 0
+        self._start_time = time.monotonic()
+        self._lock = threading.Lock()
+
+    def start(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        t = threading.Thread(target=self._loop, daemon=True, name="health-monitor")
+        t.start()
+        logger.info("Health monitor started")
+
+    def stop(self) -> None:
+        self._running = False
+
+    def _loop(self) -> None:
+        while self._running:
+            time.sleep(30)
+            try:
+                self._check()
+            except Exception:
+                pass  # Monitor must never crash
+
+    def _check(self) -> None:
+        now = time.monotonic()
+
+        # Periodic GC (every 5 minutes)
+        if now - self._last_gc > 300:
+            gc.collect()
+            self._last_gc = now
+
+        # Check for stuck executions
+        stuck = engine.get_stuck_executions()
+        if stuck:
+            for s in stuck:
+                logger.warning(
+                    "health: stuck execution detected — request=%s tool=%s elapsed=%.0fs",
+                    s["request_id"], s["tool"], s["elapsed_seconds"],
+                )
+
+        # Force cleanup if too many stuck
+        if len(stuck) > config.max_concurrent:
+            logger.warning("health: too many stuck executions (%d), force cleaning", len(stuck))
+            engine.force_cleanup()
+
+        # Log health metrics
+        uptime = now - self._start_time
+        active = engine.active_count
+        with self._lock:
+            req_count = self._request_count
+            err_count = self._error_count
+        if active > 0 or req_count > 0:
+            logger.info(
+                "health: uptime=%.0fs active=%d requests=%d errors=%d",
+                uptime, active, req_count, err_count,
+            )
+
+    def record_request(self) -> None:
+        with self._lock:
+            self._request_count += 1
+
+    def record_error(self) -> None:
+        with self._lock:
+            self._error_count += 1
+
+    def get_status(self) -> dict:
+        uptime = time.monotonic() - self._start_time
+        with self._lock:
+            return {
+                "status": "healthy",
+                "uptime_seconds": round(uptime, 1),
+                "active_executions": engine.active_count,
+                "total_requests": self._request_count,
+                "total_errors": self._error_count,
+                "tools_registered": len(registry.tool_names()),
+                "memory_mb": _get_memory_mb(),
+            }
+
+
+health = HealthMonitor()
+
+
+def _get_memory_mb() -> float:
+    """Get current process memory usage in MB."""
+    try:
+        import resource as _resource
+        usage = _resource.getrusage(_resource.RUSAGE_SELF)
+        return round(usage.ru_maxrss / 1024, 1)  # Linux: bytes→MB
+    except Exception:
+        return 0.0
+
+
+# ── Lifespan ────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app):
     """Server lifecycle — startup and shutdown."""
     logger.info("Server starting up...")
     logger.info("Registered %d tools: %s", len(ALL_TOOLS), [t.name for t in ALL_TOOLS])
 
-    # Verify critical binaries exist at startup
+    # Verify critical binaries
     import shutil
-    critical_bins = ["nmap", "curl"]
-    for bin_name in critical_bins:
+    for bin_name in ["nmap", "curl"]:
         if shutil.which(bin_name):
             logger.info("Startup check OK: %s found", bin_name)
         else:
             logger.warning("Startup check WARN: %s not found in PATH", bin_name)
 
+    health.start()
+    logger.info("Health monitor active")
+
     yield
-    logger.info("Server shutting down...")
+
+    health.stop()
+    engine.force_cleanup()
+    logger.info("Server shut down cleanly")
 
 
-# Create FastMCP instance
+# ── FastMCP ─────────────────────────────────────────────────────
 mcp = FastMCP(
     name=config.server_name,
     instructions=(
@@ -64,8 +174,7 @@ mcp = FastMCP(
 )
 
 
-# Register all tools — create MCPTool with input_schema so the agent receives
-# full parameter schemas instead of having to guess.
+# Register all tools with safe_execute wrapper
 for tool_instance in ALL_TOOLS:
     registry.register(tool_instance)
 
@@ -94,6 +203,7 @@ for tool_instance in ALL_TOOLS:
 
         async def handler(**kwargs) -> str:
             request_id = uuid.uuid4().hex[:12]
+            health.record_request()
             try:
                 logger.info("request=%s tool=%s args=%s", request_id, t.name, list(kwargs.keys()))
                 result = await t.safe_execute(kwargs)
@@ -103,9 +213,10 @@ for tool_instance in ALL_TOOLS:
                             return block["text"]
                 return json.dumps(result, indent=2)
             except asyncio.CancelledError:
-                logger.warning("request=%s tool=%s request cancelled by client", request_id, t.name)
+                logger.warning("request=%s tool=%s cancelled", request_id, t.name)
                 return json.dumps({"error": "Request cancelled"})
             except Exception as e:
+                health.record_error()
                 logger.exception("request=%s catastrophic error in tool %s", request_id, t.name)
                 return json.dumps({"error": "Tool execution failed"}, indent=2)
 
@@ -128,23 +239,33 @@ for tool_instance in ALL_TOOLS:
     mcp._tool_manager._tools[tool_instance.name] = mcp_tool
 
 
-# Health check tool
+# ── Health Check Tool ───────────────────────────────────────────
 @mcp.tool()
 def health_check() -> str:
-    """Check server health and list available tools."""
-    tools = registry.tool_names()
+    """Check server health, memory, active executions, and registered tools."""
+    status = health.get_status()
+    status["available_tools"] = registry.tool_names()
+    stuck = engine.get_stuck_executions()
+    if stuck:
+        status["stuck_executions"] = stuck
+    return json.dumps(status, indent=2)
+
+
+# ── Force Cleanup Tool ──────────────────────────────────────────
+@mcp.tool()
+def force_cleanup() -> str:
+    """Force cleanup all stuck executions. Use when server appears unresponsive."""
+    count = engine.force_cleanup()
+    gc.collect()
     return json.dumps({
-        "status": "healthy",
-        "server": config.server_name,
-        "version": config.server_version,
-        "available_tools": tools,
-        "tool_count": len(tools),
+        "status": "cleaned",
+        "requests_cleaned": count,
+        "message": f"Force-cleaned {count} tracked executions and ran GC",
     }, indent=2)
 
 
+# ── Middleware ───────────────────────────────────────────────────
 class TokenAuthMiddleware:
-    """Check Bearer token or ?token= query param against configured API token."""
-
     def __init__(self, app, token: str):
         self.app = app
         self.token = token
@@ -166,6 +287,7 @@ class TokenAuthMiddleware:
         await self.app(scope, receive, send)
 
 
+# ── Main ────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     from starlette.middleware.cors import CORSMiddleware
@@ -192,9 +314,11 @@ if __name__ == "__main__":
     else:
         logger.warning("No MCP_API_TOKEN set — server is open. Set MCP_API_TOKEN in .env for production.")
 
-    # Graceful shutdown on SIGTERM/SIGINT
+    # Graceful shutdown
     def _shutdown_handler(signum, frame):
-        logger.info("Received signal %d, shutting down gracefully...", signum)
+        logger.info("Received signal %d, shutting down...", signum)
+        health.stop()
+        engine.force_cleanup()
 
     signal.signal(signal.SIGTERM, _shutdown_handler)
     signal.signal(signal.SIGINT, _shutdown_handler)
