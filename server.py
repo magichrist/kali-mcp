@@ -222,6 +222,19 @@ for tool_instance in ALL_TOOLS:
             request_id = uuid.uuid4().hex[:12]
             health.record_request()
             try:
+                # Coerce string values to correct types based on schema
+                for pname, prop in properties.items():
+                    if pname in kwargs and kwargs[pname] is not None:
+                        expected = prop.get("type")
+                        val = kwargs[pname]
+                        if expected == "integer" and isinstance(val, str):
+                            kwargs[pname] = int(val)
+                        elif expected == "number" and isinstance(val, str):
+                            kwargs[pname] = float(val)
+                        elif expected == "boolean" and isinstance(val, str):
+                            kwargs[pname] = val.lower() in ("1", "true", "yes")
+                        elif expected == "boolean" and isinstance(val, bool):
+                            pass  # already correct
                 logger.info("request=%s tool=%s args=%s", request_id, t.name, list(kwargs.keys()))
                 result = await t.safe_execute(kwargs)
                 if isinstance(result, dict) and "content" in result:
