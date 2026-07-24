@@ -9,7 +9,7 @@ from typing import Any
 
 from tools.base import BaseTool
 from execution import engine
-from validation import validate_required, validate_timeout
+from validation import validate_required, validate_enum, validate_timeout
 from models import ToolError
 from responses import success_response, error_response
 
@@ -39,6 +39,7 @@ class CrackmapexecTool(BaseTool):
 
     def validate(self, arguments: dict[str, Any]) -> None:
         validate_required(arguments, "target", "protocol")
+        validate_enum(arguments["protocol"], ["smb", "winrm", "ssh", "ldap", "rdp", "mssql", "ftp"])
         if "timeout" in arguments:
             validate_timeout(arguments["timeout"])
 

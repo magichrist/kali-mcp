@@ -44,7 +44,10 @@ class FfufTool(BaseTool):
             validate_timeout(arguments["timeout"])
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        cmd = ["ffuf", "-u", arguments["target"], "-w", arguments["wordlist"]]
+        target = arguments["target"]
+        if not target.startswith(("http://", "https://")):
+            target = f"http://{target}"
+        cmd = ["ffuf", "-u", target, "-w", arguments["wordlist"]]
         if "filter" in arguments:
             cmd.extend(shlex.split(arguments["filter"]))
         if "extra_args" in arguments:

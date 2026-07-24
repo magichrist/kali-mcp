@@ -294,6 +294,19 @@ def force_cleanup() -> str:
     }, indent=2)
 
 
+# ── File Download Endpoint ─────────────────────────────────────
+async def download_file(request):
+    """Serve a file download by path."""
+    from starlette.responses import JSONResponse, FileResponse
+
+    path = request.query_params.get("path", "")
+    if not path:
+        return JSONResponse({"error": "Missing path parameter"}, status_code=400)
+    if not os.path.isfile(path):
+        return JSONResponse({"error": "File not found"}, status_code=404)
+    return FileResponse(path, media_type="application/octet-stream")
+
+
 # ── Middleware ───────────────────────────────────────────────────
 class TokenAuthMiddleware:
     def __init__(self, app, token: str):
@@ -352,5 +365,9 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGTERM, _shutdown_handler)
     signal.signal(signal.SIGINT, _shutdown_handler)
+
+    # File download route
+    from starlette.routing import Route
+    app.routes.insert(0, Route("/download", download_file, methods=["GET"]))
 
     uvicorn.run(app, host=config.host, port=config.port)

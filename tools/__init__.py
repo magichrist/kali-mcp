@@ -29,6 +29,7 @@ from tools.searchsploit import SearchsploitTool
 from tools.farsight import FarsightTool
 from tools.flowlyt import FlowlytTool
 from tools.zizmor import ZizmorTool
+from tools.file_download import FileDownloadTool
 
 ALL_TOOLS = [
     GenericCommandTool(),
@@ -60,4 +61,5 @@ ALL_TOOLS = [
     FarsightTool(),
     FlowlytTool(),
     ZizmorTool(),
+    FileDownloadTool(),
 ]

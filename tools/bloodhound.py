@@ -7,7 +7,7 @@ from typing import Any
 
 from tools.base import BaseTool
 from execution import engine
-from validation import validate_timeout
+from validation import validate_required, validate_timeout
 from models import ToolError
 from responses import success_response, error_response
 
@@ -30,10 +30,11 @@ class BloodhoundTool(BaseTool):
                 "extra_args": {"type": "string", "description": "Additional bloodhound-python arguments"},
                 "timeout": {"type": "integer", "default": 900},
             },
-            "required": [],
+            "required": ["domain"],
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
+        validate_required(arguments, "domain")
         if "timeout" in arguments:
             validate_timeout(arguments["timeout"], max_val=3600)
 

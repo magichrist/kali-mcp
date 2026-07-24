@@ -7,7 +7,7 @@ from typing import Any
 
 from tools.base import BaseTool
 from execution import engine
-from validation import validate_required, validate_enum, validate_timeout
+from validation import validate_required, validate_ip, validate_cidr, validate_enum, validate_timeout
 from models import ToolError
 from responses import success_response, error_response
 
@@ -40,6 +40,15 @@ class NaabuTool(BaseTool):
 
     def validate(self, arguments: dict[str, Any]) -> None:
         validate_required(arguments, "target")
+        target = arguments["target"]
+        try:
+            validate_ip(target)
+        except ValueError:
+            try:
+                validate_cidr(target)
+            except ValueError:
+                if not all(c.isalnum() or c in ".-_" for c in target):
+                    raise ValueError(f"Invalid target: {target}")
         if "scan_type" in arguments:
             validate_enum(arguments["scan_type"], ["syn", "connect"])
         if "timeout" in arguments:

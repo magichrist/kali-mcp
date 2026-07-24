@@ -44,7 +44,10 @@ class NucleiTool(BaseTool):
             validate_timeout(arguments["timeout"], max_val=3600)
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        cmd = ["nuclei", "-u", arguments["target"]]
+        target = arguments["target"]
+        if not target.startswith(("http://", "https://")):
+            target = f"http://{target}"
+        cmd = ["nuclei", "-u", target]
         if "templates" in arguments:
             cmd.extend(["-t", arguments["templates"]])
         if "severity" in arguments:
