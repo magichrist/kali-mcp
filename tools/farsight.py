@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import shlex
 import uuid
 from pathlib import Path
@@ -12,6 +14,8 @@ from execution import engine
 from validation import validate_required, validate_timeout
 from models import ToolError, utc_now_iso
 from responses import success_response, error_response
+
+logger = logging.getLogger("kali_mcp.tools")
 from config import config
 
 
@@ -89,6 +93,9 @@ class FarsightTool(BaseTool):
             self.validate(arguments)
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
+        except Exception as e:
+            logger.exception("Tool %s failed", self.name)
+            return error_response(ToolError(error="Execution failed", details=str(e)))
 
         timeout = arguments.get("timeout", self.default_timeout)
         cmd, report_path = self._build_full(arguments)

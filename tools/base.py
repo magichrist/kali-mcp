@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 import abc
+import logging
+import json
 from typing import Any
+
+from models import ToolError
+from responses import error_response
+
+logger = logging.getLogger("kali_mcp.tools")
 
 
 class BaseTool(abc.ABC):
@@ -42,3 +49,18 @@ class BaseTool(abc.ABC):
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute the tool and return MCP-formatted result."""
         ...
+
+    async def safe_execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Safety net wrapper — catches ALL exceptions from execute().
+
+        No tool should ever propagate an unhandled exception.
+        This is the last line of defense.
+        """
+        try:
+            return await self.execute(arguments)
+        except Exception as e:
+            logger.exception("CRITICAL: unhandled exception in tool %s", self.name)
+            return error_response(ToolError(
+                error=f"Internal error in {self.name}",
+                details=f"{type(e).__name__}: {e}",
+            ))

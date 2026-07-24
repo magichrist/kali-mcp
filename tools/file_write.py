@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import os
 import json
 from typing import Any
@@ -10,6 +12,8 @@ from tools.base import BaseTool
 from validation import validate_required
 from models import ExecutionResult, ToolError, utc_now_iso
 from responses import success_response, error_response
+
+logger = logging.getLogger("kali_mcp.tools")
 
 # Allowed directories for file writes (configurable via env)
 import os as _os
@@ -82,6 +86,9 @@ class FileWriteTool(BaseTool):
             self.validate(arguments)
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
+        except Exception as e:
+            logger.exception("Tool %s failed", self.name)
+            return error_response(ToolError(error="Execution failed", details=str(e)))
 
         path = arguments["path"]
         content = arguments["content"]

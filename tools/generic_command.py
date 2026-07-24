@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import shlex
 import os
 from typing import Any
@@ -11,6 +13,8 @@ from execution import engine
 from validation import validate_required, validate_timeout
 from models import ExecutionResult, ToolError
 from responses import success_response, error_response
+
+logger = logging.getLogger("kali_mcp.tools")
 
 
 class GenericCommandTool(BaseTool):
@@ -73,6 +77,9 @@ class GenericCommandTool(BaseTool):
             self.validate(arguments)
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
+        except Exception as e:
+            logger.exception("Tool %s failed", self.name)
+            return error_response(ToolError(error="Execution failed", details=str(e)))
 
         command_parts = self.build_command(arguments)
         timeout = arguments.get("timeout", self.default_timeout)

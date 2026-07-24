@@ -96,7 +96,7 @@ for tool_instance in ALL_TOOLS:
             request_id = uuid.uuid4().hex[:12]
             try:
                 logger.info("request=%s tool=%s args=%s", request_id, t.name, list(kwargs.keys()))
-                result = await t.execute(kwargs)
+                result = await t.safe_execute(kwargs)
                 if isinstance(result, dict) and "content" in result:
                     for block in result["content"]:
                         if isinstance(block, dict) and block.get("type") == "text":
@@ -106,7 +106,7 @@ for tool_instance in ALL_TOOLS:
                 logger.warning("request=%s tool=%s request cancelled by client", request_id, t.name)
                 return json.dumps({"error": "Request cancelled"})
             except Exception as e:
-                logger.exception("request=%s unhandled error in tool %s", request_id, t.name)
+                logger.exception("request=%s catastrophic error in tool %s", request_id, t.name)
                 return json.dumps({"error": "Tool execution failed"}, indent=2)
 
         handler.__name__ = t.name
