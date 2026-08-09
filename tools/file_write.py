@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-import logging
-
-import os
 import json
+import logging
+import os
 from typing import Any
 
+from models import ExecutionResult, ToolError, utc_now_iso
+from responses import error_response, success_response
 from tools.base import BaseTool
 from validation import validate_required
-from models import ExecutionResult, ToolError, utc_now_iso
-from responses import success_response, error_response
 
 logger = logging.getLogger("kali_mcp.tools")
 
 # Allowed directories for file writes (configurable via env)
 import os as _os
+
 _ALLOWED_DIRS_ENV = _os.getenv("MCP_ALLOWED_WRITE_DIRS", "")
 ALLOWED_WRITE_DIRS = [d.strip() for d in _ALLOWED_DIRS_ENV.split(",") if d.strip()]
 

@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import logging
-
-import shlex
 import os
 from typing import Any
 
-from tools.base import BaseTool
 from execution import engine
+from models import ToolError
+from responses import error_response, success_response
+from tools.base import BaseTool
 from validation import validate_required, validate_timeout
-from models import ExecutionResult, ToolError
-from responses import success_response, error_response
 
 logger = logging.getLogger("kali_mcp.tools")
 

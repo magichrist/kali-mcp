@@ -7,7 +7,6 @@ Run:  python3 test_comprehensive.py
 from __future__ import annotations
 
 import asyncio
-import inspect
 import json
 import os
 import sys
@@ -89,9 +88,14 @@ def test_models():
 def test_validation():
     print("\n=== Validation ===")
     from validation import (
-        validate_required, validate_ip, validate_cidr,
-        validate_domain, validate_url, validate_timeout,
-        validate_enum, validate_ports,
+        validate_cidr,
+        validate_domain,
+        validate_enum,
+        validate_ip,
+        validate_ports,
+        validate_required,
+        validate_timeout,
+        validate_url,
     )
 
     # validate_required
@@ -182,8 +186,12 @@ def test_validation():
 
 def test_responses():
     print("\n=== Responses ===")
-    from responses import success_response, error_response, error_response_from_exception
     from models import ExecutionResult, ToolError, utc_now_iso
+    from responses import (
+        error_response,
+        error_response_from_exception,
+        success_response,
+    )
 
     ts = utc_now_iso()
     r = ExecutionResult(
@@ -243,7 +251,7 @@ def test_registry():
 
 def test_security():
     print("\n=== Security ===")
-    from security import sanitize_command_parts, quote_argument
+    from security import quote_argument, sanitize_command_parts
 
     check("sanitize strings", sanitize_command_parts(["a", "b"]) == ["a", "b"])
     check("sanitize mixed", sanitize_command_parts(["echo", 42]) == ["echo", "42"])

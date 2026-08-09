@@ -1,8 +1,9 @@
 """Quick smoke tests for the MCP server components."""
 
 import asyncio
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -27,7 +28,7 @@ def test_models():
 
 
 def test_validation():
-    from validation import validate_required, validate_ip, validate_domain, validate_url
+    from validation import validate_domain, validate_ip, validate_required, validate_url
     try:
         validate_required({}, "missing")
         assert False, "Should have raised"

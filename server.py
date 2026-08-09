@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import inspect
 import json
 import logging
+import os
 import signal
 import sys
-import os
-import inspect
 import threading
 import time
 import uuid
@@ -24,9 +24,8 @@ from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 
 from config import config
 from execution import engine
-from registry import registry
-from responses import success_response, error_response_from_exception
 from logging_utils import setup_logging
+from registry import registry
 
 # Import all tools (triggers registration)
 from tools import ALL_TOOLS
@@ -245,7 +244,7 @@ for tool_instance in ALL_TOOLS:
             except asyncio.CancelledError:
                 logger.warning("request=%s tool=%s cancelled", request_id, t.name)
                 return json.dumps({"error": "Request cancelled"})
-            except Exception as e:
+            except Exception:
                 health.record_error()
                 logger.exception("request=%s catastrophic error in tool %s", request_id, t.name)
                 return json.dumps({"error": "Tool execution failed"}, indent=2)
@@ -297,7 +296,7 @@ def force_cleanup() -> str:
 # ── File Download Endpoint ─────────────────────────────────────
 async def download_file(request):
     """Serve a file download by path."""
-    from starlette.responses import JSONResponse, FileResponse
+    from starlette.responses import FileResponse, JSONResponse
 
     path = request.query_params.get("path", "")
     if not path:

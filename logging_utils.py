@@ -6,7 +6,6 @@ import json
 import logging
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
 from config import config
 

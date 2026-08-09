@@ -12,17 +12,14 @@ import asyncio
 import gc
 import logging
 import os
-import resource
 import threading
 import time
 import uuid
-from typing import Any
 
 from config import config
+from logging_utils import log_execution
 from models import ExecutionResult, utc_now_iso
 from security import sanitize_command_parts
-from logging_utils import log_execution
-from utils.process import kill_process_tree
 
 logger = logging.getLogger("kali_mcp.execution")
 
