@@ -29,11 +29,28 @@ class NmapTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "Target IP, CIDR, or hostname to scan"},
-                "scan_type": {"type": "string", "description": "Scan type flag (e.g. '-sS', '-sT', '-sV', '-sC', '-A')", "default": "-sV"},
-                "ports": {"type": "string", "description": "Port specification (e.g. '1-1000', '80,443', '-')"},
-                "extra_args": {"type": "string", "description": "Additional nmap arguments (e.g. '-O --script vuln')"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 600)", "default": 600},
+                "target": {
+                    "type": "string",
+                    "description": "Target IP, CIDR, or hostname to scan",
+                },
+                "scan_type": {
+                    "type": "string",
+                    "description": "Scan type flag (e.g. '-sS', '-sT', '-sV', '-sC', '-A')",
+                    "default": "-sV",
+                },
+                "ports": {
+                    "type": "string",
+                    "description": "Port specification (e.g. '1-1000', '80,443', '-')",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional nmap arguments (e.g. '-O --script vuln')",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 600)",
+                    "default": 600,
+                },
             },
             "required": ["target"],
         }
@@ -69,5 +86,9 @@ class NmapTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

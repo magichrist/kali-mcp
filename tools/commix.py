@@ -29,9 +29,19 @@ class CommixTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "Target URL with injectable parameter"},
-                "extra_args": {"type": "string", "description": "Additional commix arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 600)", "default": 600},
+                "target": {
+                    "type": "string",
+                    "description": "Target URL with injectable parameter",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional commix arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 600)",
+                    "default": 600,
+                },
             },
             "required": ["target"],
         }
@@ -55,5 +65,9 @@ class CommixTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

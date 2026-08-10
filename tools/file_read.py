@@ -65,7 +65,9 @@ class FileReadTool(BaseTool):
         # Path containment check (skip if no dirs configured = unrestricted)
         if ALLOWED_READ_DIRS:
             resolved = os.path.realpath(path)
-            if not any(resolved.startswith(d + "/") or resolved == d for d in ALLOWED_READ_DIRS):
+            if not any(
+                resolved.startswith(d + "/") or resolved == d for d in ALLOWED_READ_DIRS
+            ):
                 raise ValueError(
                     f"Path not in allowed directories: {resolved}. "
                     f"Allowed: {', '.join(ALLOWED_READ_DIRS)}"
@@ -85,10 +87,12 @@ class FileReadTool(BaseTool):
         offset = arguments.get("offset", 0)
 
         if not os.path.isfile(path):
-            return error_response(ToolError(
-                error="File not found",
-                details=f"No such file: {path}",
-            ))
+            return error_response(
+                ToolError(
+                    error="File not found",
+                    details=f"No such file: {path}",
+                )
+            )
 
         try:
             file_size = os.path.getsize(path)
@@ -113,14 +117,16 @@ class FileReadTool(BaseTool):
             result = ExecutionResult(
                 tool=self.name,
                 command=f"cat {path}",
-                stdout=json.dumps({
-                    "path": path,
-                    "file_size": file_size,
-                    "offset": offset,
-                    "bytes_read": len(content.encode("utf-8")),
-                    "truncated": truncated,
-                    "content": content,
-                }),
+                stdout=json.dumps(
+                    {
+                        "path": path,
+                        "file_size": file_size,
+                        "offset": offset,
+                        "bytes_read": len(content.encode("utf-8")),
+                        "truncated": truncated,
+                        "content": content,
+                    }
+                ),
                 stderr="",
                 exit_code=0,
                 success=True,
@@ -132,7 +138,9 @@ class FileReadTool(BaseTool):
 
             return success_response(result)
         except Exception as e:
-            return error_response(ToolError(
-                error="Read failed",
-                details=str(e),
-            ))
+            return error_response(
+                ToolError(
+                    error="Read failed",
+                    details=str(e),
+                )
+            )

@@ -30,9 +30,19 @@ class WpscanTool(BaseTool):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "WordPress site URL"},
-                "enumerate": {"type": "string", "description": "Enumeration options (e.g. 'vp,vt,u')"},
-                "extra_args": {"type": "string", "description": "Additional wpscan arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 600)", "default": 600},
+                "enumerate": {
+                    "type": "string",
+                    "description": "Enumeration options (e.g. 'vp,vt,u')",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional wpscan arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 600)",
+                    "default": 600,
+                },
             },
             "required": ["target"],
         }
@@ -58,5 +68,9 @@ class WpscanTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

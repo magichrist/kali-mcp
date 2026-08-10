@@ -51,5 +51,9 @@ class Enum4linuxTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

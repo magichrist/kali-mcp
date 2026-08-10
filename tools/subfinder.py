@@ -25,9 +25,19 @@ class SubfinderTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "domain": {"type": "string", "description": "Target domain (e.g. 'example.com')"},
-                "extra_args": {"type": "string", "description": "Additional subfinder arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 300)", "default": 300},
+                "domain": {
+                    "type": "string",
+                    "description": "Target domain (e.g. 'example.com')",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional subfinder arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 300)",
+                    "default": 300,
+                },
             },
             "required": ["domain"],
         }
@@ -51,5 +61,9 @@ class SubfinderTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

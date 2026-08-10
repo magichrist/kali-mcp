@@ -30,9 +30,20 @@ class KatanaTool(BaseTool):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "Target URL to crawl"},
-                "depth": {"type": "integer", "description": "Crawl depth (default 3)", "default": 3},
-                "extra_args": {"type": "string", "description": "Additional katana arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 600)", "default": 600},
+                "depth": {
+                    "type": "integer",
+                    "description": "Crawl depth (default 3)",
+                    "default": 3,
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional katana arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 600)",
+                    "default": 600,
+                },
             },
             "required": ["target"],
         }
@@ -44,7 +55,13 @@ class KatanaTool(BaseTool):
             validate_timeout(arguments["timeout"])
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        cmd = ["katana", "-u", arguments["target"], "-d", str(arguments.get("depth", 3))]
+        cmd = [
+            "katana",
+            "-u",
+            arguments["target"],
+            "-d",
+            str(arguments.get("depth", 3)),
+        ]
         extra = arguments.get("extra_args")
         if extra:
             cmd.extend(shlex.split(extra))
@@ -56,5 +73,9 @@ class KatanaTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

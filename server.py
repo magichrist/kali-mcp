@@ -19,13 +19,17 @@ from contextlib import asynccontextmanager
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.server import Context
 from mcp.server.fastmcp.tools.base import Tool as MCPTool
 from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 
 from config import config
-from execution import engine
+from execution import engine, reset_progress_cb, set_progress_cb
 from logging_utils import setup_logging
+from notifications import emit_log, notify_resource_updated
+from prompts import register_prompts
 from registry import registry
+from resources import register_resources
 
 # Import all tools (triggers registration)
 from tools import ALL_TOOLS
@@ -79,12 +83,16 @@ class HealthMonitor:
             for s in stuck:
                 logger.warning(
                     "health: stuck execution detected — request=%s tool=%s elapsed=%.0fs",
-                    s["request_id"], s["tool"], s["elapsed_seconds"],
+                    s["request_id"],
+                    s["tool"],
+                    s["elapsed_seconds"],
                 )
 
         # Force cleanup if too many stuck
         if len(stuck) > config.max_concurrent:
-            logger.warning("health: too many stuck executions (%d), force cleaning", len(stuck))
+            logger.warning(
+                "health: too many stuck executions (%d), force cleaning", len(stuck)
+            )
             engine.force_cleanup()
 
         # Log health metrics
@@ -96,7 +104,10 @@ class HealthMonitor:
         if active > 0 or req_count > 0:
             logger.info(
                 "health: uptime=%.0fs active=%d requests=%d errors=%d",
-                uptime, active, req_count, err_count,
+                uptime,
+                active,
+                req_count,
+                err_count,
             )
 
     def record_request(self) -> None:
@@ -128,6 +139,7 @@ def _get_memory_mb() -> float:
     """Get current process memory usage in MB."""
     try:
         import resource as _resource
+
         usage = _resource.getrusage(_resource.RUSAGE_SELF)
         return round(usage.ru_maxrss / 1024, 1)  # Linux: bytes→MB
     except Exception:
@@ -143,6 +155,7 @@ async def lifespan(app):
 
     # Verify critical binaries
     import shutil
+
     for bin_name in ["nmap", "curl"]:
         if shutil.which(bin_name):
             logger.info("Startup check OK: %s found", bin_name)
@@ -172,6 +185,10 @@ mcp = FastMCP(
     port=config.port,
 )
 
+# Resources + prompts (protocol-level metadata surfaced to clients)
+register_resources(mcp, health=health)
+register_prompts(mcp)
+
 
 # Register all tools with safe_execute wrapper
 for tool_instance in ALL_TOOLS:
@@ -199,28 +216,48 @@ for tool_instance in ALL_TOOLS:
 
             if has_default:
                 default = prop.get("default")
-                params.append(inspect.Parameter(
-                    name, inspect.Parameter.KEYWORD_ONLY,
-                    default=default, annotation=py_type,
-                ))
+                params.append(
+                    inspect.Parameter(
+                        name,
+                        inspect.Parameter.KEYWORD_ONLY,
+                        default=default,
+                        annotation=py_type,
+                    )
+                )
             elif is_required:
-                params.append(inspect.Parameter(
-                    name, inspect.Parameter.KEYWORD_ONLY,
-                    annotation=py_type,
-                ))
+                params.append(
+                    inspect.Parameter(
+                        name,
+                        inspect.Parameter.KEYWORD_ONLY,
+                        annotation=py_type,
+                    )
+                )
             else:
                 # Optional — default to None, type is Optional[py_type]
-                params.append(inspect.Parameter(
-                    name, inspect.Parameter.KEYWORD_ONLY,
-                    default=None, annotation=py_type | None,
-                ))
+                params.append(
+                    inspect.Parameter(
+                        name,
+                        inspect.Parameter.KEYWORD_ONLY,
+                        default=None,
+                        annotation=py_type | None,
+                    )
+                )
 
         sig = inspect.Signature(params)
 
-        async def handler(**kwargs) -> str:
+        async def handler(ctx: Context, **kwargs) -> str:
             request_id = uuid.uuid4().hex[:12]
             health.record_request()
+
+            async def progress(completed, total, message=None) -> None:
+                try:
+                    await ctx.report_progress(completed, total, message=message)
+                except Exception:
+                    pass  # client didn't ask for progress — no-op
+
+            token = set_progress_cb(progress)
             try:
+                emit_log(ctx, "info", f"Starting {t.name} ({request_id})")
                 # Coerce string values to correct types based on schema
                 for pname, prop in properties.items():
                     if pname in kwargs and kwargs[pname] is not None:
@@ -234,8 +271,16 @@ for tool_instance in ALL_TOOLS:
                             kwargs[pname] = val.lower() in ("1", "true", "yes")
                         elif expected == "boolean" and isinstance(val, bool):
                             pass  # already correct
-                logger.info("request=%s tool=%s args=%s", request_id, t.name, list(kwargs.keys()))
+                logger.info(
+                    "request=%s tool=%s args=%s",
+                    request_id,
+                    t.name,
+                    list(kwargs.keys()),
+                )
                 result = await t.safe_execute(kwargs)
+                emit_log(ctx, "info", f"Completed {t.name} ({request_id})")
+                if t.name == "file_write":
+                    notify_resource_updated(ctx, "kali://artifacts")
                 if isinstance(result, dict) and "content" in result:
                     for block in result["content"]:
                         if isinstance(block, dict) and block.get("type") == "text":
@@ -243,11 +288,17 @@ for tool_instance in ALL_TOOLS:
                 return json.dumps(result, indent=2)
             except asyncio.CancelledError:
                 logger.warning("request=%s tool=%s cancelled", request_id, t.name)
+                emit_log(ctx, "warning", f"Cancelled {t.name} ({request_id})")
                 return json.dumps({"error": "Request cancelled"})
             except Exception:
                 health.record_error()
-                logger.exception("request=%s catastrophic error in tool %s", request_id, t.name)
+                logger.exception(
+                    "request=%s catastrophic error in tool %s", request_id, t.name
+                )
+                emit_log(ctx, "error", f"Failed {t.name} ({request_id})")
                 return json.dumps({"error": "Tool execution failed"}, indent=2)
+            finally:
+                reset_progress_cb(token)
 
         handler.__name__ = t.name
         handler.__doc__ = t.description
@@ -264,6 +315,7 @@ for tool_instance in ALL_TOOLS:
         parameters=tool_instance.input_schema(),
         fn_metadata=fm,
         is_async=True,
+        context_kwarg="ctx",
     )
     mcp._tool_manager._tools[tool_instance.name] = mcp_tool
 
@@ -286,11 +338,14 @@ def force_cleanup() -> str:
     """Force cleanup all stuck executions. Use when server appears unresponsive."""
     count = engine.force_cleanup()
     gc.collect()
-    return json.dumps({
-        "status": "cleaned",
-        "requests_cleaned": count,
-        "message": f"Force-cleaned {count} tracked executions and ran GC",
-    }, indent=2)
+    return json.dumps(
+        {
+            "status": "cleaned",
+            "requests_cleaned": count,
+            "message": f"Force-cleaned {count} tracked executions and ran GC",
+        },
+        indent=2,
+    )
 
 
 # ── File Download Endpoint ─────────────────────────────────────
@@ -354,7 +409,9 @@ if __name__ == "__main__":
         app.add_middleware(TokenAuthMiddleware, token=api_token)
         logger.info("API token authentication enabled")
     else:
-        logger.warning("No MCP_API_TOKEN set — server is open. Set MCP_API_TOKEN in .env for production.")
+        logger.warning(
+            "No MCP_API_TOKEN set — server is open. Set MCP_API_TOKEN in .env for production."
+        )
 
     # Graceful shutdown
     def _shutdown_handler(signum, frame):
@@ -367,6 +424,7 @@ if __name__ == "__main__":
 
     # File download route
     from starlette.routing import Route
+
     app.routes.insert(0, Route("/download", download_file, methods=["GET"]))
 
     uvicorn.run(app, host=config.host, port=config.port)

@@ -29,11 +29,24 @@ class FfufTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "Target URL with FUZZ keyword (e.g. 'https://target.com/FUZZ')"},
+                "target": {
+                    "type": "string",
+                    "description": "Target URL with FUZZ keyword (e.g. 'https://target.com/FUZZ')",
+                },
                 "wordlist": {"type": "string", "description": "Path to wordlist file"},
-                "filter": {"type": "string", "description": "Filter flags (e.g. '-fc 404 -fs 0')"},
-                "extra_args": {"type": "string", "description": "Additional ffuf arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 600)", "default": 600},
+                "filter": {
+                    "type": "string",
+                    "description": "Filter flags (e.g. '-fc 404 -fs 0')",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional ffuf arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 600)",
+                    "default": 600,
+                },
             },
             "required": ["target", "wordlist"],
         }
@@ -62,5 +75,9 @@ class FfufTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

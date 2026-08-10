@@ -31,9 +31,18 @@ class NetexecTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "Target IP, CIDR, or hostname"},
-                "protocol": {"type": "string", "description": "Protocol: smb, winrm, ssh, ldap, rdp, mssql, ftp"},
-                "extra_args": {"type": "string", "description": "Additional nxc arguments"},
+                "target": {
+                    "type": "string",
+                    "description": "Target IP, CIDR, or hostname",
+                },
+                "protocol": {
+                    "type": "string",
+                    "description": "Protocol: smb, winrm, ssh, ldap, rdp, mssql, ftp",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional nxc arguments",
+                },
                 "timeout": {"type": "integer", "default": 300},
             },
             "required": ["target", "protocol"],
@@ -49,7 +58,10 @@ class NetexecTool(BaseTool):
                 validate_cidr(target)
             except ValueError:
                 pass
-        validate_enum(arguments["protocol"], ["smb", "winrm", "ssh", "ldap", "rdp", "mssql", "ftp"])
+        validate_enum(
+            arguments["protocol"],
+            ["smb", "winrm", "ssh", "ldap", "rdp", "mssql", "ftp"],
+        )
         if "timeout" in arguments:
             validate_timeout(arguments["timeout"])
 
@@ -66,5 +78,9 @@ class NetexecTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

@@ -29,9 +29,19 @@ class SpiderfootTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "Target domain, IP, or keyword"},
-                "modules": {"type": "string", "description": "Specific modules to run (comma-separated, or 'all')", "default": "all"},
-                "extra_args": {"type": "string", "description": "Additional spiderfoot-cli arguments"},
+                "target": {
+                    "type": "string",
+                    "description": "Target domain, IP, or keyword",
+                },
+                "modules": {
+                    "type": "string",
+                    "description": "Specific modules to run (comma-separated, or 'all')",
+                    "default": "all",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional spiderfoot-cli arguments",
+                },
                 "timeout": {"type": "integer", "default": 900},
             },
             "required": ["target"],
@@ -57,5 +67,9 @@ class SpiderfootTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

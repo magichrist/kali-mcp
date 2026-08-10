@@ -35,11 +35,28 @@ class NaabuTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "Target IP, CIDR, or hostname"},
-                "ports": {"type": "string", "description": "Port spec (e.g. '80,443', '1-1000')"},
-                "scan_type": {"type": "string", "description": "Scan type: 'syn' (default) or 'connect'", "default": "syn"},
-                "extra_args": {"type": "string", "description": "Additional naabu arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 300)", "default": 300},
+                "target": {
+                    "type": "string",
+                    "description": "Target IP, CIDR, or hostname",
+                },
+                "ports": {
+                    "type": "string",
+                    "description": "Port spec (e.g. '80,443', '1-1000')",
+                },
+                "scan_type": {
+                    "type": "string",
+                    "description": "Scan type: 'syn' (default) or 'connect'",
+                    "default": "syn",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional naabu arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 300)",
+                    "default": 300,
+                },
             },
             "required": ["target"],
         }
@@ -75,5 +92,9 @@ class NaabuTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

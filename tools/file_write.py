@@ -72,7 +72,10 @@ class FileWriteTool(BaseTool):
         # Path containment check (skip if no dirs configured = unrestricted)
         if ALLOWED_WRITE_DIRS:
             resolved = os.path.realpath(path)
-            if not any(resolved.startswith(d + "/") or resolved == d for d in ALLOWED_WRITE_DIRS):
+            if not any(
+                resolved.startswith(d + "/") or resolved == d
+                for d in ALLOWED_WRITE_DIRS
+            ):
                 raise ValueError(
                     f"Path not in allowed directories: {resolved}. "
                     f"Allowed: {', '.join(ALLOWED_WRITE_DIRS)}"
@@ -106,12 +109,14 @@ class FileWriteTool(BaseTool):
             result = ExecutionResult(
                 tool=self.name,
                 command=f"write {len(content)} bytes to {path}",
-                stdout=json.dumps({
-                    "path": path,
-                    "mode": mode,
-                    "bytes_written": len(content.encode("utf-8")),
-                    "file_size": file_size,
-                }),
+                stdout=json.dumps(
+                    {
+                        "path": path,
+                        "mode": mode,
+                        "bytes_written": len(content.encode("utf-8")),
+                        "file_size": file_size,
+                    }
+                ),
                 stderr="",
                 exit_code=0,
                 success=True,
@@ -124,12 +129,16 @@ class FileWriteTool(BaseTool):
             return success_response(result)
 
         except PermissionError:
-            return error_response(ToolError(
-                error="Permission denied",
-                details=f"Cannot write to {path}",
-            ))
+            return error_response(
+                ToolError(
+                    error="Permission denied",
+                    details=f"Cannot write to {path}",
+                )
+            )
         except OSError as e:
-            return error_response(ToolError(
-                error="Write failed",
-                details=f"{type(e).__name__}: {e}",
-            ))
+            return error_response(
+                ToolError(
+                    error="Write failed",
+                    details=f"{type(e).__name__}: {e}",
+                )
+            )

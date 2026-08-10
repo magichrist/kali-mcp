@@ -26,9 +26,20 @@ class TheharvesterTool(BaseTool):
             "type": "object",
             "properties": {
                 "domain": {"type": "string", "description": "Target domain"},
-                "source": {"type": "string", "description": "Data sources (e.g. 'all', 'google,bing,linkedin')", "default": "all"},
-                "limit": {"type": "integer", "description": "Max results per source (default 500)", "default": 500},
-                "extra_args": {"type": "string", "description": "Additional theHarvester arguments"},
+                "source": {
+                    "type": "string",
+                    "description": "Data sources (e.g. 'all', 'google,bing,linkedin')",
+                    "default": "all",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results per source (default 500)",
+                    "default": 500,
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional theHarvester arguments",
+                },
                 "timeout": {"type": "integer", "default": 300},
             },
             "required": ["domain"],
@@ -41,7 +52,15 @@ class TheharvesterTool(BaseTool):
             validate_timeout(arguments["timeout"])
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        cmd = ["theHarvester", "-d", arguments["domain"], "-b", arguments.get("source", "all"), "-l", str(arguments.get("limit", 500))]
+        cmd = [
+            "theHarvester",
+            "-d",
+            arguments["domain"],
+            "-b",
+            arguments.get("source", "all"),
+            "-l",
+            str(arguments.get("limit", 500)),
+        ]
         extra = arguments.get("extra_args")
         if extra:
             cmd.extend(shlex.split(extra))
@@ -53,5 +72,9 @@ class TheharvesterTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

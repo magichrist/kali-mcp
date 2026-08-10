@@ -58,7 +58,9 @@ def validate_timeout(value: int | str, min_val: int = 1, max_val: int = 3600) ->
     except (ValueError, TypeError):
         raise ValueError(f"Timeout must be a number, got {value!r}")
     if value < min_val or value > max_val:
-        raise ValueError(f"Timeout must be between {min_val} and {max_val}, got {value}")
+        raise ValueError(
+            f"Timeout must be between {min_val} and {max_val}, got {value}"
+        )
 
 
 def validate_enum(value: str, allowed: list[str], label: str = "value") -> None:

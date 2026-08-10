@@ -17,13 +17,11 @@ class BaseTool(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     @property
     @abc.abstractmethod
-    def description(self) -> str:
-        ...
+    def description(self) -> str: ...
 
     @property
     def default_timeout(self) -> int:
@@ -59,7 +57,9 @@ class BaseTool(abc.ABC):
             return await self.execute(arguments)
         except Exception as e:
             logger.exception("CRITICAL: unhandled exception in tool %s", self.name)
-            return error_response(ToolError(
-                error=f"Internal error in {self.name}",
-                details=f"{type(e).__name__}: {e}",
-            ))
+            return error_response(
+                ToolError(
+                    error=f"Internal error in {self.name}",
+                    details=f"{type(e).__name__}: {e}",
+                )
+            )

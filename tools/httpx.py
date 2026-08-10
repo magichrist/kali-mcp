@@ -21,17 +21,36 @@ class HttpxTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Run httpx for HTTP probing, technology detection, and web reconnaissance."
+        return (
+            "Run httpx for HTTP probing, technology detection, and web reconnaissance."
+        )
 
     def input_schema(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "URL, domain, or IP to probe"},
-                "scan_type": {"type": "string", "description": "httpx flags (e.g. '-status-code -title -tech-detect')", "default": "-status-code -title -tech-detect"},
-                "input_file": {"type": "string", "description": "Path to input file with targets (one per line)"},
-                "extra_args": {"type": "string", "description": "Additional httpx arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 300)", "default": 300},
+                "target": {
+                    "type": "string",
+                    "description": "URL, domain, or IP to probe",
+                },
+                "scan_type": {
+                    "type": "string",
+                    "description": "httpx flags (e.g. '-status-code -title -tech-detect')",
+                    "default": "-status-code -title -tech-detect",
+                },
+                "input_file": {
+                    "type": "string",
+                    "description": "Path to input file with targets (one per line)",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional httpx arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 300)",
+                    "default": 300,
+                },
             },
             "required": ["target"],
         }

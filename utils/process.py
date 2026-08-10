@@ -33,4 +33,4 @@ async def kill_process_tree(proc: asyncio.subprocess.Process) -> None:
             pass
 
     except Exception as e:
-        logger.warning("Error killing process %s: %s", getattr(proc, 'pid', '?'), e)
+        logger.warning("Error killing process %s: %s", getattr(proc, "pid", "?"), e)

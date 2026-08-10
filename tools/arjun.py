@@ -29,11 +29,28 @@ class ArjunTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "Target URL to scan for parameters"},
-                "method": {"type": "string", "description": "HTTP method: 'GET', 'POST', 'JSON' (default auto-detect)", "default": "GET"},
-                "wordlist": {"type": "string", "description": "Custom wordlist path for parameters"},
-                "extra_args": {"type": "string", "description": "Additional arjun arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 600)", "default": 600},
+                "target": {
+                    "type": "string",
+                    "description": "Target URL to scan for parameters",
+                },
+                "method": {
+                    "type": "string",
+                    "description": "HTTP method: 'GET', 'POST', 'JSON' (default auto-detect)",
+                    "default": "GET",
+                },
+                "wordlist": {
+                    "type": "string",
+                    "description": "Custom wordlist path for parameters",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional arjun arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 600)",
+                    "default": 600,
+                },
             },
             "required": ["target"],
         }
@@ -61,5 +78,9 @@ class ArjunTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

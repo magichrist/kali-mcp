@@ -47,9 +47,7 @@ def setup_logging() -> None:
     root.addHandler(file_handler)
 
     exec_file = config.log_dir / "executions.jsonl"
-    exec_handler = RotatingFileHandler(
-        exec_file, maxBytes=10_000_000, backupCount=5
-    )
+    exec_handler = RotatingFileHandler(exec_file, maxBytes=10_000_000, backupCount=5)
     exec_handler.setLevel(logging.INFO)
     exec_handler.setFormatter(JSONFormatter())
     exec_logger = logging.getLogger("kali_mcp.executions")
@@ -63,8 +61,12 @@ def log_execution(result) -> None:
         logger = logging.getLogger("kali_mcp.executions")
         logger.info(
             "tool=%s command=%s exit_code=%d success=%s duration=%.3fs timed_out=%s",
-            result.tool, result.command, result.exit_code,
-            result.success, result.duration, result.timed_out,
+            result.tool,
+            result.command,
+            result.exit_code,
+            result.success,
+            result.duration,
+            result.timed_out,
         )
     except Exception:
         pass  # Never let logging failure crash the handler

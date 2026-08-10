@@ -29,8 +29,14 @@ class CrackmapexecTool(BaseTool):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "Target IP or CIDR"},
-                "protocol": {"type": "string", "description": "Protocol: smb, winrm, ssh, ldap, rdp, mssql, ftp"},
-                "extra_args": {"type": "string", "description": "Additional cme arguments"},
+                "protocol": {
+                    "type": "string",
+                    "description": "Protocol: smb, winrm, ssh, ldap, rdp, mssql, ftp",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional cme arguments",
+                },
                 "timeout": {"type": "integer", "default": 300},
             },
             "required": ["target", "protocol"],
@@ -38,7 +44,10 @@ class CrackmapexecTool(BaseTool):
 
     def validate(self, arguments: dict[str, Any]) -> None:
         validate_required(arguments, "target", "protocol")
-        validate_enum(arguments["protocol"], ["smb", "winrm", "ssh", "ldap", "rdp", "mssql", "ftp"])
+        validate_enum(
+            arguments["protocol"],
+            ["smb", "winrm", "ssh", "ldap", "rdp", "mssql", "ftp"],
+        )
         if "timeout" in arguments:
             validate_timeout(arguments["timeout"])
 
@@ -70,12 +79,22 @@ class CrackmapexecTool(BaseTool):
 
         # Try crackmapexec first
         if shutil.which("crackmapexec"):
-            result = await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            result = await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
             return success_response(result)
 
         # Fallback to netexec (nxc)
         if shutil.which("nxc"):
-            result = await engine.execute(command=self._build_fallback_command(arguments), tool="netexec", timeout=arguments.get("timeout", self.default_timeout))
+            result = await engine.execute(
+                command=self._build_fallback_command(arguments),
+                tool="netexec",
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
             return success_response(result)
 
-        return error_response(ToolError(error="Neither crackmapexec nor netexec (nxc) found on system"))
+        return error_response(
+            ToolError(error="Neither crackmapexec nor netexec (nxc) found on system")
+        )

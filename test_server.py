@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def test_config():
     from config import config
+
     assert config.port == 8399
     assert config.default_timeout == 300
     print("PASS: config")
@@ -16,10 +17,18 @@ def test_config():
 
 def test_models():
     from models import ExecutionResult, utc_now_iso
+
     r = ExecutionResult(
-        tool="test", command="echo hi", stdout="hi", stderr="",
-        exit_code=0, success=True, timed_out=False,
-        duration=0.1, start_time=utc_now_iso(), end_time=utc_now_iso(),
+        tool="test",
+        command="echo hi",
+        stdout="hi",
+        stderr="",
+        exit_code=0,
+        success=True,
+        timed_out=False,
+        duration=0.1,
+        start_time=utc_now_iso(),
+        end_time=utc_now_iso(),
     )
     d = r.to_dict()
     assert d["tool"] == "test"
@@ -29,6 +38,7 @@ def test_models():
 
 def test_validation():
     from validation import validate_domain, validate_ip, validate_required, validate_url
+
     try:
         validate_required({}, "missing")
         assert False, "Should have raised"
@@ -43,15 +53,28 @@ def test_validation():
 def test_registry():
     from registry import ToolRegistry
     from tools.base import BaseTool
+
     class Dummy(BaseTool):
         @property
-        def name(self): return "dummy"
+        def name(self):
+            return "dummy"
+
         @property
-        def description(self): return "test"
-        def input_schema(self): return {}
-        def validate(self, a): pass
-        def build_command(self, a): return ["echo"]
-        async def execute(self, a): return {"content": [{"type": "text", "text": "ok"}], "isError": False}
+        def description(self):
+            return "test"
+
+        def input_schema(self):
+            return {}
+
+        def validate(self, a):
+            pass
+
+        def build_command(self, a):
+            return ["echo"]
+
+        async def execute(self, a):
+            return {"content": [{"type": "text", "text": "ok"}], "isError": False}
+
     reg = ToolRegistry()
     reg.register(Dummy())
     assert reg.get("dummy") is not None
@@ -61,6 +84,7 @@ def test_registry():
 
 def test_tools_import():
     from tools import ALL_TOOLS
+
     assert len(ALL_TOOLS) >= 17
     names = [t.name for t in ALL_TOOLS]
     assert "generic_command" in names
@@ -70,6 +94,7 @@ def test_tools_import():
 
 async def test_execution():
     from execution import engine
+
     result = await engine.execute(["echo", "hello"], tool="test")
     assert result.success
     assert result.stdout.strip() == "hello"
@@ -80,6 +105,7 @@ async def test_execution():
 
 async def test_generic_command():
     from tools.generic_command import GenericCommandTool
+
     tool = GenericCommandTool()
     result = await tool.execute({"command": "echo test123"})
     assert result["isError"] is False
@@ -88,6 +114,7 @@ async def test_generic_command():
 
 async def test_nmap_validation():
     from tools.nmap import NmapTool
+
     tool = NmapTool()
     # Should reject empty target
     result = await tool.execute({"target": ""})
@@ -100,6 +127,7 @@ async def test_nmap_validation():
 
 async def test_farsight_validation():
     from tools.farsight import FarsightTool
+
     tool = FarsightTool()
     # Should reject missing domain
     result = await tool.execute({})

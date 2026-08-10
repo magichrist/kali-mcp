@@ -25,9 +25,16 @@ class BloodhoundTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "collection": {"type": "string", "description": "Collection method (e.g. 'All', 'Group', 'LocalAdmin')", "default": "All"},
+                "collection": {
+                    "type": "string",
+                    "description": "Collection method (e.g. 'All', 'Group', 'LocalAdmin')",
+                    "default": "All",
+                },
                 "domain": {"type": "string", "description": "Target domain (optional)"},
-                "extra_args": {"type": "string", "description": "Additional bloodhound-python arguments"},
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional bloodhound-python arguments",
+                },
                 "timeout": {"type": "integer", "default": 900},
             },
             "required": ["domain"],
@@ -53,5 +60,9 @@ class BloodhoundTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )

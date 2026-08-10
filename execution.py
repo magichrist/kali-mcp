@@ -9,7 +9,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import gc
+import inspect
 import logging
 import os
 import threading
@@ -24,6 +26,31 @@ from security import sanitize_command_parts
 logger = logging.getLogger("kali_mcp.execution")
 
 MAX_OUTPUT = 100_000  # 100KB per stream
+
+# Per-request progress callback, set by the MCP handler so tool executions
+# report progress without each tool needing to thread the callback through.
+_progress_ctx: contextvars.ContextVar = contextvars.ContextVar(
+    "kali_mcp_progress", default=None
+)
+
+
+def set_progress_cb(cb) -> contextvars.Token | None:
+    """Set the current task's progress callback; returns a token to reset."""
+    if cb is None:
+        return None
+    return _progress_ctx.set(cb)
+
+
+def reset_progress_cb(token) -> None:
+    if token is not None:
+        _progress_ctx.reset(token)
+
+
+async def _call_progress(progress_cb, completed: int, total: int) -> None:
+    """Invoke a progress callback, supporting sync and async callables."""
+    result = progress_cb(completed, total)
+    if inspect.isawaitable(result):
+        await result
 
 
 class ExecutionEngine:
@@ -63,7 +90,9 @@ class ExecutionEngine:
                 for rid, tool, t in stuck:
                     logger.warning(
                         "watchdog: request=%s tool=%s stuck for %.0fs — force cleaning",
-                        rid, tool, now - t,
+                        rid,
+                        tool,
+                        now - t,
                     )
                     self._active.pop(rid, None)
                     self._request_times.pop(rid, None)
@@ -83,16 +112,19 @@ class ExecutionEngine:
         cwd: str | None = None,
         env: dict[str, str] | None = None,
         request_id: str | None = None,
+        progress_cb: object | None = None,
     ) -> ExecutionResult:
         """Execute a command and return structured result. Never raises.
-
         If command is a str, runs via create_subprocess_shell (for shell commands).
         If command is a list, runs via create_subprocess_exec (for direct binary exec).
+        progress_cb, if given, is called as progress_cb(completed, total) over time.
         """
         self._start_watchdog()
         req_id = request_id or uuid.uuid4().hex[:12]
         try:
-            effective_timeout = min(int(timeout or config.default_timeout), config.max_timeout)
+            effective_timeout = min(
+                int(timeout or config.default_timeout), config.max_timeout
+            )
         except (ValueError, TypeError):
             effective_timeout = config.default_timeout
 
@@ -106,11 +138,22 @@ class ExecutionEngine:
 
         logger.info(
             "request=%s executing tool=%s command=%s timeout=%d shell=%s",
-            req_id, tool, command_str, effective_timeout, use_shell,
+            req_id,
+            tool,
+            command_str,
+            effective_timeout,
+            use_shell,
         )
 
         start_time = utc_now_iso()
         start_monotonic = time.monotonic()
+        if progress_cb is None:
+            progress_cb = _progress_ctx.get()
+        if progress_cb is not None:
+            try:
+                await _call_progress(progress_cb, 0, 100)
+            except Exception:
+                progress_cb = None
 
         try:
             async with self._semaphore:
@@ -121,12 +164,16 @@ class ExecutionEngine:
                     exec_env = env if env is not None else os.environ.copy()
                     system_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games"
                     existing = exec_env.get("PATH", "")
-                    exec_env["PATH"] = f"{existing}:{system_path}" if existing else system_path
+                    exec_env["PATH"] = (
+                        f"{existing}:{system_path}" if existing else system_path
+                    )
 
                     try:
                         if use_shell:
                             proc = await asyncio.create_subprocess_exec(
-                                "/bin/bash", "-c", command,
+                                "/bin/bash",
+                                "-c",
+                                command,
                                 stdout=asyncio.subprocess.PIPE,
                                 stderr=asyncio.subprocess.PIPE,
                                 cwd=cwd,
@@ -147,20 +194,45 @@ class ExecutionEngine:
                             hint = "install it with 'apt install bash'"
                         else:
                             binary = command[0] if command else "unknown"
-                            hint = f"install it with 'apt install {binary}' or check PATH"
+                            hint = (
+                                f"install it with 'apt install {binary}' or check PATH"
+                            )
                         logger.warning(
                             "request=%s tool=%s binary not found: %s",
-                            req_id, tool, binary,
+                            req_id,
+                            tool,
+                            binary,
                         )
                         result = ExecutionResult(
-                            tool=tool, command=command_str, stdout="",
+                            tool=tool,
+                            command=command_str,
+                            stdout="",
                             stderr=f"Binary not found: {binary} — {hint}",
-                            exit_code=-1, success=False, timed_out=False,
+                            exit_code=-1,
+                            success=False,
+                            timed_out=False,
                             duration=round(elapsed, 3),
-                            start_time=start_time, end_time=utc_now_iso(),
+                            start_time=start_time,
+                            end_time=utc_now_iso(),
                         )
                         log_execution(result)
                         return result
+
+                    heartbeat_task = None
+                    if progress_cb is not None:
+
+                        async def _heartbeat():
+                            try:
+                                interval = max(min(effective_timeout / 20.0, 5.0), 0.25)
+                                for step in range(1, 20):
+                                    await asyncio.sleep(interval)
+                                    await _call_progress(
+                                        progress_cb, min(step * 5, 95), 100
+                                    )
+                            except Exception:
+                                pass
+
+                        heartbeat_task = asyncio.create_task(_heartbeat())
 
                     try:
                         stdout_bytes, stderr_bytes = await asyncio.wait_for(
@@ -170,7 +242,9 @@ class ExecutionEngine:
                     except asyncio.TimeoutError:
                         logger.warning(
                             "request=%s tool=%s timed out after %ds, killing process",
-                            req_id, tool, effective_timeout,
+                            req_id,
+                            tool,
+                            effective_timeout,
                         )
                         # Kill without waiting — communicate() was cancelled,
                         # transport state is inconsistent, proc.wait() would hang
@@ -196,13 +270,31 @@ class ExecutionEngine:
                         log_execution(result)
                         logger.info(
                             "request=%s tool=%s TIMED OUT duration=%.3fs",
-                            req_id, tool, result.duration,
+                            req_id,
+                            tool,
+                            result.duration,
                         )
                         return result
+                    finally:
+                        if heartbeat_task is not None:
+                            heartbeat_task.cancel()
+                            try:
+                                await heartbeat_task
+                            except (asyncio.CancelledError, Exception):
+                                pass
+                        if progress_cb is not None:
+                            try:
+                                await _call_progress(progress_cb, 100, 100)
+                            except Exception:
+                                pass
 
                     elapsed = time.monotonic() - start_monotonic
-                    stdout_str = stdout_bytes.decode("utf-8", errors="replace")[:MAX_OUTPUT]
-                    stderr_str = stderr_bytes.decode("utf-8", errors="replace")[:MAX_OUTPUT]
+                    stdout_str = stdout_bytes.decode("utf-8", errors="replace")[
+                        :MAX_OUTPUT
+                    ]
+                    stderr_str = stderr_bytes.decode("utf-8", errors="replace")[
+                        :MAX_OUTPUT
+                    ]
 
                     result = ExecutionResult(
                         tool=tool,
@@ -220,8 +312,18 @@ class ExecutionEngine:
                     log_execution(result)
                     logger.info(
                         "request=%s tool=%s exit_code=%d success=%s duration=%.3fs",
-                        req_id, tool, result.exit_code, result.success, result.duration,
+                        req_id,
+                        tool,
+                        result.exit_code,
+                        result.success,
+                        result.duration,
                     )
+                    if heartbeat_task is not None:
+                        heartbeat_task.cancel()
+                        try:
+                            await heartbeat_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
                     return result
 
                 finally:
@@ -233,11 +335,16 @@ class ExecutionEngine:
             with self._lock:
                 self._error_count += 1
             return ExecutionResult(
-                tool=tool, command=command_str, stdout="",
+                tool=tool,
+                command=command_str,
+                stdout="",
                 stderr="Execution cancelled",
-                exit_code=-1, success=False, timed_out=False,
+                exit_code=-1,
+                success=False,
+                timed_out=False,
                 duration=round(elapsed, 3),
-                start_time=start_time, end_time=utc_now_iso(),
+                start_time=start_time,
+                end_time=utc_now_iso(),
             )
         except Exception as e:
             elapsed = time.monotonic() - start_monotonic
@@ -245,11 +352,16 @@ class ExecutionEngine:
             with self._lock:
                 self._error_count += 1
             return ExecutionResult(
-                tool=tool, command=command_str, stdout="",
+                tool=tool,
+                command=command_str,
+                stdout="",
                 stderr=f"Internal error: {type(e).__name__}",
-                exit_code=-1, success=False, timed_out=False,
+                exit_code=-1,
+                success=False,
+                timed_out=False,
                 duration=round(elapsed, 3),
-                start_time=start_time, end_time=utc_now_iso(),
+                start_time=start_time,
+                end_time=utc_now_iso(),
             )
         finally:
             self._cleanup_request(req_id)
@@ -268,11 +380,13 @@ class ExecutionEngine:
             start_t = self._request_times.get(req_id, now)
             elapsed = now - start_t
             if elapsed > config.default_timeout:
-                stuck.append({
-                    "request_id": req_id,
-                    "tool": tool,
-                    "elapsed_seconds": round(elapsed, 1),
-                })
+                stuck.append(
+                    {
+                        "request_id": req_id,
+                        "tool": tool,
+                        "elapsed_seconds": round(elapsed, 1),
+                    }
+                )
         return stuck
 
     def force_cleanup(self) -> int:

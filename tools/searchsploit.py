@@ -22,7 +22,9 @@ class SearchsploitTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Search Exploit-DB for exploits. Search by keyword, CVE, EDB-ID, or title."
+        return (
+            "Search Exploit-DB for exploits. Search by keyword, CVE, EDB-ID, or title."
+        )
 
     @property
     def default_timeout(self) -> int:

@@ -42,9 +42,11 @@ def parse_json(text: str) -> dict:
 
 # ─── 1. Config ─────────────────────────────────────────────────────────────────
 
+
 def test_config():
     print("\n=== Config ===")
     from config import config
+
     check("port is 8399", config.port == 8399)
     check("default_timeout is 300", config.default_timeout == 300)
     check("max_timeout is 3600", config.max_timeout == 3600)
@@ -54,6 +56,7 @@ def test_config():
 
 # ─── 2. Models ─────────────────────────────────────────────────────────────────
 
+
 def test_models():
     print("\n=== Models ===")
     from models import ExecutionResult, ToolError, utc_now_iso
@@ -62,9 +65,16 @@ def test_models():
     check("utc_now_iso returns ISO string", "T" in ts and "Z" in ts or "+" in ts)
 
     r = ExecutionResult(
-        tool="test", command="echo hi", stdout="hi\n", stderr="",
-        exit_code=0, success=True, timed_out=False,
-        duration=0.123, start_time=ts, end_time=ts,
+        tool="test",
+        command="echo hi",
+        stdout="hi\n",
+        stderr="",
+        exit_code=0,
+        success=True,
+        timed_out=False,
+        duration=0.123,
+        start_time=ts,
+        end_time=ts,
     )
     d = r.to_dict()
     check("to_dict has tool", d["tool"] == "test")
@@ -84,6 +94,7 @@ def test_models():
 
 
 # ─── 3. Validation ─────────────────────────────────────────────────────────────
+
 
 def test_validation():
     print("\n=== Validation ===")
@@ -184,6 +195,7 @@ def test_validation():
 
 # ─── 4. Responses ──────────────────────────────────────────────────────────────
 
+
 def test_responses():
     print("\n=== Responses ===")
     from models import ExecutionResult, ToolError, utc_now_iso
@@ -195,9 +207,16 @@ def test_responses():
 
     ts = utc_now_iso()
     r = ExecutionResult(
-        tool="test", command="echo", stdout="ok", stderr="",
-        exit_code=0, success=True, timed_out=False,
-        duration=0.01, start_time=ts, end_time=ts,
+        tool="test",
+        command="echo",
+        stdout="ok",
+        stderr="",
+        exit_code=0,
+        success=True,
+        timed_out=False,
+        duration=0.01,
+        start_time=ts,
+        end_time=ts,
     )
     sr = success_response(r)
     check("success has content", "content" in sr)
@@ -217,6 +236,7 @@ def test_responses():
 
 # ─── 5. Registry ───────────────────────────────────────────────────────────────
 
+
 def test_registry():
     print("\n=== Registry ===")
     from registry import ToolRegistry
@@ -226,13 +246,24 @@ def test_registry():
 
     class FakeTool(BaseTool):
         @property
-        def name(self): return "fake"
+        def name(self):
+            return "fake"
+
         @property
-        def description(self): return "fake tool"
-        def input_schema(self): return {"type": "object", "properties": {}}
-        def validate(self, arguments): pass
-        def build_command(self, arguments): return ["fake"]
-        async def execute(self, arguments): return {}
+        def description(self):
+            return "fake tool"
+
+        def input_schema(self):
+            return {"type": "object", "properties": {}}
+
+        def validate(self, arguments):
+            pass
+
+        def build_command(self, arguments):
+            return ["fake"]
+
+        async def execute(self, arguments):
+            return {}
 
     t = FakeTool()
     reg.register(t)
@@ -248,6 +279,7 @@ def test_registry():
 
 
 # ─── 6. Security ───────────────────────────────────────────────────────────────
+
 
 def test_security():
     print("\n=== Security ===")
@@ -270,7 +302,10 @@ TOOL_ARGS = {
     "nmap": {"target": "127.0.0.1", "scan_type": "quick"},
     "httpx": {"target": "127.0.0.1"},
     "nuclei": {"target": "127.0.0.1"},
-    "ffuf": {"target": "http://127.0.0.1", "wordlist": "/usr/share/wordlists/dirb/common.txt"},
+    "ffuf": {
+        "target": "http://127.0.0.1",
+        "wordlist": "/usr/share/wordlists/dirb/common.txt",
+    },
     "katana": {"target": "http://127.0.0.1"},
     "subfinder": {"domain": "example.com"},
     "amass": {"domain": "example.com"},
@@ -397,6 +432,7 @@ def test_invalid_args_rejected():
 
 # ─── 8. Execution Engine ───────────────────────────────────────────────────────
 
+
 async def test_execution_engine():
     print("\n=== Execution Engine ===")
     from execution import engine
@@ -422,7 +458,10 @@ async def test_execution_engine():
 
     # Timeout
     r4 = await engine.execute(
-        ["sleep", "30"], tool="test", timeout=1, request_id="timeout_test",
+        ["sleep", "30"],
+        tool="test",
+        timeout=1,
+        request_id="timeout_test",
     )
     check("timeout timed_out=True", r4.timed_out is True)
     check("timeout success=False", r4.success is False)
@@ -430,6 +469,7 @@ async def test_execution_engine():
     # cwd parameter
     r5 = await engine.execute(["pwd"], tool="test", cwd="/tmp")
     import os as _os
+
     expected_cwd = _os.path.realpath("/tmp")
     check("cwd works", r5.stdout.strip() == expected_cwd)
 
@@ -443,7 +483,8 @@ async def test_execution_engine():
 
     # stderr output
     r7 = await engine.execute(
-        ["bash", "-c", "echo err_msg >&2"], tool="test",
+        ["bash", "-c", "echo err_msg >&2"],
+        tool="test",
     )
     check("stderr captured", "err_msg" in r7.stderr)
 
@@ -459,6 +500,7 @@ async def test_execution_engine():
 
 # ─── 9. Generic Command Tool — Full Execution ──────────────────────────────────
 
+
 async def test_generic_command():
     print("\n=== GenericCommand Tool ===")
     from tools.generic_command import GenericCommandTool
@@ -473,23 +515,17 @@ async def test_generic_command():
     check("generic echo no error", result["isError"] is False)
 
     # Shell features: &&, ;, pipes, redirection
-    result = await t.safe_execute({
-        "command": "echo abc | tr a-z A-Z"
-    })
+    result = await t.safe_execute({"command": "echo abc | tr a-z A-Z"})
     data = parse_json(result["content"][0]["text"])
     check("generic pipe works", data["stdout"].strip() == "ABC")
 
     # Command substitution
-    result = await t.safe_execute({
-        "command": "echo $(echo nested)"
-    })
+    result = await t.safe_execute({"command": "echo $(echo nested)"})
     data = parse_json(result["content"][0]["text"])
     check("generic subshell", data["stdout"].strip() == "nested")
 
     # Glob
-    result = await t.safe_execute({
-        "command": "ls /etc/hos*"
-    })
+    result = await t.safe_execute({"command": "ls /etc/hos*"})
     data = parse_json(result["content"][0]["text"])
     check("generic glob", "hosts" in data["stdout"])
 
@@ -518,6 +554,7 @@ async def test_generic_command():
 
     # Cwd
     import os as _os2
+
     expected = _os2.path.realpath("/tmp")
     result = await t.safe_execute({"command": "pwd", "cwd": "/tmp"})
     data = parse_json(result["content"][0]["text"])
@@ -525,6 +562,7 @@ async def test_generic_command():
 
 
 # ─── 10. Python Command Tool ───────────────────────────────────────────────────
+
 
 async def test_python_command():
     print("\n=== PythonCommand Tool ===")
@@ -539,16 +577,14 @@ async def test_python_command():
     check("python success", data["success"])
 
     # Multi-line with import
-    result = await t.safe_execute({
-        "code": "import math\nprint(math.sqrt(144))"
-    })
+    result = await t.safe_execute({"code": "import math\nprint(math.sqrt(144))"})
     data = parse_json(result["content"][0]["text"])
     check("python import+math", data["stdout"].strip() == "12.0")
 
     # Stderr on error
-    result = await t.safe_execute({
-        "code": "import sys\nprint('err', file=sys.stderr)\nprint('out')"
-    })
+    result = await t.safe_execute(
+        {"code": "import sys\nprint('err', file=sys.stderr)\nprint('out')"}
+    )
     data = parse_json(result["content"][0]["text"])
     check("python stderr captured", "err" in data["stderr"])
     check("python stdout also captured", data["stdout"].strip() == "out")
@@ -569,6 +605,7 @@ async def test_python_command():
 
 
 # ─── 11. File Read Tool ────────────────────────────────────────────────────────
+
 
 async def test_file_read():
     print("\n=== FileRead Tool ===")
@@ -599,6 +636,7 @@ async def test_file_read():
 
 # ─── 12. File Write Tool ──────────────────────────────────────────────────────
 
+
 async def test_file_write():
     print("\n=== FileWrite Tool ===")
     from tools.file_write import FileWriteTool
@@ -625,6 +663,7 @@ async def test_file_write():
 
 # ─── 13. Server Handler Type Mapping ───────────────────────────────────────────
 
+
 def test_server_handler_types():
     print("\n=== Server Handler Types ===")
     from tools import ALL_TOOLS
@@ -645,9 +684,11 @@ def test_server_handler_types():
 
 # ─── 14. Tool-Specific Validation (edge cases) ────────────────────────────────
 
+
 def test_tool_specific_validation():
     print("\n=== Tool-Specific Validation ===")
     from tools import ALL_TOOLS
+
     tool_map = {t.name: t for t in ALL_TOOLS}
 
     # nmap: bad target
@@ -725,6 +766,7 @@ def test_tool_specific_validation():
 
 # ─── 15. SafeExecute Error Handling ────────────────────────────────────────────
 
+
 async def test_safe_execute_error_handling():
     print("\n=== SafeExecute Error Handling ===")
     from tools.generic_command import GenericCommandTool
@@ -752,9 +794,11 @@ async def test_safe_execute_error_handling():
 
 # ─── 16. Command Building Correctness ──────────────────────────────────────────
 
+
 def test_command_building():
     print("\n=== Command Building Correctness ===")
     from tools import ALL_TOOLS
+
     tool_map = {t.name: t for t in ALL_TOOLS}
 
     # generic_command returns raw shell command string (shell mode)
@@ -791,6 +835,7 @@ def test_command_building():
 
 
 # ─── Main ──────────────────────────────────────────────────────────────────────
+
 
 def main():
     global _PASS, _FAIL

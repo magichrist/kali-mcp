@@ -35,9 +35,20 @@ class AmassTool(BaseTool):
             "type": "object",
             "properties": {
                 "domain": {"type": "string", "description": "Target domain"},
-                "mode": {"type": "string", "description": "Amass mode: 'enum' (default) or 'intel'", "default": "enum"},
-                "extra_args": {"type": "string", "description": "Additional amass arguments"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds (default 900)", "default": 900},
+                "mode": {
+                    "type": "string",
+                    "description": "Amass mode: 'enum' (default) or 'intel'",
+                    "default": "enum",
+                },
+                "extra_args": {
+                    "type": "string",
+                    "description": "Additional amass arguments",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 900)",
+                    "default": 900,
+                },
             },
             "required": ["domain"],
         }
@@ -64,5 +75,9 @@ class AmassTool(BaseTool):
         except ValueError as e:
             return error_response(ToolError(error="Validation error", details=str(e)))
         return success_response(
-            await engine.execute(command=self.build_command(arguments), tool=self.name, timeout=arguments.get("timeout", self.default_timeout))
+            await engine.execute(
+                command=self.build_command(arguments),
+                tool=self.name,
+                timeout=arguments.get("timeout", self.default_timeout),
+            )
         )
