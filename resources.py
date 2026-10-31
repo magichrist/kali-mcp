@@ -141,6 +141,55 @@ def _artifact_resource(artifact: str) -> str:
     return json.dumps(payload, indent=2, default=str)
 
 
+def _db_stats_resource() -> str:
+    """SQLite persistence statistics as JSON."""
+    try:
+        from db import manager as dbm
+
+        db = dbm.get_db()
+        if db is None:
+            return json.dumps({"error": "database disabled or unavailable"}, indent=2)
+        stats: dict[str, Any] = {"db_path": str(db.path)}
+        for table in ("targets", "scans", "findings", "credentials"):
+            try:
+                stats[table] = db.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            except Exception:  # noqa: BLE001
+                stats[table] = "error"
+        try:
+            stats["findings_by_severity"] = {
+                row[0]: row[1]
+                for row in db.conn.execute(
+                    "SELECT severity, COUNT(*) FROM findings GROUP BY severity"
+                ).fetchall()
+            }
+        except Exception:  # noqa: BLE001
+            pass
+        return json.dumps(stats, indent=2)
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({"error": str(exc)}, indent=2)
+
+
+def _vault_index_resource() -> str:
+    """Vault index — the inter-agent knowledge-sharing catalog."""
+    try:
+        from utils.vault import VAULT_ROOT, ensure_vault_dirs
+
+        ensure_vault_dirs()
+        index_path = VAULT_ROOT / "index.json"
+        if not index_path.exists():
+            return json.dumps({"count": 0, "entries": []}, indent=2)
+        data = json.loads(index_path.read_text())
+        # Enrich entries with browseable resource URIs where possible
+        for entry in data.get("entries", []):
+            path = Path(entry.get("path", ""))
+            if path.is_file() and config.artifact_dir in path.parents:
+                rel = path.relative_to(config.artifact_dir)
+                entry["uri"] = f"{RESOURCE_NAMESPACE}://artifacts/{rel}"
+        return json.dumps(data, indent=2)
+    except Exception as exc:  # noqa: BLE001
+        return json.dumps({"error": str(exc)}, indent=2)
+
+
 def register_resources(mcp, health=None) -> None:
     """Register all kali:// resources and templates on the FastMCP server."""
     mcp.resource(
@@ -192,8 +241,22 @@ def register_resources(mcp, health=None) -> None:
         mime_type="application/json",
     )(_artifact_resource)
 
+    mcp.resource(
+        f"{RESOURCE_NAMESPACE}://db/stats",
+        name="kali_db_stats",
+        description="SQLite persistence statistics (targets, scans, findings, credentials)",
+        mime_type="application/json",
+    )(_db_stats_resource)
+
+    mcp.resource(
+        f"{RESOURCE_NAMESPACE}://vault/index",
+        name="kali_vault_index",
+        description="Index of the inter-agent vault (findings, credentials, evidence, notes)",
+        mime_type="application/json",
+    )(_vault_index_resource)
+
     logger.info(
         "Registered %d resources + %d templates",
-        6,
+        9,
         len(TEMPLATES),
     )

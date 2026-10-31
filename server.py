@@ -24,6 +24,7 @@ from mcp.server.fastmcp.tools.base import Tool as MCPTool
 from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 
 from config import config
+from db import manager as db_manager
 from execution import engine, reset_progress_cb, set_progress_cb
 from logging_utils import setup_logging
 from notifications import emit_log, notify_resource_updated
@@ -33,6 +34,7 @@ from resources import register_resources
 
 # Import all tools (triggers registration)
 from tools import ALL_TOOLS
+from utils.vault import ensure_vault_dirs
 
 setup_logging()
 logger = logging.getLogger("kali_mcp.server")
@@ -152,6 +154,19 @@ async def lifespan(app):
     """Server lifecycle — startup and shutdown."""
     logger.info("Server starting up...")
     logger.info("Registered %d tools: %s", len(ALL_TOOLS), [t.name for t in ALL_TOOLS])
+    # Initialize foundational infrastructure (Phase 1)
+    try:
+        ensure_vault_dirs()
+        logger.info("Vault directories initialized")
+    except Exception:
+        logger.exception("Vault initialization failed")
+
+    try:
+        if getattr(config, "db_enabled", True):
+            _db = db_manager.get_db()
+            logger.info("Database initialized (path=%s)", str(config.db_path))
+    except Exception:
+        logger.exception("Database initialization failed")
 
     # Verify critical binaries
     import shutil
