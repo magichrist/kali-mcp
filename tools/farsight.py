@@ -11,6 +11,7 @@ from execution import engine
 from models import ToolError
 from responses import error_response, success_response
 from tools.base import BaseTool
+from validation import validate_domain
 
 logger = logging.getLogger("kali_mcp.tools")
 from config import config
@@ -61,7 +62,17 @@ class FarsightTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        pass
+        domain = arguments.get("domain")
+        if not isinstance(domain, str) or not domain.strip():
+            raise ValueError("Missing required parameter: domain")
+        validate_domain(domain.strip())
+        depth = arguments.get("depth", 1)
+        try:
+            depth = int(depth)
+        except (ValueError, TypeError):
+            raise ValueError(f"Depth must be an integer, got {depth!r}")
+        if depth < 1 or depth > 3:
+            raise ValueError(f"Depth must be between 1 and 3, got {depth}")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd, _report_path = self._build_full(arguments)
