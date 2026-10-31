@@ -17,9 +17,21 @@ start:
 debug:
     MCP_DEBUG=true python server.py
 
-# Run smoke tests
+# Run the full pytest suite (unit + integration)
 test:
-    python test_server.py
+    .venv/bin/python -m pytest
+
+# Run only fast unit tests
+test-unit:
+    .venv/bin/python -m pytest tests/unit
+
+# Run integration tests (uses local subprocesses; no external binaries needed except coreutils)
+test-integration:
+    .venv/bin/python -m pytest tests/integration
+
+# Run end-to-end protocol tests (spawns a real server)
+test-e2e:
+    .venv/bin/python -m pytest tests/e2e -m e2e
 
 # Show server health (requires running server)
 health:
