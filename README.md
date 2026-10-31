@@ -32,7 +32,7 @@ Copy `.env` and adjust values:
 | `MCP_ARTIFACT_DIR` | `artifacts` | Command output artifacts |
 | `MCP_DEBUG` | `false` | Enable verbose debug logging |
 
-## Available Tools (30)
+## Available Tools (50)
 
 ### General Execution
 
@@ -88,6 +88,56 @@ Copy `.env` and adjust values:
 | `flowlyt` | CI/CD pipeline security analyzer for GitHub/GitLab/Bitbucket workflows |
 | `zizmor` | GitHub Actions workflow static security auditor |
 | `zighound` | Red team network framework — network scanning, C2 listener, agent deployment, evasion simulation |
+
+### Brute-Force & Cracking
+
+| Tool | Description |
+|------|-------------|
+| `hydra` | Login brute-forcer — SSH, FTP, SMB, HTTP, and many more services |
+| `medusa` | Parallelized login brute-forcer across many hosts/services |
+| `hashcat` | GPU-accelerated password recovery and hash cracking |
+| `john` | John the Ripper — password hash cracking |
+
+### Directory & Content Discovery
+
+| Tool | Description |
+|------|-------------|
+| `gobuster` | Directory, DNS, and vhost brute-force |
+| `dirb` | Web content scanner with wordlist-based discovery |
+| `wfuzz` | Web fuzzer for directories, parameters, and headers |
+
+### Exploitation & Post-Exploitation
+
+| Tool | Description |
+|------|-------------|
+| `msfconsole` | Metasploit Framework console via resource scripts |
+| `bettercap` | MITM framework — sniffing, ARP/DNS spoofing, credential capture |
+| `responder` | LLMNR/NBT-NS/MDNS poisoning — capture NTLM authentication hashes |
+| `zap` | OWASP ZAP web application vulnerability scanning |
+
+### Orchestration
+
+| Tool | Description |
+|------|-------------|
+| `parallel_execute` | Run multiple tools concurrently, aggregate + deduplicate ports/vulns |
+| `parallel_status` | Check status of a parallel_execute job |
+| `playbook_recon` | Recon pipeline: subfinder → httpx → masscan → whatweb+nmap → nuclei |
+| `playbook_webapp` | Web app pipeline: katana → arjun+ffuf → nuclei → sqlmap+commix |
+| `playbook_ad` | AD pipeline: enum4linux → bloodhound → netexec+crackmapexec |
+| `playbook_engine` | Run a custom multi-tool playbook with `{{target}}` substitution and resume |
+| `playbook_list` | List available playbooks + last-run status |
+| `playbook_status` | Check which playbook steps completed (resume support) |
+| `health_check` | Server health and execution statistics |
+| `force_cleanup` | Force-kill stuck subprocesses and clean the process tree |
+
+### Persistence & Knowledge Sharing
+
+Every tool run is automatically recorded:
+
+- **SQLite** (`data/kali-mcp.sqlite`): targets, scans, findings, credentials
+- **Vault** (`artifacts/vault/`): per-target findings JSON + captured credentials for inter-agent sharing
+- Tools with structured output (hydra, medusa, john, hashcat, masscan, gobuster, dirb, wfuzz, responder, zap) parse their results into per-finding rows
+- Browse via MCP resources: `kali://db/stats` and `kali://vault/index`
 
 ## Tool Details
 
@@ -172,7 +222,7 @@ Comprehensive web application security scanner with AI-powered analysis. Covers 
 │  ┌──────────┐  ┌──────────────┐  ┌───────────────────┐  │
 │  │ Security │  │   Execution  │  │   Tool Registry   │  │
 │  │          │  │   Engine     │  │                   │  │
-│  │ Allowlist│  │ ┌──────────┐ │  │ 30 tools with    │  │
+│  │ Allowlist│  │ ┌──────────┐ │  │ 50 tools with    │  │
 │  │ Input    │→ │ │ asyncio  │ │  │ validated schemas │  │
 │  │ Validate │  │ │ timeout  │ │  │                   │  │
 │  │ Sanitize │  │ │ watchdog │ │  └───────────────────┘  │
@@ -182,7 +232,7 @@ Comprehensive web application security scanner with AI-powered analysis. Covers 
 │                       │ subprocess                      │
 │                ┌──────▼───────┐                         │
 │                │  Kali Linux  │                         │
-│                │  30 tools    │                         │
+│                │  50 tools    │                         │
 │                └──────────────┘                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -201,6 +251,23 @@ Comprehensive web application security scanner with AI-powered analysis. Covers 
 - **Automatic process cleanup**: Zombie processes killed via process tree termination
 - **Concurrent execution limits**: Semaphore prevents resource exhaustion
 - **Graceful degradation**: All errors return structured responses, never crash
+
+## Testing
+
+The test suite lives under `tests/` and runs on **pytest** (requires the project `.venv`):
+
+```bash
+just test              # full suite: unit + integration + e2e
+just test-unit         # fast, isolated tests
+just test-integration  # engine + tool execution (async)
+just test-e2e          # spawns a real server, speaks MCP over HTTP
+```
+
+| Layer | Location | What it covers |
+|-------|----------|----------------|
+| Unit | `tests/unit/` | Config, models, validators, registry, tool schemas, SQLite CRUD, vault |
+| Integration | `tests/integration/` | Execution engine, generic/python/file tools, safe_execute, playbook engine |
+| E2E | `tests/e2e/` | Boots `server.py` on a random port, verifies MCP handshake, tool inventory, and round-trip execution |
 
 ## Directory Structure
 
@@ -248,12 +315,41 @@ kali-mcp/
 │   ├── searchsploit.py    ← SearchsploitTool — exploit search
 │   ├── farsight.py        ← FarsightTool — domain intelligence
 │   ├── flowlyt.py         ← FlowlytTool — CI/CD security
-│   └── zizmor.py          ← ZizmorTool — GitHub Actions audit
-├── tests/
+│   ├── zizmor.py          ← ZizmorTool — GitHub Actions audit
+│   ├── msfconsole.py      ← MsfconsoleTool — Metasploit
+│   ├── hydra.py           ← HydraTool — login brute-force
+│   ├── hashcat.py         ← HashcatTool — GPU hash cracking
+│   ├── john.py            ← JohnTool — password cracking
+│   ├── gobuster.py        ← GobusterTool — directory brute-force
+│   ├── dirb.py            ← DirbTool — web content scanner
+│   ├── wfuzz.py           ← WfuzzTool — web fuzzer
+│   ├── medusa.py          ← MedusaTool — parallel brute-force
+│   ├── masscan.py         ← MasscanTool — masscan port scanner
+│   ├── zap.py             ← ZapTool — OWASP ZAP scanner
+│   ├── bettercap.py       ← BettercapTool — MITM framework
+│   ├── responder.py       ← ResponderTool — LLMNR poisoning
+│   ├── parallel_execute.py← ParallelExecuteTool + ParallelStatusTool — fan-out
+│   ├── playbook_engine.py ← PlaybookEngine — state tracking, resume, {{target}} substitution
+│   ├── playbook_recon.py  ← PlaybookReconTool — recon pipeline
+│   ├── playbook_webapp.py ← PlaybookWebappTool — web app pipeline
+│   ├── playbook_ad.py     ← PlaybookAdTool — AD pipeline
+│   ├── playbook_tools.py  ← PlaybookListTool + PlaybookStatusTool
+│   ├── persist.py         ← Shared persistence + per-tool output parsers
+│   └── normalization.py   ← NormalizedToolMixin — per-tool output schema
+├── db/
+│   └── manager.py         ← SQLite persistence: targets, scans, findings, creds
+├── utils/
+│   ├── process.py         ← Process tree cleanup
+│   └── vault.py           ← Plaintext inter-agent vault├── tests/
+│   ├── conftest.py        ← Shared fixtures + global registry wiring
+│   ├── unit/              ← Fast isolated tests (schemas, validation, DB, vault)
+│   ├── integration/       ← Async engine + tool execution tests
+│   └── e2e/               ← Spawns a real server, speaks MCP over HTTP
+├── pytest.ini
+├── requirements.txt
+├── Justfile
 ├── logs/
 ├── artifacts/
-├── .env
-├── justfile
-├── pyproject.toml
-└── uv.lock
+├── data/                   ← SQLite DB (kali-mcp.sqlite)
+└── .env
 ```
