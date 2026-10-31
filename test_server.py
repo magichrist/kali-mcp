@@ -136,7 +136,7 @@ async def test_farsight_validation():
     result = await tool.execute({"domain": "example.com", "depth": 5})
     assert result["isError"] is True
     # build_command produces correct structure
-    cmd, report_path = tool._build_full({"domain": "example.com"})
+    cmd, _report_path = tool._build_full({"domain": "example.com"})
     assert cmd[0] == "farsight"
     assert cmd[1] == "scan"
     assert cmd[2] == "example.com"

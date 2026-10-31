@@ -29,7 +29,7 @@ async def kill_process_tree(proc: asyncio.subprocess.Process) -> None:
         # Wait briefly for it to die
         try:
             await asyncio.wait_for(proc.wait(), timeout=2.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
     except Exception as e:

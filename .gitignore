@@ -9,3 +9,5 @@ build/
 logs/
 artifacts/
 docs/
+.venv
+.venv/

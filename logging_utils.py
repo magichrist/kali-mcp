@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 
 from config import config
@@ -13,7 +13,7 @@ from config import config
 class JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -40,7 +40,9 @@ def setup_logging() -> None:
 
     log_file = config.log_dir / "server.log"
     file_handler = RotatingFileHandler(
-        log_file, maxBytes=10_000_000, backupCount=5  # 10MB, 5 backups
+        log_file,
+        maxBytes=10_000_000,
+        backupCount=5,  # 10MB, 5 backups
     )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(JSONFormatter())
