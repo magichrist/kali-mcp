@@ -16,7 +16,7 @@ def _parse(stdout: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         {
             "type": "cracked_password",
             "severity": "high",
-            "title": f"Cracked hash: {c['hash'][:24]}…",
+            "title": f"Cracked hash: {c['username'][:24]}…",
             "description": f"password={c['password']}",
             "evidence": str(c),
         }
