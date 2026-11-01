@@ -79,7 +79,9 @@ class BaseTool(abc.ABC):
                 logger.debug("central persistence failed for %s", self.name)
         return result
 
-    def _central_persist(self, arguments: dict[str, Any], result: dict[str, Any]) -> None:
+    def _central_persist(
+        self, arguments: dict[str, Any], result: dict[str, Any]
+    ) -> None:
         """Extract the ExecutionResult payload and persist scan + vault entry."""
         from tools.persist import persist_run
 

@@ -21,7 +21,10 @@ class TestSanitizeCommandParts:
         assert sanitize_command_parts(["echo", None]) == ["echo", "None"]
 
     def test_unicode_preserved(self):
-        assert sanitize_command_parts(["echo", "héllo→wörld"]) == ["echo", "héllo→wörld"]
+        assert sanitize_command_parts(["echo", "héllo→wörld"]) == [
+            "echo",
+            "héllo→wörld",
+        ]
 
     def test_shell_metacharacters_preserved_as_literal_args(self):
         # Sanitization must not alter content — injection safety comes from
@@ -48,6 +51,8 @@ class TestQuoteArgument:
     def test_plain_word_unquoted(self):
         assert quote_argument("nmap") == "nmap"
 
-    @pytest.mark.parametrize("value", ["hello world", "a;b", "a$b", "a`b", "a&b", "a|b"])
+    @pytest.mark.parametrize(
+        "value", ["hello world", "a;b", "a$b", "a`b", "a&b", "a|b"]
+    )
     def test_dangerous_chars_are_quoted(self, value):
         assert quote_argument(value).startswith("'")

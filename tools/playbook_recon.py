@@ -41,7 +41,11 @@ class PlaybookReconTool(BaseTool):
                     "description": "Skip the final vulnerability scan (default false)",
                     "default": False,
                 },
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 1800},
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 1800,
+                },
             },
             "required": ["target"],
         }
@@ -56,24 +60,44 @@ class PlaybookReconTool(BaseTool):
     def _playbook(self, arguments: dict[str, Any]) -> dict[str, Any]:
         t = arguments["target"]
         steps: list[dict[str, Any]] = [
-            {"parallel": False, "tools": [
-                {"tool": "subfinder", "args": {"domain": "{{target}}"}},
-            ]},
-            {"parallel": False, "tools": [
-                {"tool": "httpx", "args": {"target": "{{target}}"}},
-            ]},
-            {"parallel": False, "tools": [
-                {"tool": "masscan", "args": {"target": "{{target}}"}},
-            ]},
-            {"parallel": True, "tools": [
-                {"tool": "whatweb", "args": {"target": "{{target}}"}},
-                {"tool": "nmap", "args": {"target": "{{target}}", "scan_type": "quick"}},
-            ]},
+            {
+                "parallel": False,
+                "tools": [
+                    {"tool": "subfinder", "args": {"domain": "{{target}}"}},
+                ],
+            },
+            {
+                "parallel": False,
+                "tools": [
+                    {"tool": "httpx", "args": {"target": "{{target}}"}},
+                ],
+            },
+            {
+                "parallel": False,
+                "tools": [
+                    {"tool": "masscan", "args": {"target": "{{target}}"}},
+                ],
+            },
+            {
+                "parallel": True,
+                "tools": [
+                    {"tool": "whatweb", "args": {"target": "{{target}}"}},
+                    {
+                        "tool": "nmap",
+                        "args": {"target": "{{target}}", "scan_type": "quick"},
+                    },
+                ],
+            },
         ]
         if not arguments.get("skip_nuclei"):
-            steps.append({"parallel": False, "tools": [
-                {"tool": "nuclei", "args": {"target": "{{target}}"}},
-            ]})
+            steps.append(
+                {
+                    "parallel": False,
+                    "tools": [
+                        {"tool": "nuclei", "args": {"target": "{{target}}"}},
+                    ],
+                }
+            )
         return {"name": "playbook_recon", "target": t, "steps": steps}
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -81,7 +105,9 @@ class PlaybookReconTool(BaseTool):
         from tools.playbook_engine import PlaybookEngine
 
         engine = PlaybookEngine()
-        res = await engine.run(self._playbook(arguments), resume=bool(arguments.get("resume")))
+        res = await engine.run(
+            self._playbook(arguments), resume=bool(arguments.get("resume"))
+        )
         return _wrap(res, self.name, arguments)
 
 

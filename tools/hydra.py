@@ -50,12 +50,19 @@ class HydraTool(BaseTool, NormalizedToolMixin):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "Target address"},
-                "service": {"type": "string", "description": "Service to attack (ssh, ftp, smb, http, etc.)"},
+                "service": {
+                    "type": "string",
+                    "description": "Service to attack (ssh, ftp, smb, http, etc.)",
+                },
                 "user_list": {"type": "string", "description": "Path to user list"},
                 "pass_list": {"type": "string", "description": "Path to password list"},
                 "port": {"type": "integer", "description": "Port number"},
                 "threads": {"type": "integer", "description": "Threads"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 600},
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 600,
+                },
             },
             "required": ["target", "service", "user_list", "pass_list"],
         }
@@ -66,15 +73,21 @@ class HydraTool(BaseTool, NormalizedToolMixin):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         return [
             "hydra",
-            "-L", arguments["user_list"],
-            "-P", arguments["pass_list"],
-            "-s", str(arguments.get("port", 22)),
+            "-L",
+            arguments["user_list"],
+            "-P",
+            arguments["pass_list"],
+            "-s",
+            str(arguments.get("port", 22)),
             arguments["target"],
             arguments["service"],
-            "-t", str(arguments.get("threads", 4)),
+            "-t",
+            str(arguments.get("threads", 4)),
         ]
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         creds = parse_hydra(stdout)
         return {
             "normalized": {

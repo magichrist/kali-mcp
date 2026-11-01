@@ -48,10 +48,24 @@ class JohnTool(BaseTool, NormalizedToolMixin):
             "type": "object",
             "properties": {
                 "hash_file": {"type": "string", "description": "Path to the hash file"},
-                "format": {"type": "string", "description": "Hash format (e.g. md5crypt, raw-sha1)"},
-                "wordlist": {"type": "string", "description": "Path to wordlist for --wordlist mode"},
-                "show": {"type": "boolean", "description": "Show cracked passwords (--show)", "default": False},
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 900},
+                "format": {
+                    "type": "string",
+                    "description": "Hash format (e.g. md5crypt, raw-sha1)",
+                },
+                "wordlist": {
+                    "type": "string",
+                    "description": "Path to wordlist for --wordlist mode",
+                },
+                "show": {
+                    "type": "boolean",
+                    "description": "Show cracked passwords (--show)",
+                    "default": False,
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 900,
+                },
             },
             "required": ["hash_file"],
         }
@@ -72,7 +86,9 @@ class JohnTool(BaseTool, NormalizedToolMixin):
         cmd.append(arguments["hash_file"])
         return cmd
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         creds = parse_john(stdout)
         return {
             "normalized": {

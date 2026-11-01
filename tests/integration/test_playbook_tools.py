@@ -20,8 +20,14 @@ def _two_step_playbook() -> dict:
     return {
         "name": "resume-test",
         "steps": [
-            {"parallel": False, "tools": [{"tool": "generic_command", "args": {"command": "echo one"}}]},
-            {"parallel": False, "tools": [{"tool": "generic_command", "args": {"command": "echo two"}}]},
+            {
+                "parallel": False,
+                "tools": [{"tool": "generic_command", "args": {"command": "echo one"}}],
+            },
+            {
+                "parallel": False,
+                "tools": [{"tool": "generic_command", "args": {"command": "echo two"}}],
+            },
         ],
     }
 
@@ -40,9 +46,12 @@ async def test_target_placeholder_substitution():
         "name": "subst-test",
         "target": "10.5.5.5",
         "steps": [
-            {"parallel": False, "tools": [
-                {"tool": "generic_command", "args": {"command": "echo {{target}}"}}
-            ]},
+            {
+                "parallel": False,
+                "tools": [
+                    {"tool": "generic_command", "args": {"command": "echo {{target}}"}}
+                ],
+            },
         ],
     }
     res = await PlaybookEngine().run(playbook)
@@ -86,7 +95,11 @@ async def test_playbook_list_tool():
     assert result["isError"] is False
     data = json.loads(result["content"][0]["text"])
     payload = json.loads(data["stdout"])
-    assert set(payload["playbooks"]) >= {"playbook_recon", "playbook_webapp", "playbook_ad"}
+    assert set(payload["playbooks"]) >= {
+        "playbook_recon",
+        "playbook_webapp",
+        "playbook_ad",
+    }
 
 
 async def test_playbook_engine_tool_validates():
@@ -96,10 +109,19 @@ async def test_playbook_engine_tool_validates():
     result = await t.safe_execute({"playbook": {"name": "x", "steps": []}})
     assert result["isError"] is True  # empty steps rejected
 
-    result = await t.safe_execute({
-        "playbook": {
-            "name": "ok",
-            "steps": [{"parallel": False, "tools": [{"tool": "generic_command", "args": {"command": "echo ok"}}]}],
+    result = await t.safe_execute(
+        {
+            "playbook": {
+                "name": "ok",
+                "steps": [
+                    {
+                        "parallel": False,
+                        "tools": [
+                            {"tool": "generic_command", "args": {"command": "echo ok"}}
+                        ],
+                    }
+                ],
+            }
         }
-    })
+    )
     assert result["isError"] is False

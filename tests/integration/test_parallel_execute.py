@@ -9,14 +9,16 @@ from tools.parallel_execute import ParallelExecuteTool, ParallelStatusTool
 
 async def test_parallel_execution_with_aggregation():
     t = ParallelExecuteTool()
-    result = await t.safe_execute({
-        "target": "127.0.0.1",
-        "tools": [
-            {"tool": "generic_command", "args": {"command": "echo one"}},
-            {"tool": "generic_command", "args": {"command": "echo two"}},
-        ],
-        "max_concurrent": 2,
-    })
+    result = await t.safe_execute(
+        {
+            "target": "127.0.0.1",
+            "tools": [
+                {"tool": "generic_command", "args": {"command": "echo one"}},
+                {"tool": "generic_command", "args": {"command": "echo two"}},
+            ],
+            "max_concurrent": 2,
+        }
+    )
     assert result["isError"] is False
     payload = json.loads(result["content"][0]["text"])
     stdout = json.loads(payload["stdout"])
@@ -27,13 +29,15 @@ async def test_parallel_execution_with_aggregation():
 
 async def test_error_isolation():
     t = ParallelExecuteTool()
-    result = await t.safe_execute({
-        "target": "127.0.0.1",
-        "tools": [
-            {"tool": "generic_command", "args": {"command": "totally_fake_cmd"}},
-            {"tool": "generic_command", "args": {"command": "echo survivor"}},
-        ],
-    })
+    result = await t.safe_execute(
+        {
+            "target": "127.0.0.1",
+            "tools": [
+                {"tool": "generic_command", "args": {"command": "totally_fake_cmd"}},
+                {"tool": "generic_command", "args": {"command": "echo survivor"}},
+            ],
+        }
+    )
     payload = json.loads(result["content"][0]["text"])
     stdout = json.loads(payload["stdout"])
     # The second tool still completed
@@ -42,10 +46,12 @@ async def test_error_isolation():
 
 async def test_parallel_status():
     t = ParallelExecuteTool()
-    result = await t.safe_execute({
-        "target": "127.0.0.1",
-        "tools": [{"tool": "generic_command", "args": {"command": "echo x"}}],
-    })
+    result = await t.safe_execute(
+        {
+            "target": "127.0.0.1",
+            "tools": [{"tool": "generic_command", "args": {"command": "echo x"}}],
+        }
+    )
     stdout = json.loads(json.loads(result["content"][0]["text"])["stdout"])
     job_id = stdout["job_id"]
 

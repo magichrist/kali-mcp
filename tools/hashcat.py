@@ -48,11 +48,22 @@ class HashcatTool(BaseTool, NormalizedToolMixin):
             "type": "object",
             "properties": {
                 "hash_file": {"type": "string", "description": "Path to the hash file"},
-                "mode": {"type": "integer", "description": "Hash mode number (-m), e.g. 0 for MD5"},
+                "mode": {
+                    "type": "integer",
+                    "description": "Hash mode number (-m), e.g. 0 for MD5",
+                },
                 "wordlist": {"type": "string", "description": "Path to wordlist"},
                 "rule": {"type": "string", "description": "Rule file (-r)"},
-                "show": {"type": "boolean", "description": "Show cracked hashes (--show)", "default": False},
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 900},
+                "show": {
+                    "type": "boolean",
+                    "description": "Show cracked hashes (--show)",
+                    "default": False,
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 900,
+                },
             },
             "required": ["hash_file"],
         }
@@ -76,7 +87,9 @@ class HashcatTool(BaseTool, NormalizedToolMixin):
         cmd.append(arguments["hash_file"])
         return cmd
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         creds = parse_hashcat(stdout)
         return {
             "normalized": {

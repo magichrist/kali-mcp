@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import json
 
 from utils.process import kill_process_tree
 
 
 class TestKillProcessTree:
     async def test_kill_running_process(self):
-        proc = await asyncio.create_subprocess_exec("sleep", "30", start_new_session=True)
+        proc = await asyncio.create_subprocess_exec(
+            "sleep", "30", start_new_session=True
+        )
         assert proc.returncode is None
         await kill_process_tree(proc)
         assert proc.returncode is not None  # died
@@ -49,7 +50,9 @@ class TestKillProcessTree:
         # Give the kernel a moment, then verify the orphaned child is gone
         await asyncio.sleep(0.2)
         orphan = await asyncio.create_subprocess_exec(
-            "pgrep", "-f", "sleep 3000",
+            "pgrep",
+            "-f",
+            "sleep 3000",
             stdout=asyncio.subprocess.PIPE,
         )
         out, _ = await orphan.communicate()

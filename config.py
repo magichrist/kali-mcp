@@ -10,8 +10,10 @@ from pathlib import Path
 try:
     from dotenv import load_dotenv
 except Exception:  # pragma: no cover - optional dependency missing in test env
+
     def load_dotenv(*args, **kwargs):
         return None
+
 
 load_dotenv(verbose=True)
 
@@ -92,9 +94,7 @@ class Config:
     db_path: Path = field(
         default_factory=lambda: Path(os.getenv("MCP_DB_PATH", "data/kali-mcp.sqlite"))
     )
-    db_enabled: bool = field(
-        default_factory=lambda: _bool_env("MCP_DB_ENABLED", True)
-    )
+    db_enabled: bool = field(default_factory=lambda: _bool_env("MCP_DB_ENABLED", True))
 
     def __post_init__(self) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)

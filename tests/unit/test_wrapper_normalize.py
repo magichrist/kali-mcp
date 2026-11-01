@@ -31,10 +31,23 @@ ZAP_OUT = "WARN-NEW: 10038 https://x\nLOW: 10098 https://x\n"
 class TestNormalizeContract:
     """Every normalize() must return {'normalized': dict} without raising."""
 
-    @pytest.mark.parametrize("tool_name", [
-        "hydra", "medusa", "john", "hashcat", "masscan", "gobuster",
-        "dirb", "wfuzz", "responder", "zap", "msfconsole", "bettercap",
-    ])
+    @pytest.mark.parametrize(
+        "tool_name",
+        [
+            "hydra",
+            "medusa",
+            "john",
+            "hashcat",
+            "masscan",
+            "gobuster",
+            "dirb",
+            "wfuzz",
+            "responder",
+            "zap",
+            "msfconsole",
+            "bettercap",
+        ],
+    )
     def test_normalize_returns_dict(self, tool_name):
         tool = TOOL_MAP[tool_name]
         result = tool.normalize("sample stdout", "", 0)
@@ -103,17 +116,32 @@ class _FakeResult:
 
     def to_dict(self):
         return {
-            "tool": self.tool, "command": self.command, "stdout": self.stdout,
-            "stderr": self.stderr, "exit_code": self.exit_code,
-            "success": self.success, "timed_out": self.timed_out,
-            "duration": self.duration, "start_time": self.start_time,
+            "tool": self.tool,
+            "command": self.command,
+            "stdout": self.stdout,
+            "stderr": self.stderr,
+            "exit_code": self.exit_code,
+            "success": self.success,
+            "timed_out": self.timed_out,
+            "duration": self.duration,
+            "start_time": self.start_time,
             "end_time": self.end_time,
         }
 
 
 PARSER_CASES = {
-    "hydra": ({"target": "10.0.0.1", "service": "ssh", "user_list": "/u", "pass_list": "/p"}, HYDRA_OUT, "credentials", 2),
-    "medusa": ({"target": "10.0.0.1", "service": "ssh", "user_list": "/u", "pass_list": "/p"}, MEDUSA_OUT, "credentials", 1),
+    "hydra": (
+        {"target": "10.0.0.1", "service": "ssh", "user_list": "/u", "pass_list": "/p"},
+        HYDRA_OUT,
+        "credentials",
+        2,
+    ),
+    "medusa": (
+        {"target": "10.0.0.1", "service": "ssh", "user_list": "/u", "pass_list": "/p"},
+        MEDUSA_OUT,
+        "credentials",
+        1,
+    ),
     "john": ({"hash_file": "/h"}, JOHN_OUT, "credentials", 1),
     "hashcat": ({"hash_file": "/h"}, HASHCAT_OUT, "credentials", 1),
     "masscan": ({"target": "10.0.0.1"}, MASSCAN_OUT, "findings", 2),

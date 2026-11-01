@@ -72,8 +72,12 @@ async def test_prompts_listed_and_rendered(server_url):
             prompts = await session.list_prompts()
             names = {p.name for p in prompts.prompts}
             assert {
-                "recon_workflow", "webapp_assessment", "ad_assessment",
-                "osint_harvest", "quick_scan", "report_template",
+                "recon_workflow",
+                "webapp_assessment",
+                "ad_assessment",
+                "osint_harvest",
+                "quick_scan",
+                "report_template",
             } <= names
 
             result = await session.get_prompt(
@@ -92,8 +96,12 @@ async def test_resources_listed_and_read(server_url):
             resources = await session.list_resources()
             uris = {str(r.uri) for r in resources.resources}
             assert {
-                "kali://config", "kali://tools", "kali://health",
-                "kali://db/stats", "kali://vault/index", "kali://artifacts",
+                "kali://config",
+                "kali://tools",
+                "kali://health",
+                "kali://db/stats",
+                "kali://vault/index",
+                "kali://artifacts",
             } <= uris
 
             # Read config + health resources
@@ -122,7 +130,9 @@ async def test_orchestration_tools_callable_via_mcp(server_url):
             result = await session.call_tool("playbook_list", {})
             assert result.isError is False
             payload = json.loads(result.content[0].text)
-            assert payload["success"] is False or payload  # ExecutionResult or error dict
+            assert (
+                payload["success"] is False or payload
+            )  # ExecutionResult or error dict
 
             result = await session.call_tool("playbook_status", {"name": "nope"})
             payload = json.loads(result.content[0].text)

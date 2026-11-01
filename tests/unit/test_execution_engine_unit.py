@@ -1,4 +1,5 @@
 """Unit tests for the ExecutionEngine execution engine."""
+
 from __future__ import annotations
 
 import os
@@ -26,7 +27,9 @@ async def test_execute_missing_binary():
 
 
 async def test_execute_timeout_kills_process():
-    r = await engine.execute(["sleep", "30"], tool="test", timeout=1, request_id="timeout_test")
+    r = await engine.execute(
+        ["sleep", "30"], tool="test", timeout=1, request_id="timeout_test"
+    )
     assert r.timed_out is True
     assert r.success is False
 
@@ -43,6 +46,3 @@ async def test_execute_env_vars():
         env={"MCP_TEST_VAR": "env_works"},
     )
     assert r.stdout.strip() == "env_works"
-
-
-

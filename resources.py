@@ -152,7 +152,9 @@ def _db_stats_resource() -> str:
         stats: dict[str, Any] = {"db_path": str(db.path)}
         for table in ("targets", "scans", "findings", "credentials"):
             try:
-                stats[table] = db.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                stats[table] = db.conn.execute(
+                    f"SELECT COUNT(*) FROM {table}"
+                ).fetchone()[0]
             except Exception:  # noqa: BLE001
                 stats[table] = "error"
         try:

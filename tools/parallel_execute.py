@@ -39,7 +39,9 @@ def aggregate_results(results: list[dict[str, Any]]) -> dict[str, Any]:
         if data is None:
             continue
         if not data.get("success"):
-            errors.append(f"{data.get('tool')}: {(data.get('stderr') or 'failed')[:120]}")
+            errors.append(
+                f"{data.get('tool')}: {(data.get('stderr') or 'failed')[:120]}"
+            )
         stdout = data.get("stdout") or ""
         # Prefer the structured payload contract (raw/normalized/…) if present
         try:
@@ -59,15 +61,24 @@ def aggregate_results(results: list[dict[str, Any]]) -> dict[str, Any]:
                     if "/" in p and p.split("/")[0].isdigit():
                         port, proto = p.split("/", 1)
                         key = (data.get("command", ""), port, proto)
-                        ports.setdefault(key, {"source": data.get("tool"), "detail": line[:200]})
+                        ports.setdefault(
+                            key, {"source": data.get("tool"), "detail": line[:200]}
+                        )
             # Vulnerability markers
-            if any(tag in line.lower() for tag in ("vulnerab", "cve-", "[+]")) and len(line) < 300:
+            if (
+                any(tag in line.lower() for tag in ("vulnerab", "cve-", "[+]"))
+                and len(line) < 300
+            ):
                 key = (target, line[:80])
                 vulns.setdefault(key, {"source": data.get("tool"), "detail": line})
 
     return {
-        "open_ports": [{"source": v["source"], "detail": v["detail"]} for v in ports.values()],
-        "vulnerabilities": [{"source": v["source"], "detail": v["detail"]} for v in vulns.values()],
+        "open_ports": [
+            {"source": v["source"], "detail": v["detail"]} for v in ports.values()
+        ],
+        "vulnerabilities": [
+            {"source": v["source"], "detail": v["detail"]} for v in vulns.values()
+        ],
         "errors": errors,
         "sub_results_count": len(results),
     }
@@ -97,7 +108,10 @@ class ParallelExecuteTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string", "description": "Target shared by all sub-tools"},
+                "target": {
+                    "type": "string",
+                    "description": "Target shared by all sub-tools",
+                },
                 "tools": {
                     "type": "array",
                     "description": "List of {tool, args} specs to run concurrently",
@@ -142,12 +156,15 @@ class ParallelExecuteTool(BaseTool):
         from registry import registry
 
         job_id = f"par_{utc_now_iso().replace(':', '').replace('+', '')}"
-        job = JOBS.setdefault(job_id, {
-            "status": "running",
-            "total": len(tool_specs),
-            "done": 0,
-            "started_at": utc_now_iso(),
-        })
+        job = JOBS.setdefault(
+            job_id,
+            {
+                "status": "running",
+                "total": len(tool_specs),
+                "done": 0,
+                "started_at": utc_now_iso(),
+            },
+        )
 
         sem = asyncio.Semaphore(max_concurrent)
 
@@ -205,7 +222,10 @@ class ParallelStatusTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "job_id": {"type": "string", "description": "Job id from parallel_execute output (omit for all)"},
+                "job_id": {
+                    "type": "string",
+                    "description": "Job id from parallel_execute output (omit for all)",
+                },
             },
             "required": [],
         }

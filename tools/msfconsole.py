@@ -35,7 +35,11 @@ class MsfconsoleTool(BaseTool, NormalizedToolMixin):
                     "type": "string",
                     "description": "Path to a Metasploit .rc resource script to execute",
                 },
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 1200},
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 1200,
+                },
             },
             "required": ["resource"],
         }
@@ -48,7 +52,9 @@ class MsfconsoleTool(BaseTool, NormalizedToolMixin):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         return ["msfconsole", "-q", "-r", arguments["resource"]]
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         return {"normalized": {"console_output": (stdout or "").strip()[:2000]}}
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

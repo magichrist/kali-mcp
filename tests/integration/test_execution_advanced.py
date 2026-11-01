@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import time
-
-import pytest
 
 from execution import MAX_OUTPUT, ExecutionEngine, engine
 
@@ -19,7 +15,11 @@ class TestOutputTruncation:
 
     async def test_stderr_truncated_to_100kb(self):
         r = await engine.execute(
-            ["bash", "-c", "python3 -c \"import sys; print('e' * 500000, file=sys.stderr)\""],
+            [
+                "bash",
+                "-c",
+                "python3 -c \"import sys; print('e' * 500000, file=sys.stderr)\"",
+            ],
             tool="test",
         )
         assert len(r.stderr) == MAX_OUTPUT
@@ -29,17 +29,24 @@ class TestConcurrency:
     async def test_semaphore_caps_concurrency(self):
         eng = ExecutionEngine()
         # max_concurrent comes from config (10); verify by timing batch
-        results = await asyncio.gather(*[
-            eng.execute(["sleep", "0.3"], tool="test") for _ in range(6)
-        ])
+        results = await asyncio.gather(
+            *[eng.execute(["sleep", "0.3"], tool="test") for _ in range(6)]
+        )
         assert all(r.success for r in results)
         assert eng.get_stats()["total_requests"] == 6
 
     async def test_error_isolation_across_concurrent_runs(self):
-        results = await asyncio.gather(*[
-            engine.execute(cmd, tool="test")
-            for cmd in (["echo", "ok"], ["false"], ["__missing_bin__"], ["echo", "fine"])
-        ])
+        results = await asyncio.gather(
+            *[
+                engine.execute(cmd, tool="test")
+                for cmd in (
+                    ["echo", "ok"],
+                    ["false"],
+                    ["__missing_bin__"],
+                    ["echo", "fine"],
+                )
+            ]
+        )
         assert [r.success for r in results] == [True, False, False, True]
 
 
@@ -101,7 +108,12 @@ class TestTimeoutsAndCleanup:
 
     async def test_get_stats_shape(self):
         stats = engine.get_stats()
-        assert set(stats) == {"active_executions", "total_requests", "total_errors", "max_concurrent"}
+        assert set(stats) == {
+            "active_executions",
+            "total_requests",
+            "total_errors",
+            "max_concurrent",
+        }
 
     async def test_active_count_tracks_running(self):
         eng = ExecutionEngine()
@@ -119,7 +131,9 @@ class TestTimeoutsAndCleanup:
 
 class TestPathEnvironment:
     async def test_system_path_appended(self):
-        r = await engine.execute(["bash", "-c", "echo $PATH"], tool="test", env={"PATH": "/custom"})
+        r = await engine.execute(
+            ["bash", "-c", "echo $PATH"], tool="test", env={"PATH": "/custom"}
+        )
         assert r.stdout.strip().startswith("/custom")
         assert "/usr/bin" in r.stdout
 

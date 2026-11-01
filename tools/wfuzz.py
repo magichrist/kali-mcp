@@ -41,9 +41,19 @@ class WfuzzTool(BaseTool, NormalizedToolMixin):
                     "description": "Target URL with FUZZ placeholder (e.g. http://host/FUZZ)",
                 },
                 "wordlist": {"type": "string", "description": "Path to wordlist"},
-                "methods": {"type": "string", "description": "HTTP method (-X), default GET"},
-                "filters": {"type": "string", "description": "Filter expression, e.g. '--filter 200' → c=200"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 600},
+                "methods": {
+                    "type": "string",
+                    "description": "HTTP method (-X), default GET",
+                },
+                "filters": {
+                    "type": "string",
+                    "description": "Filter expression, e.g. '--filter 200' → c=200",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 600,
+                },
             },
             "required": ["target", "wordlist"],
         }
@@ -63,7 +73,9 @@ class WfuzzTool(BaseTool, NormalizedToolMixin):
             cmd.extend(["--filter", filters])
         return cmd
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         findings = parse_wfuzz(stdout)
         return {
             "normalized": {

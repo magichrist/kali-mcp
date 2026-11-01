@@ -22,19 +22,19 @@ RUN_STATUS: dict[str, dict[str, Any]] = {}
 class PlaybookEngine:
     """Executes a playbook description consisting of sequential steps.
 
-    A playbook is a dict with:
-- name: string (playbook name)
-- steps: list of steps where each step is either:
-  - {'parallel': True, 'tools': [{'tool': str, 'args': dict}, ...]}
-  - {'parallel': False, 'tools': [{'tool': str, 'args': dict}, ...]}
+        A playbook is a dict with:
+    - name: string (playbook name)
+    - steps: list of steps where each step is either:
+      - {'parallel': True, 'tools': [{'tool': str, 'args': dict}, ...]}
+      - {'parallel': False, 'tools': [{'tool': str, 'args': dict}, ...]}
 
-    Args support ``{{target}}`` placeholders, substituted with the playbook's
-    top-level 'target' value before execution.
+        Args support ``{{target}}`` placeholders, substituted with the playbook's
+        top-level 'target' value before execution.
 
-    Options:
-- resume: if True, skip steps already marked completed in the last run of
-  this playbook name (stored in RUN_STATUS).
-"""
+        Options:
+    - resume: if True, skip steps already marked completed in the last run of
+      this playbook name (stored in RUN_STATUS).
+    """
 
     def __init__(self) -> None:
         pass
@@ -60,7 +60,9 @@ class PlaybookEngine:
                 results.append(await self._run_tool(s))
             return results
 
-    async def run(self, playbook: dict[str, Any], resume: bool = False) -> ExecutionResult:
+    async def run(
+        self, playbook: dict[str, Any], resume: bool = False
+    ) -> ExecutionResult:
         name = playbook.get("name", "playbook")
         steps: list[dict[str, Any]] = playbook.get("steps", [])
         subst_target = playbook.get("target")
@@ -70,23 +72,32 @@ class PlaybookEngine:
             for step in steps:
                 for spec in step.get("tools", []):
                     spec["args"] = {
-                        k: (v.replace("{{target}}", str(subst_target))
-                            if isinstance(v, str) else v)
+                        k: (
+                            v.replace("{{target}}", str(subst_target))
+                            if isinstance(v, str)
+                            else v
+                        )
                         for k, v in (spec.get("args") or {}).items()
                     }
 
         # ── Resume: determine which step indices to skip ──────────────────
         skip_indices: set[int] = set()
         prior = RUN_STATUS.get(name)
-        if resume and prior and prior.get("status") in ("completed", "failed", "aborted", "partial"):
+        if (
+            resume
+            and prior
+            and prior.get("status") in ("completed", "failed", "aborted", "partial")
+        ):
             skip_indices = set(prior.get("completed_steps", []))
 
         state = RUN_STATUS.setdefault(name, {})
-        state.update({
-            "status": "running",
-            "steps_total": len(steps),
-            "started_at": now_iso(),
-        })
+        state.update(
+            {
+                "status": "running",
+                "steps_total": len(steps),
+                "started_at": now_iso(),
+            }
+        )
         if resume:
             state["completed_steps"] = sorted(skip_indices)
         else:

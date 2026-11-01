@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from utils.vault import vault_write
@@ -22,7 +22,7 @@ def _sanitize_fs(name: str) -> str:
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def extract_target(arguments: dict[str, Any]) -> str:
@@ -81,14 +81,24 @@ def persist_run(
                     None,
                 )
                 if data:
-                    evidence = ((data.get("stdout") or "") + "\n" + (data.get("stderr") or ""))[:100_000]
+                    evidence = (
+                        (data.get("stdout") or "") + "\n" + (data.get("stderr") or "")
+                    )[:100_000]
                     db.add_finding(
-                        target_id, scan_id, tool_name, "execution", "informational",
-                        f"{tool_name} execution", evidence, evidence,
+                        target_id,
+                        scan_id,
+                        tool_name,
+                        "execution",
+                        "informational",
+                        f"{tool_name} execution",
+                        evidence,
+                        evidence,
                     )
                 for f in findings or []:
                     db.add_finding(
-                        target_id, scan_id, tool_name,
+                        target_id,
+                        scan_id,
+                        tool_name,
                         f.get("type", "note"),
                         f.get("severity", "informational"),
                         f.get("title", "finding"),
@@ -169,10 +179,15 @@ def parse_hydra(stdout: str) -> list[dict[str, Any]]:
     creds = []
     for m in _HYDRA_RE.finditer(stdout or ""):
         port, service, host, login, password = m.groups()
-        creds.append({
-            "service": service, "username": login, "password": password,
-            "host": host, "port": int(port) if port.isdigit() else None,
-        })
+        creds.append(
+            {
+                "service": service,
+                "username": login,
+                "password": password,
+                "host": host,
+                "port": int(port) if port.isdigit() else None,
+            }
+        )
     return creds
 
 
@@ -180,9 +195,14 @@ def parse_medusa(stdout: str) -> list[dict[str, Any]]:
     creds = []
     for m in _MEDUSA_RE.finditer(stdout or ""):
         service, host, user, password = m.groups()
-        creds.append({
-            "service": service, "username": user, "password": password, "host": host,
-        })
+        creds.append(
+            {
+                "service": service,
+                "username": user,
+                "password": password,
+                "host": host,
+            }
+        )
     return creds
 
 
@@ -196,11 +216,15 @@ def parse_john(stdout: str) -> list[dict[str, Any]]:
         if ":" in line and line.count(":") == 1:
             h, pw = line.split(":", 1)
             if h and pw:
-                creds.append({"service": "hash", "username": "", "hash": h, "password": pw})
+                creds.append(
+                    {"service": "hash", "username": "", "hash": h, "password": pw}
+                )
                 continue
         m = _JOBN_PAREN_RE.match(line)
         if m:
-            creds.append({"service": "hash", "username": m.group(2), "password": m.group(1)})
+            creds.append(
+                {"service": "hash", "username": m.group(2), "password": m.group(1)}
+            )
     return creds
 
 
@@ -212,7 +236,9 @@ def parse_hashcat(stdout: str) -> list[dict[str, Any]]:
         if ":" in line and not line.startswith(("Hash.Mode", "Options")):
             parts = line.split(":", 1)
             if len(parts) == 2 and parts[1] and len(parts[0]) >= 8:
-                creds.append({"service": "hash", "username": parts[0], "password": parts[1]})
+                creds.append(
+                    {"service": "hash", "username": parts[0], "password": parts[1]}
+                )
     return creds
 
 
@@ -221,11 +247,16 @@ def parse_gobuster(stdout: str) -> list[dict[str, Any]]:
     findings = []
     for m in _GOBBUSTER_RE.finditer(stdout or ""):
         path, status = m.groups()
-        findings.append({
-            "type": "web_path", "severity": "informational",
-            "title": f"Path found: {path}", "description": f"HTTP {status}",
-            "evidence": path, "url": path,
-        })
+        findings.append(
+            {
+                "type": "web_path",
+                "severity": "informational",
+                "title": f"Path found: {path}",
+                "description": f"HTTP {status}",
+                "evidence": path,
+                "url": path,
+            }
+        )
     return findings
 
 
@@ -234,11 +265,16 @@ def parse_dirb(stdout: str) -> list[dict[str, Any]]:
     for m in _DIRB_RE.finditer(stdout or ""):
         url, code = m.groups()
         kind = "web_dir" if url.endswith("/") else "web_path"
-        findings.append({
-            "type": kind, "severity": "informational",
-            "title": f"{kind}: {url}", "description": f"HTTP {code}",
-            "evidence": url, "url": url,
-        })
+        findings.append(
+            {
+                "type": kind,
+                "severity": "informational",
+                "title": f"{kind}: {url}",
+                "description": f"HTTP {code}",
+                "evidence": url,
+                "url": url,
+            }
+        )
     return findings
 
 
@@ -252,11 +288,16 @@ def parse_wfuzz(stdout: str) -> list[dict[str, Any]]:
         ident = parts[0].rstrip(":")
         url = parts[-1].strip("'\"")
         if ident.isdigit() and parts[1].isdigit() and url.startswith("http"):
-            findings.append({
-                "type": "web_path", "severity": "informational",
-                "title": f"wfuzz hit: {url}", "description": f"code={parts[1]}",
-                "evidence": line.strip(), "url": url,
-            })
+            findings.append(
+                {
+                    "type": "web_path",
+                    "severity": "informational",
+                    "title": f"wfuzz hit: {url}",
+                    "description": f"code={parts[1]}",
+                    "evidence": line.strip(),
+                    "url": url,
+                }
+            )
     return findings
 
 
@@ -264,12 +305,17 @@ def parse_masscan(stdout: str) -> list[dict[str, Any]]:
     findings = []
     for m in _MASSCAN_RE.finditer(stdout or ""):
         port, proto, host = m.groups()
-        findings.append({
-            "type": "open_port", "severity": "informational",
-            "title": f"Open port {port}/{proto} on {host}",
-            "description": "Discovered by masscan",
-            "evidence": m.group(0), "port": int(port), "service": proto,
-        })
+        findings.append(
+            {
+                "type": "open_port",
+                "severity": "informational",
+                "title": f"Open port {port}/{proto} on {host}",
+                "description": "Discovered by masscan",
+                "evidence": m.group(0),
+                "port": int(port),
+                "service": proto,
+            }
+        )
     return findings
 
 
@@ -278,12 +324,15 @@ def parse_responder_hashes(stdout: str) -> list[dict[str, Any]]:
     findings = []
     for line in (stdout or "").splitlines():
         if "NTLMv" in line or ("Hash" in line and ("[" in line or ":" in line)):
-            findings.append({
-                "type": "captured_hash", "severity": "high",
-                "title": "Captured authentication hash",
-                "description": line.strip()[:200],
-                "evidence": line.strip(),
-            })
+            findings.append(
+                {
+                    "type": "captured_hash",
+                    "severity": "high",
+                    "title": "Captured authentication hash",
+                    "description": line.strip()[:200],
+                    "evidence": line.strip(),
+                }
+            )
     return findings
 
 
@@ -329,14 +378,21 @@ async def run_tool_with_persistence(
             findings, credentials = [], []
     if hasattr(tool, "normalize"):
         try:
-            norm = tool.normalize(result.stdout or "", result.stderr or "", result.exit_code)
+            norm = tool.normalize(
+                result.stdout or "", result.stderr or "", result.exit_code
+            )
             normalized = norm.get("normalized", {}) if isinstance(norm, dict) else {}
         except Exception:  # noqa: BLE001
             normalized = {}
 
     summary = persist_run(
-        tool.name, arguments, cmd, data,
-        findings=findings, credentials=credentials, target_type=target_type,
+        tool.name,
+        arguments,
+        cmd,
+        data,
+        findings=findings,
+        credentials=credentials,
+        target_type=target_type,
     )
 
     payload = {

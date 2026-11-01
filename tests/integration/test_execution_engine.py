@@ -30,7 +30,9 @@ async def test_missing_binary():
 
 
 async def test_timeout_kills_process():
-    r = await engine.execute(["sleep", "30"], tool="test", timeout=1, request_id="timeout_test")
+    r = await engine.execute(
+        ["sleep", "30"], tool="test", timeout=1, request_id="timeout_test"
+    )
     assert r.timed_out is True
     assert r.success is False
 
@@ -42,7 +44,9 @@ async def test_cwd_parameter():
 
 async def test_env_variables_passed():
     r = await engine.execute(
-        ["bash", "-c", "echo $MCP_TEST_VAR"], tool="test", env={"MCP_TEST_VAR": "env_works"}
+        ["bash", "-c", "echo $MCP_TEST_VAR"],
+        tool="test",
+        env={"MCP_TEST_VAR": "env_works"},
     )
     assert r.stdout.strip() == "env_works"
 
@@ -53,7 +57,9 @@ async def test_stderr_captured():
 
 
 async def test_shell_metacharacters_via_bash():
-    r = await engine.execute(["bash", "-c", "echo a && echo b; echo {x,y}"], tool="test")
+    r = await engine.execute(
+        ["bash", "-c", "echo a && echo b; echo {x,y}"], tool="test"
+    )
     lines = r.stdout.strip().split("\n")
     assert lines[0] == "a" and lines[1] == "b"
     assert "x" in lines[2] and "y" in lines[2]

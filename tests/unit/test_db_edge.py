@@ -22,13 +22,15 @@ class TestCredentials:
     def test_add_and_query_credential(self, db):
         tid = db.upsert_target("10.0.0.1")
         cid = db.add_credential(
-            tid, service="ssh", username="root", password="toor",
-            hash_value=None, source_tool="hydra",
+            tid,
+            service="ssh",
+            username="root",
+            password="toor",
+            hash_value=None,
+            source_tool="hydra",
         )
         assert cid > 0
-        row = db.conn.execute(
-            "SELECT * FROM credentials WHERE id=?", (cid,)
-        ).fetchone()
+        row = db.conn.execute("SELECT * FROM credentials WHERE id=?", (cid,)).fetchone()
         assert row["service"] == "ssh"
         assert row["username"] == "root"
         assert row["password"] == "toor"
@@ -37,7 +39,13 @@ class TestCredentials:
 
     def test_credential_hash_only(self, db):
         tid = db.upsert_target("10.0.0.2")
-        db.add_credential(tid, service="ntlm", username="", hash_value="aad3b...", source_tool="responder")
+        db.add_credential(
+            tid,
+            service="ntlm",
+            username="",
+            hash_value="aad3b...",
+            source_tool="responder",
+        )
         row = db.conn.execute("SELECT hash FROM credentials").fetchone()
         assert row["hash"] == "aad3b..."
 
@@ -52,8 +60,12 @@ class TestCredentials:
 
 class TestUpsertSemantics:
     def test_target_upsert_updates_all_fields(self, db):
-        tid = db.upsert_target("t1", target_type="host", scope="in-scope", tags="a", notes="n1")
-        db.upsert_target("t1", target_type="domain", scope="out-of-scope", tags="b", notes="n2")
+        tid = db.upsert_target(
+            "t1", target_type="host", scope="in-scope", tags="a", notes="n1"
+        )
+        db.upsert_target(
+            "t1", target_type="domain", scope="out-of-scope", tags="b", notes="n2"
+        )
         row = db.conn.execute("SELECT * FROM targets WHERE id=?", (tid,)).fetchone()
         assert row["target_type"] == "domain"
         assert row["scope"] == "out-of-scope"
@@ -71,7 +83,9 @@ class TestScansAndFindings:
     def test_scan_findings_count_stored(self, db):
         tid = db.upsert_target("t")
         sid = db.add_scan(tid, "nmap", "nmap -q", "s", "e", 1.0, 1, 7, None)
-        row = db.conn.execute("SELECT findings_count FROM scans WHERE id=?", (sid,)).fetchone()
+        row = db.conn.execute(
+            "SELECT findings_count FROM scans WHERE id=?", (sid,)
+        ).fetchone()
         assert row["findings_count"] == 7
 
     def test_many_findings(self, db):
@@ -110,7 +124,9 @@ class TestRobustness:
 
         m2 = DBManager(tmp_path / "w.sqlite")
         m2.ensure_schema()
-        row = m2.conn.execute("SELECT target FROM targets WHERE id=?", (tid,)).fetchone()
+        row = m2.conn.execute(
+            "SELECT target FROM targets WHERE id=?", (tid,)
+        ).fetchone()
         assert row["target"] == "persist-test"
         m2.close()
 

@@ -101,11 +101,18 @@ class DBManager:
             pass
 
     # Convenience helpers for common operations
-    def upsert_target(self, target: str, target_type: str = "host", scope: str = "in-scope", tags: str = "", notes: str = "") -> int:
+    def upsert_target(
+        self,
+        target: str,
+        target_type: str = "host",
+        scope: str = "in-scope",
+        tags: str = "",
+        notes: str = "",
+    ) -> int:
         cur = self.conn.cursor()
         cur.execute("SELECT id FROM targets WHERE target = ?", (target,))
         row = cur.fetchone()
-        now = __import__('datetime').datetime.utcnow().isoformat() + "Z"
+        now = __import__("datetime").datetime.utcnow().isoformat() + "Z"
         if row:
             tid = int(row[0])
             cur.execute(
@@ -121,21 +128,71 @@ class DBManager:
         self.conn.commit()
         return int(tid)
 
-    def add_scan(self, target_id: int, tool: str, command: str, started_at: str, completed_at: str, duration: float, success: int, findings_count: int, artifact_uri: str | None) -> int:
+    def add_scan(
+        self,
+        target_id: int,
+        tool: str,
+        command: str,
+        started_at: str,
+        completed_at: str,
+        duration: float,
+        success: int,
+        findings_count: int,
+        artifact_uri: str | None,
+    ) -> int:
         cur = self.conn.cursor()
         cur.execute(
             "INSERT INTO scans (target_id, tool, command, started_at, completed_at, duration, success, findings_count, artifact_uri) VALUES (?,?,?,?,?,?,?,?,?)",
-            (target_id, tool, command, started_at, completed_at, duration, int(bool(success)), int(findings_count), artifact_uri),
+            (
+                target_id,
+                tool,
+                command,
+                started_at,
+                completed_at,
+                duration,
+                int(bool(success)),
+                int(findings_count),
+                artifact_uri,
+            ),
         )
         self.conn.commit()
         return cur.lastrowid
 
-    def add_finding(self, target_id: int, scan_id: int | None, tool: str, finding_type: str, severity: str, title: str, description: str, evidence: str, port: int | None = None, service: str | None = None, url: str | None = None, status: str = "open") -> int:
+    def add_finding(
+        self,
+        target_id: int,
+        scan_id: int | None,
+        tool: str,
+        finding_type: str,
+        severity: str,
+        title: str,
+        description: str,
+        evidence: str,
+        port: int | None = None,
+        service: str | None = None,
+        url: str | None = None,
+        status: str = "open",
+    ) -> int:
         cur = self.conn.cursor()
-        now = __import__('datetime').datetime.utcnow().isoformat() + "Z"
+        now = __import__("datetime").datetime.utcnow().isoformat() + "Z"
         cur.execute(
             "INSERT INTO findings (target_id, scan_id, tool, finding_type, severity, title, description, evidence, port, service, url, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (target_id, scan_id, tool, finding_type, severity, title, description, evidence, port, service, url, status, now, now),
+            (
+                target_id,
+                scan_id,
+                tool,
+                finding_type,
+                severity,
+                title,
+                description,
+                evidence,
+                port,
+                service,
+                url,
+                status,
+                now,
+                now,
+            ),
         )
         self.conn.commit()
         return cur.lastrowid
@@ -151,16 +208,26 @@ class DBManager:
         notes: str = "",
     ) -> int:
         cur = self.conn.cursor()
-        now = __import__('datetime').datetime.utcnow().isoformat() + "Z"
+        now = __import__("datetime").datetime.utcnow().isoformat() + "Z"
         cur.execute(
             "INSERT INTO credentials (target_id, service, username, password, hash, source_tool, captured_at, notes) VALUES (?,?,?,?,?,?,?,?)",
-            (target_id, service, username, password, hash_value, source_tool, now, notes),
+            (
+                target_id,
+                service,
+                username,
+                password,
+                hash_value,
+                source_tool,
+                now,
+                notes,
+            ),
         )
         self.conn.commit()
         return cur.lastrowid
 
 
 _db_singleton: DBManager | None = None
+
 
 def get_db() -> DBManager | None:
     global _db_singleton
@@ -173,6 +240,8 @@ def get_db() -> DBManager | None:
             _db_singleton = None
     return _db_singleton
 
+
 def _now():
     import datetime
+
     return datetime.datetime.utcnow().isoformat() + "Z"

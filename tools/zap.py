@@ -19,13 +19,17 @@ def _parse(stdout: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
             severity = line.split(":", 1)[0].lower()
             if severity == "info":
                 severity = "informational"
-            findings.append({
-                "type": "zap_alert",
-                "severity": severity if severity in ("informational", "low", "medium", "high") else "informational",
-                "title": line[:120],
-                "description": line[:300],
-                "evidence": line,
-            })
+            findings.append(
+                {
+                    "type": "zap_alert",
+                    "severity": severity
+                    if severity in ("informational", "low", "medium", "high")
+                    else "informational",
+                    "title": line[:120],
+                    "description": line[:300],
+                    "evidence": line,
+                }
+            )
     return findings, []
 
 
@@ -52,7 +56,11 @@ class ZapTool(BaseTool, NormalizedToolMixin):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "Target URL to scan"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 900},
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 900,
+                },
             },
             "required": ["target"],
         }
@@ -64,7 +72,9 @@ class ZapTool(BaseTool, NormalizedToolMixin):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         return ["zap-baseline.py", "-t", arguments["target"]]
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         return {"normalized": {"scan_output": (stdout or "").strip()[:2000]}}
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

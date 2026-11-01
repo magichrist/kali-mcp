@@ -49,12 +49,19 @@ class MedusaTool(BaseTool, NormalizedToolMixin):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "Target address"},
-                "service": {"type": "string", "description": "Service to attack (ssh, ftp, smb, http, etc.)"},
+                "service": {
+                    "type": "string",
+                    "description": "Service to attack (ssh, ftp, smb, http, etc.)",
+                },
                 "user_list": {"type": "string", "description": "Path to user list"},
                 "pass_list": {"type": "string", "description": "Path to password list"},
                 "port": {"type": "integer", "description": "Port number"},
                 "threads": {"type": "integer", "description": "Threads"},
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 600},
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 600,
+                },
             },
             "required": ["target", "service", "user_list", "pass_list"],
         }
@@ -65,18 +72,25 @@ class MedusaTool(BaseTool, NormalizedToolMixin):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = [
             "medusa",
-            "-H", arguments["target"],
-            "-U", arguments["user_list"],
-            "-P", arguments["pass_list"],
-            "-M", arguments["service"],
-            "-t", str(arguments.get("threads", 4)),
+            "-H",
+            arguments["target"],
+            "-U",
+            arguments["user_list"],
+            "-P",
+            arguments["pass_list"],
+            "-M",
+            arguments["service"],
+            "-t",
+            str(arguments.get("threads", 4)),
         ]
         port = arguments.get("port")
         if port:
             cmd.extend(["-n", str(port)])
         return cmd
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         creds = parse_medusa(stdout)
         return {
             "normalized": {

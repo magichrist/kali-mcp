@@ -84,23 +84,29 @@ async def test_mcp_handshake_and_tool_listing(server_url):
         streamable_http_client(server_url) as (read, write, _get_session_id),
         ClientSession(read, write) as session,
     ):
-            result = await session.initialize()
-            assert result.serverInfo.name
+        result = await session.initialize()
+        assert result.serverInfo.name
 
-            tools = await session.list_tools()
-            names = {t.name for t in tools.tools}
-            assert len(names) == EXPECTED_MCP_TOOL_COUNT, f"got {len(names)} tools"
-            assert {
-                "nmap", "generic_command", "hydra", "parallel_execute",
-                "playbook_recon", "playbook_engine", "playbook_status",
-                "health_check", "force_cleanup",
-            } <= names
+        tools = await session.list_tools()
+        names = {t.name for t in tools.tools}
+        assert len(names) == EXPECTED_MCP_TOOL_COUNT, f"got {len(names)} tools"
+        assert {
+            "nmap",
+            "generic_command",
+            "hydra",
+            "parallel_execute",
+            "playbook_recon",
+            "playbook_engine",
+            "playbook_status",
+            "health_check",
+            "force_cleanup",
+        } <= names
 
-            resources = await session.list_resources()
-            resource_uris = {str(r.uri) for r in resources.resources}
-            assert "kali://config" in resource_uris
-            assert "kali://db/stats" in resource_uris
-            assert "kali://vault/index" in resource_uris
+        resources = await session.list_resources()
+        resource_uris = {str(r.uri) for r in resources.resources}
+        assert "kali://config" in resource_uris
+        assert "kali://db/stats" in resource_uris
+        assert "kali://vault/index" in resource_uris
 
 
 @pytest.mark.e2e
@@ -109,11 +115,11 @@ async def test_mcp_roundtrip_execution(server_url):
         streamable_http_client(server_url) as (read, write, _get_session_id),
         ClientSession(read, write) as session,
     ):
-            await session.initialize()
-            result = await session.call_tool(
-                "generic_command", {"command": "echo e2e_roundtrip"}
-            )
-            assert result.isError is False
-            payload = json.loads(result.content[0].text)
-            assert payload["success"] is True
-            assert payload["stdout"].strip() == "e2e_roundtrip"
+        await session.initialize()
+        result = await session.call_tool(
+            "generic_command", {"command": "echo e2e_roundtrip"}
+        )
+        assert result.isError is False
+        payload = json.loads(result.content[0].text)
+        assert payload["success"] is True
+        assert payload["stdout"].strip() == "e2e_roundtrip"

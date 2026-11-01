@@ -7,14 +7,14 @@ import logging
 
 import pytest
 
-
 # ── Prompts ────────────────────────────────────────────────────────────────────
-
 from prompts import _ad, _osint, _quick_scan, _recon, _report, _webapp
 
 
 class TestPrompts:
-    @pytest.mark.parametrize("builder", [_recon, _webapp, _ad, _osint, _quick_scan, _report])
+    @pytest.mark.parametrize(
+        "builder", [_recon, _webapp, _ad, _osint, _quick_scan, _report]
+    )
     def test_returns_user_assistant_messages(self, builder):
         msg = builder("test-target")  # type: ignore[call-arg]
         assert len(msg) == 2
@@ -118,8 +118,13 @@ class TestLogging:
         from logging_utils import JSONFormatter
 
         record = logging.LogRecord(
-            name="kali_mcp.test", level=logging.INFO, pathname=__file__,
-            lineno=1, msg="hello %s", args=("world",), exc_info=None,
+            name="kali_mcp.test",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="hello %s",
+            args=("world",),
+            exc_info=None,
         )
         entry = json.loads(JSONFormatter().format(record))
         assert entry["message"] == "hello world"
@@ -140,9 +145,16 @@ class TestLogging:
         from models import ExecutionResult, utc_now_iso
 
         result = ExecutionResult(
-            tool="t", command="t", stdout="", stderr="", exit_code=0,
-            success=True, timed_out=False, duration=0.0,
-            start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool="t",
+            command="t",
+            stdout="",
+            stderr="",
+            exit_code=0,
+            success=True,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         log_execution(result)  # best-effort — must not raise
 
@@ -164,9 +176,16 @@ class TestModelsEdge:
         from models import ExecutionResult, utc_now_iso
 
         r = ExecutionResult(
-            tool="t", command="é", stdout="→", stderr="ü", exit_code=0,
-            success=True, timed_out=False, duration=0.0,
-            start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool="t",
+            command="é",
+            stdout="→",
+            stderr="ü",
+            exit_code=0,
+            success=True,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         assert r.to_dict()["stdout"] == "→"
 

@@ -91,7 +91,12 @@ VALID_ARGS = {
         "playbook": {
             "name": "test",
             "steps": [
-                {"parallel": False, "tools": [{"tool": "generic_command", "args": {"command": "echo hi"}}]}
+                {
+                    "parallel": False,
+                    "tools": [
+                        {"tool": "generic_command", "args": {"command": "echo hi"}}
+                    ],
+                }
             ],
         }
     },
@@ -161,11 +166,26 @@ def test_tool_inventory():
     assert len(names) == EXPECTED_TOOL_COUNT, "duplicate tool names"
     # The roadmap's Phase-2 wrappers must all be registered
     for name in (
-        "msfconsole", "hydra", "hashcat", "gobuster", "masscan",
-        "john", "zap", "wfuzz", "dirb", "medusa", "bettercap", "responder",
-        "parallel_execute", "parallel_status",
-        "playbook_recon", "playbook_webapp", "playbook_ad",
-        "playbook_engine", "playbook_list", "playbook_status",
+        "msfconsole",
+        "hydra",
+        "hashcat",
+        "gobuster",
+        "masscan",
+        "john",
+        "zap",
+        "wfuzz",
+        "dirb",
+        "medusa",
+        "bettercap",
+        "responder",
+        "parallel_execute",
+        "parallel_status",
+        "playbook_recon",
+        "playbook_webapp",
+        "playbook_ad",
+        "playbook_engine",
+        "playbook_list",
+        "playbook_status",
     ):
         assert name in names, f"{name} not registered"
 
@@ -177,10 +197,17 @@ def test_schema_shape(tool):
     for pname, prop in schema["properties"].items():
         assert "type" in prop, f"{tool.name}.{pname} has no type"
         assert prop["type"] in (
-            "string", "integer", "number", "boolean", "object", "array",
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "object",
+            "array",
         ), f"{tool.name}.{pname} has invalid type {prop['type']}"
     for req in schema.get("required", []):
-        assert req in schema["properties"], f"{tool.name}: required '{req}' not in properties"
+        assert req in schema["properties"], (
+            f"{tool.name}: required '{req}' not in properties"
+        )
     assert tool.description.strip(), f"{tool.name}: empty description"
 
 
@@ -220,7 +247,9 @@ def test_python_command_prefix():
 
 
 def test_nmap_binary():
-    cmd = _tool_map()["nmap"].build_command({"target": "10.0.0.1", "scan_type": "quick"})
+    cmd = _tool_map()["nmap"].build_command(
+        {"target": "10.0.0.1", "scan_type": "quick"}
+    )
     assert cmd[0] == "nmap"
 
 

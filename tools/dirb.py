@@ -38,8 +38,16 @@ class DirbTool(BaseTool, NormalizedToolMixin):
             "properties": {
                 "target": {"type": "string", "description": "Target URL"},
                 "wordlist": {"type": "string", "description": "Path to wordlist"},
-                "recursive": {"type": "boolean", "description": "Recursive scan (-r)", "default": False},
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 600},
+                "recursive": {
+                    "type": "boolean",
+                    "description": "Recursive scan (-r)",
+                    "default": False,
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 600,
+                },
             },
             "required": ["target", "wordlist"],
         }
@@ -53,7 +61,9 @@ class DirbTool(BaseTool, NormalizedToolMixin):
             cmd.append("-r")
         return cmd
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         findings = parse_dirb(stdout)
         return {
             "normalized": {

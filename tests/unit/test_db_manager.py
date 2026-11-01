@@ -50,12 +50,27 @@ def test_upsert_target_creates_then_updates(db):
 def test_add_scan_and_finding(db):
     tid = db.upsert_target("example.com", target_type="domain")
     sid = db.add_scan(
-        tid, "nmap", "nmap -q 10.0.0.5",
-        "2026-10-31T00:00:00Z", "2026-10-31T00:00:10Z", 10.0, 1, 1, None,
+        tid,
+        "nmap",
+        "nmap -q 10.0.0.5",
+        "2026-10-31T00:00:00Z",
+        "2026-10-31T00:00:10Z",
+        10.0,
+        1,
+        1,
+        None,
     )
     fid = db.add_finding(
-        tid, sid, "nmap", "open_port", "medium",
-        "SSH exposed", "tcp/22 open", "nmap output", port=22, service="ssh",
+        tid,
+        sid,
+        "nmap",
+        "open_port",
+        "medium",
+        "SSH exposed",
+        "tcp/22 open",
+        "nmap output",
+        port=22,
+        service="ssh",
     )
     assert sid > 0 and fid > 0
     count = db.conn.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
@@ -70,5 +85,7 @@ def test_finding_foreign_key_enforced(db):
 def test_optional_finding_fields_default_null(db):
     tid = db.upsert_target("h2")
     fid = db.add_finding(tid, None, "tool", "type", "info", "t", "d", "e")
-    row = db.conn.execute("SELECT port, service, url FROM findings WHERE id=?", (fid,)).fetchone()
+    row = db.conn.execute(
+        "SELECT port, service, url FROM findings WHERE id=?", (fid,)
+    ).fetchone()
     assert row["port"] is None and row["service"] is None and row["url"] is None

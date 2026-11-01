@@ -41,7 +41,11 @@ class PlaybookAdTool(BaseTool):
                     "type": "string",
                     "description": "AD domain name (e.g. 'corp.local')",
                 },
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 1800},
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 1800,
+                },
             },
             "required": ["target"],
         }
@@ -58,16 +62,31 @@ class PlaybookAdTool(BaseTool):
             "name": "playbook_ad",
             "target": arguments["target"],
             "steps": [
-                {"parallel": False, "tools": [
-                    {"tool": "enum4linux", "args": {"target": "{{target}}"}},
-                ]},
-                {"parallel": False, "tools": [
-                    {"tool": "bloodhound", "args": {"domain": domain}},
-                ]},
-                {"parallel": True, "tools": [
-                    {"tool": "netexec", "args": {"target": "{{target}}", "protocol": "smb"}},
-                    {"tool": "crackmapexec", "args": {"target": "{{target}}", "protocol": "smb"}},
-                ]},
+                {
+                    "parallel": False,
+                    "tools": [
+                        {"tool": "enum4linux", "args": {"target": "{{target}}"}},
+                    ],
+                },
+                {
+                    "parallel": False,
+                    "tools": [
+                        {"tool": "bloodhound", "args": {"domain": domain}},
+                    ],
+                },
+                {
+                    "parallel": True,
+                    "tools": [
+                        {
+                            "tool": "netexec",
+                            "args": {"target": "{{target}}", "protocol": "smb"},
+                        },
+                        {
+                            "tool": "crackmapexec",
+                            "args": {"target": "{{target}}", "protocol": "smb"},
+                        },
+                    ],
+                },
             ],
         }
 
@@ -76,5 +95,7 @@ class PlaybookAdTool(BaseTool):
         from tools.playbook_engine import PlaybookEngine
 
         engine = PlaybookEngine()
-        res = await engine.run(self._playbook(arguments), resume=bool(arguments.get("resume")))
+        res = await engine.run(
+            self._playbook(arguments), resume=bool(arguments.get("resume"))
+        )
         return wrap_execution_result(res, self.name)

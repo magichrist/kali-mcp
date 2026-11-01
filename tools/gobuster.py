@@ -44,9 +44,16 @@ class GobusterTool(BaseTool, NormalizedToolMixin):
                     "enum": ["dir", "dns", "vhost"],
                     "default": "dir",
                 },
-                "extensions": {"type": "string", "description": "Comma-separated extensions (e.g. php,html)"},
+                "extensions": {
+                    "type": "string",
+                    "description": "Comma-separated extensions (e.g. php,html)",
+                },
                 "threads": {"type": "integer", "description": "Threads", "default": 10},
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 600},
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 600,
+                },
             },
             "required": ["target", "wordlist"],
         }
@@ -63,7 +70,9 @@ class GobusterTool(BaseTool, NormalizedToolMixin):
         cmd.extend(["-t", str(arguments.get("threads", 10))])
         return cmd
 
-    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
+    def normalize(
+        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
+    ) -> dict[str, Any]:
         findings = parse_gobuster(stdout)
         return {
             "normalized": {

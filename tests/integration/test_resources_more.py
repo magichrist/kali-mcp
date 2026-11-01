@@ -24,7 +24,8 @@ def artifact_env(tmp_path, monkeypatch):
     (tmp_path / "logs").mkdir(exist_ok=True)
     (tmp_path / "artifacts" / "sample.txt").write_text("hello artifact")
     (tmp_path / "logs" / "server.log").write_text(
-        json.dumps({"timestamp": "t", "level": "INFO", "logger": "x", "message": "m"}) + "\n"
+        json.dumps({"timestamp": "t", "level": "INFO", "logger": "x", "message": "m"})
+        + "\n"
     )
     return tmp_path
 
@@ -42,7 +43,6 @@ class TestConfigResource:
         import dataclasses
 
         import resources
-
         from config import config as real_config
 
         cfg_with_token = dataclasses.replace(real_config, api_token="secret")
@@ -86,7 +86,9 @@ class TestArtifacts:
     def test_read_rejects_traversal(self, artifact_env):
         import resources
 
-        assert "error" in json.loads(resources._artifact_resource("../../../etc/passwd"))
+        assert "error" in json.loads(
+            resources._artifact_resource("../../../etc/passwd")
+        )
 
     def test_non_json_artifact_returned_as_string(self, artifact_env):
         import resources
@@ -145,7 +147,6 @@ class TestDbStatsAndVaultIndex:
         import dataclasses
 
         import resources
-
         from config import config as real_config
         from utils import vault as v
 

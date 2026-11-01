@@ -96,10 +96,22 @@ class TestExtractTarget:
 class TestAggregateResults:
     def test_dedups_ports_by_key(self):
         def _resp(tool):
-            return {"content": [{"type": "text", "text": json.dumps({
-                "tool": tool, "success": True, "command": "cmd",
-                "stdout": "Discovered open port 80/tcp on 10.0.0.1", "stderr": "",
-            })}]}
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "tool": tool,
+                                "success": True,
+                                "command": "cmd",
+                                "stdout": "Discovered open port 80/tcp on 10.0.0.1",
+                                "stderr": "",
+                            }
+                        ),
+                    }
+                ]
+            }
 
         results = [_resp("masscan"), _resp("nmap")]
         agg = aggregate_results(results)
@@ -108,11 +120,23 @@ class TestAggregateResults:
         assert len(agg["open_ports"]) == 1
 
     def test_collects_errors_isolated(self):
-        results = [{
-            "content": [{"type": "text", "text": json.dumps({
-                "tool": "x", "success": False, "stderr": "boom", "stdout": "",
-            })}],
-        }]
+        results = [
+            {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "tool": "x",
+                                "success": False,
+                                "stderr": "boom",
+                                "stdout": "",
+                            }
+                        ),
+                    }
+                ],
+            }
+        ]
         agg = aggregate_results(results)
         assert any("boom" in e for e in agg["errors"])
 
@@ -138,7 +162,14 @@ class TestPersistRun:
             "test_tool",
             {"target": "10.9.9.9"},
             "test_tool --run",
-            {"stdout": "out", "stderr": "", "success": True, "start_time": "", "end_time": "", "duration": 0},
+            {
+                "stdout": "out",
+                "stderr": "",
+                "success": True,
+                "start_time": "",
+                "end_time": "",
+                "duration": 0,
+            },
             findings=[{"type": "note", "title": "t", "evidence": "e"}],
             credentials=[{"service": "ssh", "username": "u", "password": "p"}],
         )

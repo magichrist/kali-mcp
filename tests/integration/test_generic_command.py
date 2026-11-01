@@ -50,8 +50,12 @@ async def test_integer_and_string_timeouts():
     from tools.generic_command import GenericCommandTool
 
     t = GenericCommandTool()
-    assert parse_response(await t.safe_execute({"command": "echo ok", "timeout": 60}))["success"]
-    assert parse_response(await t.safe_execute({"command": "echo ok", "timeout": "30"}))["success"]
+    assert parse_response(await t.safe_execute({"command": "echo ok", "timeout": 60}))[
+        "success"
+    ]
+    assert parse_response(
+        await t.safe_execute({"command": "echo ok", "timeout": "30"})
+    )["success"]
     assert parse_response(await t.safe_execute({"command": "echo ok"}))["success"]
 
 

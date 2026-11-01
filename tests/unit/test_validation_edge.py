@@ -87,7 +87,9 @@ class TestPortBoundaries:
     def test_boundary_range(self):
         assert validate_ports("1-65535") is None
 
-    @pytest.mark.parametrize("value", ["0", "65536", "80-", "-80", "80--443", "a", "80, ", ""])
+    @pytest.mark.parametrize(
+        "value", ["0", "65536", "80-", "-80", "80--443", "a", "80, ", ""]
+    )
     def test_invalid(self, value):
         with pytest.raises(ValueError):
             validate_ports(value)

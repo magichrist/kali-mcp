@@ -4,6 +4,7 @@ The tool registry exposes the full inventory of tool wrappers so agents get
 maximum capability. test_comprehensive.py's TOOL_ARGS map must include an
 entry for every registered tool.
 """
+
 from tools.amass import AmassTool
 from tools.arjun import ArjunTool
 from tools.bettercap import BettercapTool

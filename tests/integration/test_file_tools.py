@@ -32,7 +32,9 @@ class TestFileRead:
     async def test_max_bytes_truncates(self):
         from tools.file_read import FileReadTool
 
-        result = await FileReadTool().safe_execute({"path": "/etc/hosts", "max_bytes": 5})
+        result = await FileReadTool().safe_execute(
+            {"path": "/etc/hosts", "max_bytes": 5}
+        )
         data = parse_response(result)
         inner = json.loads(data["stdout"])
         assert inner["bytes_read"] <= 5
@@ -43,7 +45,9 @@ class TestFileWrite:
         from tools.file_write import FileWriteTool
 
         path = str(tmp_path / "test_write.txt")
-        result = await FileWriteTool().safe_execute({"path": path, "content": "hello world"})
+        result = await FileWriteTool().safe_execute(
+            {"path": path, "content": "hello world"}
+        )
         assert parse_response(result)["success"] is True
         assert (tmp_path / "test_write.txt").read_text() == "hello world"
 

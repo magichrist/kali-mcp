@@ -13,7 +13,9 @@ async def test_sequential_and_parallel_playbook():
         "steps": [
             {
                 "parallel": False,
-                "tools": [{"tool": "generic_command", "args": {"command": "echo hello"}}],
+                "tools": [
+                    {"tool": "generic_command", "args": {"command": "echo hello"}}
+                ],
             },
             {
                 "parallel": True,
@@ -42,12 +44,17 @@ async def test_failed_step_does_not_abort_playbook():
             {
                 "parallel": False,
                 "tools": [
-                    {"tool": "generic_command", "args": {"command": "totally_fake_cmd_xyz"}}
+                    {
+                        "tool": "generic_command",
+                        "args": {"command": "totally_fake_cmd_xyz"},
+                    }
                 ],
             },
             {
                 "parallel": False,
-                "tools": [{"tool": "generic_command", "args": {"command": "echo after"}}],
+                "tools": [
+                    {"tool": "generic_command", "args": {"command": "echo after"}}
+                ],
             },
         ],
     }

@@ -41,7 +41,11 @@ class PlaybookWebappTool(BaseTool):
                     "type": "string",
                     "description": "Wordlist for ffuf (default /usr/share/wordlists/dirb/common.txt)",
                 },
-                "timeout": {"type": "integer", "description": "Timeout in seconds", "default": 2400},
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds",
+                    "default": 2400,
+                },
             },
             "required": ["target"],
         }
@@ -60,20 +64,35 @@ class PlaybookWebappTool(BaseTool):
             "name": "playbook_webapp",
             "target": t,
             "steps": [
-                {"parallel": False, "tools": [
-                    {"tool": "katana", "args": {"target": "{{target}}"}},
-                ]},
-                {"parallel": True, "tools": [
-                    {"tool": "arjun", "args": {"target": "{{target}}"}},
-                    {"tool": "ffuf", "args": {"target": "{{target}}", "wordlist": wordlist}},
-                ]},
-                {"parallel": False, "tools": [
-                    {"tool": "nuclei", "args": {"target": "{{target}}"}},
-                ]},
-                {"parallel": True, "tools": [
-                    {"tool": "sqlmap", "args": {"target": "{{target}}"}},
-                    {"tool": "commix", "args": {"target": "{{target}}"}},
-                ]},
+                {
+                    "parallel": False,
+                    "tools": [
+                        {"tool": "katana", "args": {"target": "{{target}}"}},
+                    ],
+                },
+                {
+                    "parallel": True,
+                    "tools": [
+                        {"tool": "arjun", "args": {"target": "{{target}}"}},
+                        {
+                            "tool": "ffuf",
+                            "args": {"target": "{{target}}", "wordlist": wordlist},
+                        },
+                    ],
+                },
+                {
+                    "parallel": False,
+                    "tools": [
+                        {"tool": "nuclei", "args": {"target": "{{target}}"}},
+                    ],
+                },
+                {
+                    "parallel": True,
+                    "tools": [
+                        {"tool": "sqlmap", "args": {"target": "{{target}}"}},
+                        {"tool": "commix", "args": {"target": "{{target}}"}},
+                    ],
+                },
             ],
         }
 
@@ -82,5 +101,7 @@ class PlaybookWebappTool(BaseTool):
         from tools.playbook_engine import PlaybookEngine
 
         engine = PlaybookEngine()
-        res = await engine.run(self._playbook(arguments), resume=bool(arguments.get("resume")))
+        res = await engine.run(
+            self._playbook(arguments), resume=bool(arguments.get("resume"))
+        )
         return wrap_execution_result(res, self.name)
