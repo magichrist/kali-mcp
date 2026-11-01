@@ -178,6 +178,7 @@ class ExecutionEngine:
                                 stderr=asyncio.subprocess.PIPE,
                                 cwd=cwd,
                                 env=exec_env,
+                                start_new_session=True,
                             )
                         else:
                             proc = await asyncio.create_subprocess_exec(
@@ -186,6 +187,7 @@ class ExecutionEngine:
                                 stderr=asyncio.subprocess.PIPE,
                                 cwd=cwd,
                                 env=exec_env,
+                                start_new_session=True,
                             )
                     except FileNotFoundError:
                         elapsed = time.monotonic() - start_monotonic
@@ -246,12 +248,11 @@ class ExecutionEngine:
                             tool,
                             effective_timeout,
                         )
-                        # Kill without waiting — communicate() was cancelled,
-                        # transport state is inconsistent, proc.wait() would hang
-                        try:
-                            proc.kill()
-                        except (ProcessLookupError, OSError):
-                            pass
+                        # Kill the entire process tree — the subprocess runs in
+                        # its own session, so this cannot hit the server itself
+                        from utils.process import kill_process_tree
+
+                        await kill_process_tree(proc)
                         stdout_bytes, stderr_bytes = b"", b""
 
                         elapsed = time.monotonic() - start_monotonic
