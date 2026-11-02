@@ -166,6 +166,67 @@ async def test_delete_roundtrip(vault_env):
     assert resp["isError"] is True
 
 
+async def test_read_truncates_oversized_rows(vault_env):
+    """Rows > max_bytes come back truncated with paging pointers."""
+    write = VaultWriteTool()
+    read = VaultReadTool()
+
+    big = "Z" * (2 * 1024 * 1024)
+    await write.execute(
+        {"category": "big", "name": "blob_2MB", "content": {"blob": big}}
+    )
+
+    # default cap (1MB) → truncated with metadata
+    resp = await read.execute({"category": "big", "name": "blob_2MB"})
+    payload = _stdout(resp)
+    assert payload["truncated"] is True
+    assert payload["total_bytes"] > 1024 * 1024
+    assert len(payload["content"]) == payload["returned_bytes"]
+    assert payload["path"].endswith("blob_2MB.json")
+    assert "file_read" in payload["hint"]
+
+    # explicit small cap
+    resp = await read.execute(
+        {"category": "big", "name": "blob_2MB", "max_bytes": 4096}
+    )
+    payload = _stdout(resp)
+    assert payload["truncated"] is True
+    assert len(payload["content"]) == 4096
+
+    # raised cap → full content
+    resp = await read.execute(
+        {"category": "big", "name": "blob_2MB", "max_bytes": 3 * 1024 * 1024}
+    )
+    payload = _stdout(resp)
+    assert payload.get("truncated") is not True
+    assert payload["blob"] == big
+
+    # small rows are never truncated
+    await write.execute({"category": "big", "name": "small", "content": {"v": 1}})
+    resp = await read.execute({"category": "big", "name": "small"})
+    assert _stdout(resp).get("truncated") is not True
+
+
+async def test_write_rejects_oversized_rows(vault_env, monkeypatch):
+    """vault_write surfaces the size ceiling as a structured error."""
+    import dataclasses
+
+    from config import config as real_config
+    from utils import vault as v
+
+    small = dataclasses.replace(real_config, vault_max_row_bytes=1024)
+    monkeypatch.setattr("utils.vault.config", small)
+
+    write = VaultWriteTool()
+    resp = await write.execute(
+        {"category": "big", "name": "too_big", "content": "x" * 4096}
+    )
+    assert resp["isError"] is True
+    details = json.loads(resp["content"][0]["text"])["details"]
+    assert "vault row too large" in details
+    assert "MCP_VAULT_MAX_ROW_BYTES" in details
+
+
 async def test_validation_errors_surface(vault_env):
     write = VaultWriteTool()
     resp = await write.execute({"category": "", "name": "", "content": None})

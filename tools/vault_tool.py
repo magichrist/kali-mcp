@@ -166,7 +166,9 @@ class VaultReadTool(BaseTool):
             "Read a stored vault row by category and name. Use vault_query "
             "first if you don't know the exact name. JSON rows come back "
             "parsed; plain key=value rows are returned verbatim in the "
-            "'content' field."
+            "'content' field. Rows larger than max_bytes (default 1MB) are "
+            "truncated with a 'truncated' flag and the full mirror path — "
+            "page through the rest with file_read(path, offset)."
         )
 
     def input_schema(self) -> dict[str, Any]:
@@ -181,6 +183,14 @@ class VaultReadTool(BaseTool):
                     "type": "string",
                     "description": "Row key within the category",
                 },
+                "max_bytes": {
+                    "type": "integer",
+                    "description": "Maximum bytes of content to return "
+                    "(default 1MB). Oversized rows are truncated — the "
+                    "response carries 'truncated': true, 'total_bytes', and "
+                    "the mirror 'path' for paging via file_read.",
+                    "default": 1048576,
+                },
             },
             "required": ["category", "name"],
         }
@@ -192,12 +202,40 @@ class VaultReadTool(BaseTool):
         return ["vault_read"]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        from utils.vault import vault_read
+        from utils.vault import vault_path, vault_read
 
         try:
             raw = vault_read(arguments["category"], arguments["name"])
         except Exception as e:  # noqa: BLE001
             return _error(self.name, "Vault read failed", str(e))
+        if raw == json.dumps({"error": "not found"}):
+            return _error(
+                self.name,
+                "Entry not found",
+                f"no vault row {arguments['category']}/{arguments['name']} — "
+                "use vault_query to discover names",
+            )
+
+        max_bytes = arguments.get("max_bytes", 1048576)
+        total = len(raw.encode("utf-8"))
+        if total > max_bytes:
+            # Oversized row — return a truncated view + paging pointers
+            return _make_result(
+                self.name,
+                {
+                    "category": arguments["category"],
+                    "name": arguments["name"],
+                    "content": raw[:max_bytes],
+                    "truncated": True,
+                    "total_bytes": total,
+                    "returned_bytes": max_bytes,
+                    "path": vault_path(arguments["category"], arguments["name"]),
+                    "hint": "Full row continues — page through it with "
+                    f"file_read(path=<path above>, offset={max_bytes}) or "
+                    "raise max_bytes on the next vault_read.",
+                },
+            )
+
         try:
             payload = json.loads(raw)  # machine-generated rows come back as JSON
         except (json.JSONDecodeError, TypeError):
@@ -207,13 +245,6 @@ class VaultReadTool(BaseTool):
                 "name": arguments["name"],
                 "content": raw,
             }
-        if isinstance(payload, dict) and payload.get("error") == "not found":
-            return _error(
-                self.name,
-                "Entry not found",
-                f"no vault row {arguments['category']}/{arguments['name']} — "
-                "use vault_query to discover names",
-            )
         return _make_result(self.name, payload)
 
 
@@ -232,7 +263,12 @@ class VaultQueryTool(BaseTool):
             "Search the shared vault for rows another agent stored. "
             "Filter by one or more categories (comma-separated), target, or "
             "tool; or free-text search across names, tags, and content. "
-            "Returns row metadata (read full rows with vault_read)."
+            "Returns row metadata (read full rows with vault_read). "
+            "Search is literal substring matching, not tokenized: JSON rows "
+            "store JSON text (e.g. '\"level\": \"info\"') and key=value rows "
+            "store key=value text — search for distinctive strings "
+            "(hostnames, CVE IDs, ports, markers) rather than assuming a "
+            "format."
         )
 
     def input_schema(self) -> dict[str, Any]:

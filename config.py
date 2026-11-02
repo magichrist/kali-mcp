@@ -90,6 +90,11 @@ class Config:
         default_factory=lambda: _int_env("MCP_RATE_LIMIT", 0)
     )
 
+    # Vault
+    vault_max_row_bytes: int = field(
+        default_factory=lambda: _int_env("MCP_VAULT_MAX_ROW_BYTES", 26_214_400)
+    )  # 25MB ceiling per vault row (0 = unlimited)
+
     # Database
     db_path: Path = field(
         default_factory=lambda: Path(os.getenv("MCP_DB_PATH", "data/kali-mcp.sqlite"))

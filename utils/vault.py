@@ -208,6 +208,9 @@ def vault_write(
     key=value fields); any other type is serialized to JSON. Row keys
     follow the contract, e.g. vuln:VULN-001, cred:<id>, sys:<host>,
     task:<stage>, status:<stage>. Returns the mirror path.
+
+    Rows larger than ``config.vault_max_row_bytes`` (default 25MB,
+    0 = unlimited) are rejected with ValueError.
     """
     if not isinstance(category, str) or not category.strip():
         raise ValueError("vault category must be a non-empty string")
@@ -218,6 +221,17 @@ def vault_write(
         payload = content
     else:
         payload = json.dumps(content, indent=2, default=str)
+
+    payload_size = len(payload.encode("utf-8"))
+    max_row = getattr(config, "vault_max_row_bytes", 0) or 0
+    if max_row and payload_size > max_row:
+        raise ValueError(
+            f"vault row too large: {payload_size} bytes exceeds "
+            f"MCP_VAULT_MAX_ROW_BYTES={max_row}. Split the payload across "
+            "multiple rows or store it as a file (file_write) and record "
+            "the path in the vault."
+        )
+
     now = _now_iso()
     mirror = _mirror_path(category, name)
 
@@ -437,6 +451,11 @@ def vault_stats() -> dict[str, Any]:
         "total_bytes": size,
         "db_path": str(_db_path()),
     }
+
+
+def vault_path(category: str, name: str) -> str:
+    """Mirror-file path for a row (for truncated reads / artifact URIs)."""
+    return str(_mirror_path(category, name))
 
 
 def get_index() -> dict[str, Any]:

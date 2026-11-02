@@ -199,6 +199,37 @@ class TestAgentHandoff:
             assert json.load(fh) == {"a": 1}
 
 
+class TestLimits:
+    def test_oversize_row_rejected(self, vault_env, monkeypatch):
+        """Rows over MCP_VAULT_MAX_ROW_BYTES are rejected with a clear error."""
+        import dataclasses
+
+        from config import config as real_config
+
+        small = dataclasses.replace(real_config, vault_max_row_bytes=1024)
+        monkeypatch.setattr(vault, "config", small)
+        with pytest.raises(ValueError, match="vault row too large"):
+            vault.vault_write("stress", "too_big", "x" * 2048)
+        # nothing was written
+        assert vault.vault_read("stress", "too_big") == json.dumps(
+            {"error": "not found"}
+        )
+
+    def test_zero_limit_means_unlimited(self, vault_env, monkeypatch):
+        import dataclasses
+
+        from config import config as real_config
+
+        unlimited = dataclasses.replace(real_config, vault_max_row_bytes=0)
+        monkeypatch.setattr(vault, "config", unlimited)
+        path = vault.vault_write("stress", "big_ok", "x" * 2048)
+        assert path
+
+    def test_default_limit_allows_normal_rows(self, vault_env):
+        vault.vault_write("stress", "normal", {"blob": "y" * 500_000})
+        assert vault.vault_stats()["total"] == 1
+
+
 class TestValidation:
     def test_empty_category_rejected(self, vault_env):
         with pytest.raises(ValueError):

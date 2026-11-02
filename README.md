@@ -31,6 +31,7 @@ Copy `.env` and adjust values:
 | `MCP_LOG_DIR` | `logs` | Log output directory |
 | `MCP_ARTIFACT_DIR` | `artifacts` | Command output artifacts |
 | `MCP_DEBUG` | `false` | Enable verbose debug logging |
+| `MCP_VAULT_MAX_ROW_BYTES` | `26214400` | Max vault row size in bytes (25MB, `0` = unlimited) |
 
 ## Available Tools (56)
 
@@ -144,7 +145,7 @@ Every tool run is automatically recorded:
 | Tool | Description |
 |------|-------------|
 | `vault_write` | Upsert one row under (category, name) — unique row keys like `vuln:VULN-001`, `cred:<id>`, `sys:<host>`, `task:<stage>`. Content is the row's plain key=value fields (verbatim), a JSON object, or a JSON array. Tag rows with `agent:x`, `phase:n`, `severity:critical`, `superseded` |
-| `vault_read` | Read a row's full content by category + name (exact pickup) |
+| `vault_read` | Read a row's full content by category + name (exact pickup). Rows > `max_bytes` (default 1MB) come back truncated with `truncated: true`, `total_bytes`, and the mirror `path` — page through with `file_read(path, offset)` |
 | `vault_query` | Search rows by one or more categories (comma-separated), target, tool, or free-text across names/tags/content |
 | `vault_list` | List row metadata (newest-created first), optionally per category |
 | `vault_delete` | Remove a row — **orchestrator-only** (stale `task:`/`status:` rows, superseded run rows) |
@@ -163,6 +164,14 @@ tags, WAL). Each row is also mirrored to
 `artifacts/vault/<category>/<name>.json` for human browsing, and
 `artifacts/vault/index.json` is regenerated from SQLite after every write —
 it can never drift or stay corrupt.
+
+Limits & search semantics:
+- Row size is capped at `MCP_VAULT_MAX_ROW_BYTES` (default 25MB, `0` =
+  unlimited). Oversized writes are rejected with guidance to split the
+  payload or store it as a file and record the path.
+- `vault_query` search is literal substring matching, not tokenized —
+  search for distinctive strings (hostnames, CVE IDs, ports, markers)
+  rather than assuming a content format.
 
 ## Tool Details
 
