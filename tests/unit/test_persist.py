@@ -189,3 +189,29 @@ class TestPersistRun:
         monkeypatch.setattr(dbm, "get_db", lambda: None)
         summary = persist_run("t", {"target": "x"}, "t", None)
         assert isinstance(summary, dict)
+
+    def test_unknown_target_groups_under_runs(self, tmp_path, monkeypatch):
+        # No target-ish argument (e.g. generic_command) → row lands in
+        # runs/<tool>, not findings/unknown
+        from utils import vault as v
+
+        monkeypatch.setattr(v, "VAULT_ROOT", tmp_path / "vault")
+        v.ensure_vault_dirs()
+
+        summary = persist_run(
+            "generic_command",
+            {"command": "echo hi"},
+            "echo hi",
+            {"stdout": "hi", "stderr": "", "success": True},
+        )
+        assert summary["vault_deposited"] is True
+        run_files = list(
+            (tmp_path / "vault" / "runs" / "generic_command").glob("*.json")
+        )
+        assert run_files, "run should be grouped under runs/generic_command"
+        assert not (tmp_path / "vault" / "findings" / "unknown").exists(), (
+            "unknown-target rows must not land in findings/unknown"
+        )
+        # metadata columns are queryable
+        entry = v.vault_query(tool="generic_command")["entries"][0]
+        assert entry["tags"] == "tool:generic_command"

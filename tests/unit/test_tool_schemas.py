@@ -12,7 +12,7 @@ import pytest
 
 from tools import ALL_TOOLS
 
-EXPECTED_TOOL_COUNT = 50
+EXPECTED_TOOL_COUNT = 56
 
 VALID_ARGS = {
     "generic_command": {"command": "echo hello"},
@@ -102,6 +102,16 @@ VALID_ARGS = {
     },
     "playbook_list": {},
     "playbook_status": {"name": "playbook_recon"},
+    "vault_write": {
+        "category": "notes",
+        "name": "schema_test",
+        "content": {"k": "v"},
+    },
+    "vault_read": {"category": "notes", "name": "schema_test"},
+    "vault_query": {"search": "x"},
+    "vault_list": {},
+    "vault_delete": {"category": "notes", "name": "schema_test"},
+    "vault_stats": {},
 }
 
 INVALID_ARGS = {
@@ -155,6 +165,12 @@ INVALID_ARGS = {
     "playbook_engine": {"playbook": "not-an-object"},
     "playbook_list": None,
     "playbook_status": None,
+    "vault_write": {"category": "", "name": "", "content": None},
+    "vault_read": {},
+    "vault_query": None,
+    "vault_list": None,
+    "vault_delete": {},
+    "vault_stats": None,
 }
 
 ALL_TOOL_NAMES = [t.name for t in ALL_TOOLS]
@@ -196,13 +212,10 @@ def test_schema_shape(tool):
     assert "properties" in schema and len(schema["properties"]) > 0
     for pname, prop in schema["properties"].items():
         assert "type" in prop, f"{tool.name}.{pname} has no type"
-        assert prop["type"] in (
-            "string",
-            "integer",
-            "number",
-            "boolean",
-            "object",
-            "array",
+        types = prop["type"] if isinstance(prop["type"], list) else [prop["type"]]
+        assert all(
+            t in ("string", "integer", "number", "boolean", "object", "array")
+            for t in types
         ), f"{tool.name}.{pname} has invalid type {prop['type']}"
     for req in schema.get("required", []):
         assert req in schema["properties"], (

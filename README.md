@@ -32,7 +32,7 @@ Copy `.env` and adjust values:
 | `MCP_ARTIFACT_DIR` | `artifacts` | Command output artifacts |
 | `MCP_DEBUG` | `false` | Enable verbose debug logging |
 
-## Available Tools (50)
+## Available Tools (56)
 
 ### General Execution
 
@@ -135,9 +135,34 @@ Copy `.env` and adjust values:
 Every tool run is automatically recorded:
 
 - **SQLite** (`data/kali-mcp.sqlite`): targets, scans, findings, credentials
-- **Vault** (`artifacts/vault/`): per-target findings JSON + captured credentials for inter-agent sharing
+- **Vault** (`artifacts/vault/vault.sqlite`): SQLite-backed inter-agent row store — any agent or subagent can save, read, query, and delete rows (findings, credentials, evidence, notes, task/status rows) so work can be passed between agents
 - Tools with structured output (hydra, medusa, john, hashcat, masscan, gobuster, dirb, wfuzz, responder, zap) parse their results into per-finding rows
 - Browse via MCP resources: `kali://db/stats` and `kali://vault/index`
+
+### Vault — Inter-Agent Data Sharing
+
+| Tool | Description |
+|------|-------------|
+| `vault_write` | Upsert one row under (category, name) — unique row keys like `vuln:VULN-001`, `cred:<id>`, `sys:<host>`, `task:<stage>`. Content is the row's plain key=value fields (verbatim), a JSON object, or a JSON array. Tag rows with `agent:x`, `phase:n`, `severity:critical`, `superseded` |
+| `vault_read` | Read a row's full content by category + name (exact pickup) |
+| `vault_query` | Search rows by one or more categories (comma-separated), target, tool, or free-text across names/tags/content |
+| `vault_list` | List row metadata (newest-created first), optionally per category |
+| `vault_delete` | Remove a row — **orchestrator-only** (stale `task:`/`status:` rows, superseded run rows) |
+| `vault_stats` | Totals, per-category counts (`GROUP BY category`), per-tool counts, storage size |
+
+Typical agent → subagent handoff: the parent agent runs a playbook, saves
+rows via `vault_write` (`task:<stage>` rows for tasking, `status:<stage>`
+rows for completion), and the subagent discovers them with `vault_query`
+and reads them with `vault_read`. Exit rule for every agent: verify via
+`vault_stats` + `vault_query` that your categories are populated and
+queryable — never write files.
+
+Storage model: canonical store is SQLite (`artifacts/vault/vault.sqlite`,
+single `entries` table, UNIQUE(category, name), indexes on category/target/
+tags, WAL). Each row is also mirrored to
+`artifacts/vault/<category>/<name>.json` for human browsing, and
+`artifacts/vault/index.json` is regenerated from SQLite after every write —
+it can never drift or stay corrupt.
 
 ## Tool Details
 
@@ -222,7 +247,7 @@ Comprehensive web application security scanner with AI-powered analysis. Covers 
 │  ┌──────────┐  ┌──────────────┐  ┌───────────────────┐  │
 │  │ Security │  │   Execution  │  │   Tool Registry   │  │
 │  │          │  │   Engine     │  │                   │  │
-│  │ Allowlist│  │ ┌──────────┐ │  │ 50 tools with    │  │
+│  │ Allowlist│  │ ┌──────────┐ │  │ 56 tools with    │  │
 │  │ Input    │→ │ │ asyncio  │ │  │ validated schemas │  │
 │  │ Validate │  │ │ timeout  │ │  │                   │  │
 │  │ Sanitize │  │ │ watchdog │ │  └───────────────────┘  │
@@ -232,7 +257,7 @@ Comprehensive web application security scanner with AI-powered analysis. Covers 
 │                       │ subprocess                      │
 │                ┌──────▼───────┐                         │
 │                │  Kali Linux  │                         │
-│                │  50 tools    │                         │
+│                │  56 tools    │                         │
 │                └──────────────┘                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -335,12 +360,14 @@ kali-mcp/
 │   ├── playbook_ad.py     ← PlaybookAdTool — AD pipeline
 │   ├── playbook_tools.py  ← PlaybookListTool + PlaybookStatusTool
 │   ├── persist.py         ← Shared persistence + per-tool output parsers
+│   ├── vault_tool.py      ← vault_write/read/query/list/delete/stats MCP tools
 │   └── normalization.py   ← NormalizedToolMixin — per-tool output schema
 ├── db/
 │   └── manager.py         ← SQLite persistence: targets, scans, findings, creds
 ├── utils/
 │   ├── process.py         ← Process tree cleanup
-│   └── vault.py           ← Plaintext inter-agent vault├── tests/
+│   └── vault.py           ← SQLite-backed inter-agent vault
+├── tests/
 │   ├── conftest.py        ← Shared fixtures + global registry wiring
 │   ├── unit/              ← Fast isolated tests (schemas, validation, DB, vault)
 │   ├── integration/       ← Async engine + tool execution tests

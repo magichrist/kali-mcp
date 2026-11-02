@@ -185,8 +185,13 @@ def test_parser_tools_execute_contract(tool_name, tmp_path, monkeypatch):
     assert contract["persistence"]["vault_deposited"] is True
     assert len(contract[payload_key]) == expected_count
 
-    # Vault received the run
-    vault_files = list((tmp_path / "vault" / "findings").rglob("*.json"))
+    # Vault received the run — targeted runs deposit under findings/<target>,
+    # target-less runs (john, hashcat, responder) under runs/<tool>
+    has_target = any(k in args for k in ("target", "domain", "host", "repo", "query"))
+    if has_target:
+        vault_files = list((tmp_path / "vault" / "findings").rglob("*.json"))
+    else:
+        vault_files = list((tmp_path / "vault" / "runs" / tool_name).glob("*.json"))
     assert vault_files, f"{tool_name}: no vault deposit"
 
 

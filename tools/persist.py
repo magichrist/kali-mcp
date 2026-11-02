@@ -125,7 +125,6 @@ def persist_run(
 
         # ── Vault ─────────────────────────────────────────────────────────
         try:
-            target = extract_target(arguments)
             payload = {
                 "tool": tool_name,
                 "target": target,
@@ -135,16 +134,29 @@ def persist_run(
                 "findings": findings or [],
                 "credentials": credentials or [],
             }
+            # Runs without an attributable target group under runs/<tool>
+            # so agents can query a tool's history; targeted runs group
+            # per target under findings/<target>.
+            if target == "unknown":
+                vault_category = f"runs/{_sanitize_fs(tool_name)}"
+            else:
+                vault_category = f"findings/{_sanitize_fs(target)}"
             vault_write(
-                f"findings/{_sanitize_fs(target)}",
+                vault_category,
                 f"{now_iso().replace(':', '')}_{tool_name}",
                 payload,
+                target=target,
+                tool=tool_name,
+                tags=f"tool:{tool_name}",
             )
             for c in credentials or []:
                 vault_write(
                     "credentials",
                     f"{_sanitize_fs(c.get('service', 'svc'))}_{_sanitize_fs(c.get('username', 'user'))}_{now_iso().replace(':', '')}",
                     {**c, "source_tool": tool_name, "target": target},
+                    target=target,
+                    tool=tool_name,
+                    tags=f"tool:{tool_name},target:{_sanitize_fs(target)}",
                 )
             summary["vault_deposited"] = True
         except Exception:

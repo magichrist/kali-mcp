@@ -85,6 +85,15 @@ COMMAND_MATRIX = {
     ),
     "playbook_list": ({}, "playbook_list"),
     "playbook_status": ({"name": "p"}, "playbook_status"),
+    "vault_write": (
+        {"category": "notes", "name": "t", "content": {"k": "v"}},
+        "vault_write",
+    ),
+    "vault_read": ({"category": "notes", "name": "t"}, "vault_read"),
+    "vault_query": ({"search": "x"}, "vault_query"),
+    "vault_list": ({}, "vault_list"),
+    "vault_delete": ({"category": "notes", "name": "t"}, "vault_delete"),
+    "vault_stats": ({}, "vault_stats"),
 }
 
 

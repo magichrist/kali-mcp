@@ -49,6 +49,14 @@ from tools.spiderfoot import SpiderfootTool
 from tools.sqlmap import SqlmapTool
 from tools.subfinder import SubfinderTool
 from tools.theharvester import TheharvesterTool
+from tools.vault_tool import (
+    VaultDeleteTool,
+    VaultListTool,
+    VaultQueryTool,
+    VaultReadTool,
+    VaultStatsTool,
+    VaultWriteTool,
+)
 from tools.wfuzz import WfuzzTool
 from tools.whatweb import WhatwebTool
 from tools.wpscan import WpscanTool
@@ -108,4 +116,10 @@ ALL_TOOLS = [
     PlaybookEngineTool(),
     PlaybookListTool(),
     PlaybookStatusTool(),
+    VaultWriteTool(),
+    VaultReadTool(),
+    VaultQueryTool(),
+    VaultListTool(),
+    VaultDeleteTool(),
+    VaultStatsTool(),
 ]

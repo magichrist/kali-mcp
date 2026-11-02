@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
+from typing import Union
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -220,6 +221,8 @@ for tool_instance in ALL_TOOLS:
             "integer": int,
             "number": float,
             "boolean": bool,
+            "object": dict,
+            "array": list,
         }
 
         params = []
@@ -227,7 +230,12 @@ for tool_instance in ALL_TOOLS:
             has_default = "default" in prop
             is_required = name in required
             json_type = prop.get("type", "string")
-            py_type = TYPE_MAP.get(json_type, str)
+            if isinstance(json_type, list):
+                # Union type (e.g. ["object", "string"]) → Union[dict, str]
+                py_types = tuple(TYPE_MAP.get(t, str) for t in json_type)
+                py_type = py_types[0] if len(py_types) == 1 else Union[py_types]
+            else:
+                py_type = TYPE_MAP.get(json_type, str)
 
             if has_default:
                 default = prop.get("default")
@@ -286,6 +294,21 @@ for tool_instance in ALL_TOOLS:
                             kwargs[pname] = val.lower() in ("1", "true", "yes")
                         elif expected == "boolean" and isinstance(val, bool):
                             pass  # already correct
+                        elif isinstance(expected, list) and isinstance(val, str):
+                            # Union type allowing object/array — coerce JSON
+                            # strings; non-JSON plain text stays a string
+                            if any(t in ("object", "array") for t in expected):
+                                try:
+                                    kwargs[pname] = json.loads(val)
+                                except json.JSONDecodeError:
+                                    pass
+                        elif (
+                            expected == "object"
+                            and isinstance(val, str)
+                            or expected == "array"
+                            and isinstance(val, str)
+                        ):
+                            kwargs[pname] = json.loads(val)
                 logger.info(
                     "request=%s tool=%s args=%s",
                     request_id,

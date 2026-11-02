@@ -54,3 +54,13 @@ clean:
 # Show all registered tools
 tools:
     python -c "from tools import ALL_TOOLS; [print(f'  {t.name:20s} {t.description[:60]}') for t in ALL_TOOLS]"
+
+# Deploy to the Kali VM and restart the server (requires ssh key auth)
+deploy host="kali-linux.shared" dest="~/kali-mcp":
+    rsync -av --exclude '.venv' --exclude '__pycache__' --exclude '.git' \
+        --exclude 'logs' --exclude 'artifacts' --exclude 'data' \
+        ./ {{host}}:{{dest}}/
+    ssh {{host}} "pkill -f '[s]erver.py' || true; cd {{dest}} && \
+        nohup python server.py > logs/stdout.log 2>&1 & sleep 2; \
+        curl -sf --max-time 5 http://127.0.0.1:8399/sse -o /dev/null \
+        && echo 'server restarted OK' || echo 'server did not come up — check logs/stdout.log'"

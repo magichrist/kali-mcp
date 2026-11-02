@@ -21,8 +21,8 @@ from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-# 50 wrappers from ALL_TOOLS + force_cleanup + health_check (registered in server.py)
-EXPECTED_MCP_TOOL_COUNT = 52
+# 56 wrappers from ALL_TOOLS + force_cleanup + health_check (registered in server.py)
+EXPECTED_MCP_TOOL_COUNT = 58
 
 
 def _free_port() -> int:
