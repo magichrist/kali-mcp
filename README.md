@@ -288,6 +288,13 @@ Comprehensive web application security scanner with AI-powered analysis. Covers 
 
 ## Testing
 
+```bash
+just test              # full suite: unit + integration + e2e
+just purge db          # reset the main SQLite DB (targets/scans/findings/credentials)
+just purge vault       # reset the vault store (SQLite + JSON mirrors + index)
+just purge all         # reset both — asks first; skip the prompt with CONFIRM=1
+```
+
 The test suite lives under `tests/` and runs on **pytest** (requires the project `.venv`):
 
 ```bash

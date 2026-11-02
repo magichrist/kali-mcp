@@ -51,6 +51,33 @@ clean:
     rm -rf artifacts/*
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
+# Purge stored data: just purge db | just purge vault | just purge all
+purge scope="all":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "${CONFIRM:-}" ]; then
+        read -r -p "Purge '{{scope}}' data — this cannot be undone. Continue? [y/N] " c
+        [[ "$c" =~ ^[Yy]$ ]] || { echo "aborted"; exit 1; }
+    fi
+    case "{{scope}}" in
+      db)
+        rm -fv data/kali-mcp.sqlite data/kali-mcp.sqlite-wal data/kali-mcp.sqlite-shm
+        ;;
+      vault)
+        rm -rf artifacts/vault
+        ;;
+      all)
+        rm -fv data/kali-mcp.sqlite data/kali-mcp.sqlite-wal data/kali-mcp.sqlite-shm
+        rm -rf artifacts/vault
+        ;;
+      *)
+        echo "unknown scope '{{scope}}' — use: db | vault | all" >&2
+        exit 1
+        ;;
+    esac
+    echo "purged: {{scope}}"
+    echo "note: if the server is running, restart it (or just deploy) so it reconnects cleanly."
+
 # Show all registered tools
 tools:
     python -c "from tools import ALL_TOOLS; [print(f'  {t.name:20s} {t.description[:60]}') for t in ALL_TOOLS]"
