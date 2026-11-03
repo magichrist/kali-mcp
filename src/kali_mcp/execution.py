@@ -22,6 +22,7 @@ from kali_mcp.config import config
 from kali_mcp.logging_utils import log_execution
 from kali_mcp.models import ExecutionResult, utc_now_iso
 from kali_mcp.security import sanitize_command_parts
+from kali_mcp.utils.process import kill_process_tree
 
 logger = logging.getLogger("kali_mcp.execution")
 
@@ -67,6 +68,7 @@ class ExecutionEngine:
         self._semaphore = asyncio.Semaphore(config.max_concurrent)
         self._active: dict[str, str] = {}  # request_id → tool
         self._request_times: dict[str, float] = {}  # request_id → start monotonic
+        self._procs: dict[str, asyncio.subprocess.Process] = {}  # request_id → process
         self._watchdog_running = False
         self._request_count = 0
         self._error_count = 0
@@ -103,6 +105,7 @@ class ExecutionEngine:
     def _cleanup_request(self, req_id: str) -> None:
         self._active.pop(req_id, None)
         self._request_times.pop(req_id, None)
+        self._procs.pop(req_id, None)
 
     async def execute(
         self,
@@ -189,6 +192,7 @@ class ExecutionEngine:
                                 env=exec_env,
                                 start_new_session=True,
                             )
+                        self._procs[req_id] = proc
                     except FileNotFoundError:
                         elapsed = time.monotonic() - start_monotonic
                         if use_shell:
@@ -199,26 +203,26 @@ class ExecutionEngine:
                             hint = (
                                 f"install it with 'apt install {binary}' or check PATH"
                             )
-                        logger.warning(
-                            "request=%s tool=%s binary not found: %s",
-                            req_id,
-                            tool,
-                            binary,
-                        )
-                        result = ExecutionResult(
-                            tool=tool,
-                            command=command_str,
-                            stdout="",
-                            stderr=f"Binary not found: {binary} — {hint}",
-                            exit_code=-1,
-                            success=False,
-                            timed_out=False,
-                            duration=round(elapsed, 3),
-                            start_time=start_time,
-                            end_time=utc_now_iso(),
-                        )
-                        log_execution(result)
-                        return result
+                            logger.warning(
+                                "request=%s tool=%s binary not found: %s",
+                                req_id,
+                                tool,
+                                binary,
+                            )
+                            result = ExecutionResult(
+                                tool=tool,
+                                command=command_str,
+                                stdout="",
+                                stderr=f"Binary not found: {binary} — {hint}",
+                                exit_code=-1,
+                                success=False,
+                                timed_out=False,
+                                duration=round(elapsed, 3),
+                                start_time=start_time,
+                                end_time=utc_now_iso(),
+                            )
+                            log_execution(result)
+                            return result
 
                     heartbeat_task = None
                     if progress_cb is not None:
@@ -389,6 +393,43 @@ class ExecutionEngine:
                     }
                 )
         return stuck
+
+    def get_active_jobs(self) -> list[dict]:
+        """Return a list of currently active tool executions.
+
+        Each entry: {"request_id": str, "tool": str, "elapsed_seconds": float}.
+        """
+        now = time.monotonic()
+        with self._lock:
+            return [
+                {
+                    "request_id": req_id,
+                    "tool": tool,
+                    "elapsed_seconds": round(now - self._request_times.get(req_id, now), 3),
+                }
+                for req_id, tool in self._active.items()
+            ]
+
+    async def kill_job(self, request_id: str) -> bool:
+        """Kill a specific active execution by request ID.
+
+        Terminates the subprocess (process tree) and removes it from tracking.
+        Returns True if the job was found and killed, False if unknown.
+        """
+        proc = None
+        with self._lock:
+            if request_id not in self._active:
+                return False
+            proc = self._procs.pop(request_id, None)
+            self._active.pop(request_id, None)
+            self._request_times.pop(request_id, None)
+
+        if proc is not None:
+            try:
+                await kill_process_tree(proc)
+            except Exception:  # noqa: BLE001 — kill failure is non-fatal
+                logger.warning("monitor: failed to kill job %s", request_id, exc_info=True)
+        return True
 
     def force_cleanup(self) -> int:
         """Force cleanup of all tracked requests. Returns count cleaned."""

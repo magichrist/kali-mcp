@@ -24,6 +24,7 @@ from kali_mcp.config import config
 from kali_mcp.db import manager as db_manager
 from kali_mcp.execution import engine, reset_progress_cb, set_progress_cb
 from kali_mcp.logging_utils import setup_logging
+from kali_mcp.monitor import Monitor
 from kali_mcp.notifications import emit_log, notify_resource_updated
 from kali_mcp.prompts import register_prompts
 from kali_mcp.registry import registry
@@ -31,6 +32,7 @@ from kali_mcp.resources import register_resources
 
 # Import all tools (triggers registration)
 from kali_mcp.tools import ALL_TOOLS
+from kali_mcp.monitor.sessions import session_registry
 from kali_mcp.utils.vault import ensure_vault_dirs
 
 setup_logging()
@@ -132,6 +134,9 @@ class HealthMonitor:
 
 
 health = HealthMonitor()
+
+# Interactive monitor — aggregates sessions, active jobs, and health.
+monitor = Monitor(session_registry, engine, health)
 
 
 def _get_memory_mb() -> float:
@@ -267,6 +272,12 @@ for tool_instance in ALL_TOOLS:
         async def handler(ctx: Context, **kwargs) -> str:
             request_id = uuid.uuid4().hex[:12]
             health.record_request()
+            # Track MCP client session for interactive monitoring
+            _session = getattr(ctx, "session", None)
+            if _session is not None:
+                _session_id = id(_session)
+                session_registry.on_connect(_session_id)
+                session_registry.on_activity(_session_id)
 
             async def progress(completed, total, message=None) -> None:
                 try:
@@ -395,6 +406,64 @@ async def download_file(request):
     return FileResponse(path, media_type="application/octet-stream")
 
 
+# ── Monitor Endpoints ──────────────────────────────────────────────
+async def monitor_stream(request):
+    """Server-sent events stream of live monitor snapshots.
+
+    Connects a client to the monitor's broadcast queue. Sends an immediate
+    snapshot, then pushes new snapshots whenever state changes (or every
+    second as a heartbeat).
+    """
+    from starlette.responses import StreamingResponse
+
+    queue = monitor.subscribe()
+
+    async def event_generator():
+        # Immediate snapshot on connect
+        snapshot = monitor.build_snapshot()
+        yield f"data: {json.dumps(snapshot)}\n\n"
+
+        try:
+            while True:
+                try:
+                    snapshot = await asyncio.wait_for(queue.get(), timeout=1.0)
+                    yield f"data: {json.dumps(snapshot)}\n\n"
+                except asyncio.TimeoutError:
+                    # Heartbeat: send a fresh snapshot every second
+                    snapshot = monitor.build_snapshot()
+                    yield f"data: {json.dumps(snapshot)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            monitor.unsubscribe(queue)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+async def monitor_action(request):
+    """Execute a monitor action: kill_job, force_cleanup, or get_snapshot."""
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+
+    req = Request(request.scope, request.receive)
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"error": "invalid JSON"}, status_code=400)
+
+    action = body.get("action")
+    if action == "kill_job":
+        result = await monitor.kill_job(body.get("request_id", ""))
+    elif action == "force_cleanup":
+        result = await monitor.force_cleanup()
+    elif action == "get_snapshot":
+        result = monitor.build_snapshot()
+    else:
+        return JSONResponse({"error": "unknown action"}, status_code=400)
+
+    return JSONResponse(result)
+
+
 # ── Middleware ───────────────────────────────────────────────────
 class TokenAuthMiddleware:
     def __init__(self, app, token: str):
@@ -461,6 +530,8 @@ def main() -> None:
     from starlette.routing import Route
 
     app.routes.insert(0, Route("/download", download_file, methods=["GET"]))
+    app.routes.insert(0, Route("/monitor/stream", monitor_stream, methods=["GET"]))
+    app.routes.insert(0, Route("/monitor/action", monitor_action, methods=["POST"]))
 
     uvicorn.run(app, host=config.host, port=config.port)
 
