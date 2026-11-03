@@ -27,19 +27,21 @@ The Kali MCP Server is a production-grade Model Context Protocol (MCP) server th
 ### Install
 
 ```bash
-git clone https://github.com/magichrist/kali-mcp.git
-cd kali-mcp
-pip install -e .
+pip install kmcp
 ```
 
 ### Start the server
 
-```bash
-# Foreground
-python -m kali_mcp
+Use the `kmcp` CLI:
 
-# Or with the CLI alias
+```bash
 kmcp start
+
+# With custom host/port
+kmcp start --host 127.0.0.1 --port 9000
+
+# Aliases: s, monitor (m), purge (p)
+kmcp s
 ```
 
 The server listens on `http://0.0.0.0:8399/mcp` by default. Point your MCP client at that URL.
@@ -47,7 +49,7 @@ The server listens on `http://0.0.0.0:8399/mcp` by default. Point your MCP clien
 ### Debug mode
 
 ```bash
-MCP_DEBUG=true python -m kali_mcp
+MCP_DEBUG=true kmcp start
 ```
 
 ### Configuration
