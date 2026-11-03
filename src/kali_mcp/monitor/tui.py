@@ -183,23 +183,43 @@ async def run(url: str) -> None:
     url:
         Base URL of the Kali MCP Server, e.g. ``http://127.0.0.1:8399``.
     """
+    import os
+    import termios
+    import tty
+
     client = SseClient(f"{url}/monitor/stream")
     await client.connect()
 
     loop = asyncio.get_event_loop()
     input_queue: asyncio.Queue[str] = asyncio.Queue()
-    _reader_fd = sys.stdin.fileno()
+    fd = sys.stdin.fileno()
+
+    # Put stdin in raw mode so single keypresses are available immediately
+    # (no Enter required).  Restored in the ``finally`` block below.
+    old_settings = None
+    try:
+        old_settings = termios.tcgetattr(fd)
+    except Exception:
+        old_settings = None
+    if old_settings is not None:
+        try:
+            tty.setraw(fd)
+        except Exception:
+            old_settings = None
 
     def _on_stdin_readable() -> None:
-        """Callback when stdin has data available (non-blocking)."""
+        """Callback when stdin has data available — read one byte."""
         try:
-            line = sys.stdin.readline()
-        except Exception:
-            line = ""
-        if line:
-            input_queue.put_nowait(line.strip())
+            data = os.read(fd, 1)
+        except OSError:
+            return
+        if data:
+            try:
+                input_queue.put_nowait(data.decode(errors="replace"))
+            except Exception:
+                pass
 
-    loop.add_reader(_reader_fd, _on_stdin_readable)
+    loop.add_reader(fd, _on_stdin_readable)
 
     snapshot = client.get_latest_snapshot() or {}
     layout = build_layout(
@@ -208,6 +228,7 @@ async def run(url: str) -> None:
     )
 
     waiting_for_kill_id = False
+    kill_id_buffer = ""
 
     try:
         with Live(layout, refresh_per_second=4, screen=True) as live:
@@ -234,35 +255,67 @@ async def run(url: str) -> None:
                     live.update(layout)
                     continue
 
-                # ── User input ─────────────────────────────────────────
-                key = result.lower()
+                # ── User input (single keypress in raw mode) ──────────
+                key = result
+
+                # Ctrl+C → quit
+                if key == "\x03":
+                    break
 
                 if waiting_for_kill_id:
-                    # Expecting a request id
-                    req_id = result.strip()
-                    if req_id:
-                        try:
-                            res = await _http_post(
-                                f"{url}/monitor/action",
-                                {"action": "kill_job", "request_id": req_id},
-                            )
-                            status_msg = (
-                                f"kill_job {req_id}: {'killed' if res.get('killed') else 'not found'}"
-                            )
-                        except Exception as exc:  # noqa: BLE001
-                            status_msg = f"kill_job {req_id}: error — {exc}"
-                    else:
-                        status_msg = "kill_job cancelled (no id)"
-                    waiting_for_kill_id = False
-                    layout = build_layout(snapshot, status_msg)
-                    live.update(layout)
+                    # Enter → submit the request id
+                    if key in ("\r", "\n"):
+                        req_id = kill_id_buffer.strip()
+                        if req_id:
+                            try:
+                                res = await _http_post(
+                                    f"{url}/monitor/action",
+                                    {"action": "kill_job", "request_id": req_id},
+                                )
+                                status_msg = (
+                                    f"kill_job {req_id}: "
+                                    f"{'killed' if res.get('killed') else 'not found'}"
+                                )
+                            except Exception as exc:  # noqa: BLE001
+                                status_msg = f"kill_job {req_id}: error — {exc}"
+                        else:
+                            status_msg = "kill_job cancelled (no id)"
+                        waiting_for_kill_id = False
+                        kill_id_buffer = ""
+                        layout = build_layout(snapshot, status_msg)
+                        live.update(layout)
+                    # Backspace / delete → remove last char
+                    elif key in ("\x7f", "\x08"):
+                        kill_id_buffer = kill_id_buffer[:-1]
+                        layout = build_layout(
+                            snapshot,
+                            f"Enter request id to kill: {kill_id_buffer}_",
+                        )
+                        live.update(layout)
+                    # Printable char → accumulate
+                    elif len(key) == 1 and key.isprintable():
+                        kill_id_buffer += key
+                        layout = build_layout(
+                            snapshot,
+                            f"Enter request id to kill: {kill_id_buffer}_",
+                        )
+                        live.update(layout)
+                    # Escape → cancel
+                    elif key == "\x1b":
+                        waiting_for_kill_id = False
+                        kill_id_buffer = ""
+                        layout = build_layout(
+                            snapshot,
+                            f"Press q to quit · f: force cleanup · k: kill job",
+                        )
+                        live.update(layout)
                     continue
 
+                # Normal mode keybindings
                 if key == "q":
                     break
 
                 elif key == "r":
-                    # Force an immediate re-render from the latest snapshot
                     latest = client.get_latest_snapshot() or {}
                     layout = build_layout(
                         latest, f"Press q to quit · f: force cleanup · k: kill job"
@@ -282,9 +335,10 @@ async def run(url: str) -> None:
 
                 elif key == "k":
                     waiting_for_kill_id = True
+                    kill_id_buffer = ""
                     layout = build_layout(
                         snapshot,
-                        "Enter request id to kill (or Enter to cancel):",
+                        "Enter request id to kill: ",
                     )
                     live.update(layout)
 
@@ -292,7 +346,12 @@ async def run(url: str) -> None:
         # Ctrl+C or Ctrl+D — exit gracefully without traceback noise
         pass
     finally:
-        loop.remove_reader(_reader_fd)
+        loop.remove_reader(fd)
+        if old_settings is not None:
+            try:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            except Exception:
+                pass
         await client.close()
 
 
