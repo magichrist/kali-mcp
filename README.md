@@ -27,7 +27,7 @@ The Kali MCP Server is a production-grade Model Context Protocol (MCP) server th
 ### Install
 
 ```bash
-git clone <repo>
+git clone https://github.com/magichrist/kali-mcp.git
 cd kali-mcp
 pip install -e .
 ```
