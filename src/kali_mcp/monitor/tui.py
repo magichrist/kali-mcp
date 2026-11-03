@@ -22,7 +22,11 @@ Keybindings:
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
+import termios
+import tty
+import threading
 from typing import Any
 
 import httpx
@@ -183,10 +187,6 @@ async def run(url: str) -> None:
     url:
         Base URL of the Kali MCP Server, e.g. ``http://127.0.0.1:8399``.
     """
-    import os
-    import termios
-    import tty
-
     client = SseClient(f"{url}/monitor/stream")
     await client.connect()
 
@@ -194,8 +194,8 @@ async def run(url: str) -> None:
     input_queue: asyncio.Queue[str] = asyncio.Queue()
     fd = sys.stdin.fileno()
 
-    # Put stdin in raw mode so single keypresses are available immediately
-    # (no Enter required).  Restored in the ``finally`` block below.
+    # Put stdin in cbreak mode: single keypresses available immediately,
+    # no Enter required, but signals (Ctrl+C) still work.
     old_settings = None
     try:
         old_settings = termios.tcgetattr(fd)
@@ -203,23 +203,26 @@ async def run(url: str) -> None:
         old_settings = None
     if old_settings is not None:
         try:
-            tty.setraw(fd)
+            tty.setcbreak(fd)
         except Exception:
             old_settings = None
 
-    def _on_stdin_readable() -> None:
-        """Callback when stdin has data available — read one byte."""
+    def _read_stdin() -> None:
+        """Blocking stdin reader in a background thread."""
         try:
-            data = os.read(fd, 1)
+            while True:
+                ch = os.read(fd, 1)
+                if not ch:
+                    break
+                try:
+                    loop.call_soon_threadsafe(input_queue.put_nowait, ch.decode(errors="replace"))
+                except Exception:
+                    break
         except OSError:
-            return
-        if data:
-            try:
-                input_queue.put_nowait(data.decode(errors="replace"))
-            except Exception:
-                pass
+            pass
 
-    loop.add_reader(fd, _on_stdin_readable)
+    stdin_thread = threading.Thread(target=_read_stdin, daemon=True)
+    stdin_thread.start()
 
     snapshot = client.get_latest_snapshot() or {}
     layout = build_layout(
@@ -231,7 +234,7 @@ async def run(url: str) -> None:
     kill_id_buffer = ""
 
     try:
-        with Live(layout, refresh_per_second=4, screen=True) as live:
+        with Live(layout, refresh_per_second=4, screen=False) as live:
             while True:
                 snapshot_task = asyncio.create_task(client.next_snapshot())
                 input_task = asyncio.create_task(input_queue.get())
@@ -252,10 +255,10 @@ async def run(url: str) -> None:
                         snapshot,
                         f"Press q to quit · f: force cleanup · k: kill job",
                     )
-                    live.update(layout)
+                    live.update(layout, refresh=True)
                     continue
 
-                # ── User input (single keypress in raw mode) ──────────
+                # ── User input (single keypress in cbreak mode) ────────
                 key = result
 
                 # Ctrl+C → quit
@@ -283,7 +286,7 @@ async def run(url: str) -> None:
                         waiting_for_kill_id = False
                         kill_id_buffer = ""
                         layout = build_layout(snapshot, status_msg)
-                        live.update(layout)
+                        live.update(layout, refresh=True)
                     # Backspace / delete → remove last char
                     elif key in ("\x7f", "\x08"):
                         kill_id_buffer = kill_id_buffer[:-1]
@@ -291,7 +294,7 @@ async def run(url: str) -> None:
                             snapshot,
                             f"Enter request id to kill: {kill_id_buffer}_",
                         )
-                        live.update(layout)
+                        live.update(layout, refresh=True)
                     # Printable char → accumulate
                     elif len(key) == 1 and key.isprintable():
                         kill_id_buffer += key
@@ -299,8 +302,8 @@ async def run(url: str) -> None:
                             snapshot,
                             f"Enter request id to kill: {kill_id_buffer}_",
                         )
-                        live.update(layout)
-                    # Escape → cancel
+                        live.update(layout, refresh=True)
+                    # Escape → cancel back to normal mode
                     elif key == "\x1b":
                         waiting_for_kill_id = False
                         kill_id_buffer = ""
@@ -308,7 +311,10 @@ async def run(url: str) -> None:
                             snapshot,
                             f"Press q to quit · f: force cleanup · k: kill job",
                         )
-                        live.update(layout)
+                        live.update(layout, refresh=True)
+                    # 'q' while waiting → quit anyway
+                    elif key == "q":
+                        break
                     continue
 
                 # Normal mode keybindings
@@ -320,7 +326,7 @@ async def run(url: str) -> None:
                     layout = build_layout(
                         latest, f"Press q to quit · f: force cleanup · k: kill job"
                     )
-                    live.update(layout)
+                    live.update(layout, refresh=True)
 
                 elif key == "f":
                     try:
@@ -331,7 +337,7 @@ async def run(url: str) -> None:
                     except Exception as exc:  # noqa: BLE001
                         status_msg = f"force_cleanup: error — {exc}"
                     layout = build_layout(snapshot, status_msg)
-                    live.update(layout)
+                    live.update(layout, refresh=True)
 
                 elif key == "k":
                     waiting_for_kill_id = True
@@ -340,13 +346,12 @@ async def run(url: str) -> None:
                         snapshot,
                         "Enter request id to kill: ",
                     )
-                    live.update(layout)
+                    live.update(layout, refresh=True)
 
     except (KeyboardInterrupt, EOFError):
         # Ctrl+C or Ctrl+D — exit gracefully without traceback noise
         pass
     finally:
-        loop.remove_reader(fd)
         if old_settings is not None:
             try:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
