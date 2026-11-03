@@ -1,10 +1,9 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kali-mcp"
-version = "1.0.0"
+name = "kmcp"
 description = "MCP server exposing Kali Linux penetration-testing tools to AI agents"
 requires-python = ">=3.10"
 readme = "README.md"
@@ -26,6 +25,10 @@ kmcp = "kali_mcp.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools_scm]
+write_to = "src/kali_mcp/_version.py"
+tag_pattern = "v{version}"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
