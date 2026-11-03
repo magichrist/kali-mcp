@@ -1,5 +1,9 @@
 """Interactive CLI/TUI for the Kali MCP monitor.
 
+Female cyberspace aesthetic — gummy amber (#FFBF00), magenta-pink (#FF69B4),
+and cyberspace cyan (#18FFFF) on a deep dark background. Built with Rich for
+rendering and a background thread for non-blocking stdin.
+
 Connects to the server's ``GET /monitor/stream`` SSE endpoint and renders a
 live dashboard with three panels:
 
@@ -13,8 +17,6 @@ Keybindings:
   * ``r`` — force a refresh of the display
   * ``f`` — force cleanup all tracked executions (with confirmation)
   * ``k`` — kill a specific job (prompts for request id)
-
-Built with Rich for rendering and a background thread for non-blocking stdin.
 """
 
 from __future__ import annotations
@@ -29,8 +31,23 @@ from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from kali_mcp.monitor.sse_client import SseClient
+
+# ════════════════════════════════════════════════════════════════════════════
+# Cyberspace color palette (dark-background friendly)
+# ════════════════════════════════════════════════════════════════════════════
+
+CYBERSPACE_CYAN = "#18FFFF"   # bright electric cyan — headers / primary text
+GUMMY_AMBER = "#FFBF00"       # gummy amber — highlights / values / jobs
+GUMMY_PINK = "#FF69B4"        # hot pink / magenta — alerts / actions / borders
+GUMMY_LIGHT_PINK = "#FFB6C1"  # soft pink — secondary text
+DARK_PANEL_BG = "#0a0a0f"     # near-black panel background — deep cyberspace
+
+
+def _styled_text(content: str, style: str) -> Text:
+    return Text(content, style=style)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -39,11 +56,11 @@ from kali_mcp.monitor.sse_client import SseClient
 
 
 def _sessions_panel(sessions: list[dict[str, Any]]) -> Panel:
-    table = Table(show_header=True, header_style="bold cyan", expand=True)
-    table.add_column("Session ID", style="dim", width=14)
-    table.add_column("Connected At", width=20)
-    table.add_column("Last Activity", width=20)
-    table.add_column("Client", width=26)
+    table = Table(show_header=True, header_style=f"bold {GUMMY_AMBER}", expand=True)
+    table.add_column("Session ID", style=CYBERSPACE_CYAN, width=14)
+    table.add_column("Connected At", style=GUMMY_LIGHT_PINK, width=20)
+    table.add_column("Last Activity", style=GUMMY_LIGHT_PINK, width=20)
+    table.add_column("Client", style=CYBERSPACE_CYAN, width=26)
 
     for s in sessions:
         ci = s.get("client_info", {}) or {}
@@ -57,16 +74,17 @@ def _sessions_panel(sessions: list[dict[str, Any]]) -> Panel:
 
     return Panel(
         table,
-        title=f"Connected Users ({len(sessions)})",
-        border_style="green",
+        title=_styled_text("Connected Users", f"bold {GUMMY_PINK}"),
+        border_style=GUMMY_PINK,
+        title_align="left",
     )
 
 
 def _jobs_panel(jobs: list[dict[str, Any]]) -> Panel:
-    table = Table(show_header=True, header_style="bold yellow", expand=True)
-    table.add_column("Request ID", style="dim", width=14)
-    table.add_column("Tool", width=16)
-    table.add_column("Elapsed (s)", width=12, justify="right")
+    table = Table(show_header=True, header_style=f"bold {GUMMY_AMBER}", expand=True)
+    table.add_column("Request ID", style=CYBERSPACE_CYAN, width=14)
+    table.add_column("Tool", style=CYBERSPACE_CYAN, width=16)
+    table.add_column("Elapsed (s)", style=GUMMY_AMBER, width=12, justify="right")
 
     for j in jobs:
         table.add_row(
@@ -77,15 +95,16 @@ def _jobs_panel(jobs: list[dict[str, Any]]) -> Panel:
 
     return Panel(
         table,
-        title=f"Running Jobs ({len(jobs)})",
-        border_style="yellow",
+        title=_styled_text("Running Jobs", f"bold {GUMMY_PINK}"),
+        border_style=GUMMY_PINK,
+        title_align="left",
     )
 
 
 def _health_panel(health: dict[str, Any]) -> Panel:
     grid = Table.grid(padding=(0, 1), expand=True)
-    grid.add_column(style="dim", width=24)
-    grid.add_column()
+    grid.add_column(style=CYBERSPACE_CYAN, width=24)
+    grid.add_column(style=GUMMY_LIGHT_PINK)
 
     grid.add_row("Status:", str(health.get("status", "-")))
     grid.add_row("Uptime:", f"{health.get('uptime_seconds', 0):.1f}s")
@@ -95,7 +114,12 @@ def _health_panel(health: dict[str, Any]) -> Panel:
     grid.add_row("Tools Registered:", str(health.get("tools_registered", 0)))
     grid.add_row("Memory:", f"{health.get('memory_mb', 0):.1f} MB")
 
-    return Panel(grid, title="Server Health", border_style="blue")
+    return Panel(
+        grid,
+        title=_styled_text("Server Health", f"bold {GUMMY_PINK}"),
+        border_style=GUMMY_PINK,
+        title_align="left",
+    )
 
 
 def build_layout(
@@ -106,10 +130,14 @@ def build_layout(
     layout = Layout()
 
     ts = snapshot.get("timestamp", "-") if snapshot else "-"
-    header = Panel(
-        f"Kali MCP Monitor — {ts}{'  |  ' + status_msg if status_msg else ''}",
-        style="bold white on blue",
+    header_text = Text(
+        f"Kali MCP Monitor — {ts}",
+        style=f"bold {CYBERSPACE_CYAN} on {DARK_PANEL_BG}",
     )
+    if status_msg:
+        header_text.append("  |  ", style=GUMMY_LIGHT_PINK)
+        header_text.append(status_msg, style=GUMMY_AMBER)
+    header = Panel(header_text, border_style=GUMMY_PINK, style=DARK_PANEL_BG)
 
     layout.split(
         Layout(header, name="top", size=3),
@@ -118,7 +146,10 @@ def build_layout(
     )
 
     layout["middle"].split_row(
-        Layout(_sessions_panel(snapshot.get("sessions", []) if snapshot else []), name="sessions"),
+        Layout(
+            _sessions_panel(snapshot.get("sessions", []) if snapshot else []),
+            name="sessions",
+        ),
         Layout(_jobs_panel(snapshot.get("jobs", []) if snapshot else []), name="jobs"),
     )
     layout["bottom"].update(
@@ -174,7 +205,10 @@ async def run(url: str) -> None:
     stdin_thread.start()
 
     snapshot = client.get_latest_snapshot() or {}
-    layout = build_layout(snapshot, "Press q to quit · f: force cleanup · k: kill job")
+    layout = build_layout(
+        snapshot,
+        f"Press q to quit · f: force cleanup · k: kill job",
+    )
 
     waiting_for_kill_id = False
 
@@ -195,7 +229,10 @@ async def run(url: str) -> None:
             # ── New snapshot from SSE ──────────────────────────────
             if isinstance(result, dict):
                 snapshot = result
-                layout = build_layout(snapshot, "Press q to quit · f: force cleanup · k: kill job")
+                layout = build_layout(
+                    snapshot,
+                    f"Press q to quit · f: force cleanup · k: kill job",
+                )
                 live.update(layout)
                 continue
 
@@ -230,7 +267,7 @@ async def run(url: str) -> None:
                 # Force an immediate re-render from the latest snapshot
                 latest = client.get_latest_snapshot() or {}
                 layout = build_layout(
-                    latest, "Press q to quit · f: force cleanup · k: kill job"
+                    latest, f"Press q to quit · f: force cleanup · k: kill job"
                 )
                 live.update(layout)
 

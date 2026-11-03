@@ -17,12 +17,12 @@ class TestTuiLayout:
         ]
         panel = _sessions_panel(sessions)
         assert panel is not None
-        assert "Connected Users (1)" in panel.title
+        assert "Connected Users" in panel.title.plain
 
     def test_sessions_panel_empty(self) -> None:
         panel = _sessions_panel([])
         assert panel is not None
-        assert "Connected Users (0)" in panel.title
+        assert "Connected Users" in panel.title.plain
 
     def test_jobs_panel(self) -> None:
         jobs = [
@@ -31,12 +31,12 @@ class TestTuiLayout:
         ]
         panel = _jobs_panel(jobs)
         assert panel is not None
-        assert "Running Jobs (2)" in panel.title
+        assert "Running Jobs" in panel.title.plain
 
     def test_jobs_panel_empty(self) -> None:
         panel = _jobs_panel([])
         assert panel is not None
-        assert "Running Jobs (0)" in panel.title
+        assert "Running Jobs" in panel.title.plain
 
     def test_health_panel(self) -> None:
         health = {
@@ -50,7 +50,7 @@ class TestTuiLayout:
         }
         panel = _health_panel(health)
         assert panel is not None
-        assert panel.title == "Server Health"
+        assert panel.title.plain == "Server Health"
 
     def test_health_panel_empty(self) -> None:
         panel = _health_panel({})
