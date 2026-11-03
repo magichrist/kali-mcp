@@ -169,7 +169,7 @@ def test_parser_tools_execute_contract(tool_name, tmp_path, monkeypatch):
     args, stdout, payload_key, expected_count = PARSER_CASES[tool_name]
     tool = TOOL_MAP[tool_name]
 
-    import kali_mcp.execution as execution
+    from kali_mcp import execution
 
     async def fake_execute(*a, **kw):
         return _FakeResult(stdout)

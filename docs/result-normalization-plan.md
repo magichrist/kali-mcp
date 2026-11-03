@@ -16,9 +16,7 @@ A `NormalizedToolMixin` provides shared helpers:
 
 ```python
 class NormalizedToolMixin:
-    def normalize(
-        self, raw_stdout: str, raw_stderr: str, exit_code: int
-    ) -> dict[str, Any]:
+    def normalize(self, raw_stdout: str, raw_stderr: str, exit_code: int) -> dict[str, Any]:
         """Subclasses implement per-tool parsing."""
         raise NotImplementedError
 ```

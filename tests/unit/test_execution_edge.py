@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import MagicMock, patch
 
-import pytest
-
-from kali_mcp.execution import ExecutionEngine, engine, set_progress_cb, reset_progress_cb
+from kali_mcp.execution import ExecutionEngine, reset_progress_cb, set_progress_cb
 from kali_mcp.models import ExecutionResult
 
 
@@ -116,9 +113,7 @@ class TestExecutionEngineEdgeCases:
         eng = ExecutionEngine()
         # Force an internal error by making cwd invalid/unusable isn't easy;
         # instead verify the engine catches unexpected exceptions gracefully.
-        result = asyncio.run(
-            eng.execute(command="true", tool="generic_command", timeout=5)
-        )
+        result = asyncio.run(eng.execute(command="true", tool="generic_command", timeout=5))
         assert result.success is True
 
 

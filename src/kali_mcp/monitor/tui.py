@@ -25,8 +25,8 @@ import asyncio
 import os
 import sys
 import termios
-import tty
 import threading
+import tty
 from typing import Any
 
 import httpx
@@ -42,11 +42,11 @@ from kali_mcp.monitor.sse_client import SseClient
 # Cyberspace color palette (dark-background friendly)
 # ════════════════════════════════════════════════════════════════════════════
 
-CYBERSPACE_CYAN = "#18FFFF"   # bright electric cyan — headers / primary text
-GUMMY_AMBER = "#FFBF00"       # gummy amber — highlights / values / jobs
-GUMMY_PINK = "#FF69B4"        # hot pink / magenta — alerts / actions / borders
+CYBERSPACE_CYAN = "#18FFFF"  # bright electric cyan — headers / primary text
+GUMMY_AMBER = "#FFBF00"  # gummy amber — highlights / values / jobs
+GUMMY_PINK = "#FF69B4"  # hot pink / magenta — alerts / actions / borders
 GUMMY_LIGHT_PINK = "#FFB6C1"  # soft pink — secondary text
-DARK_PANEL_BG = "#0a0a0f"     # near-black panel background — deep cyberspace
+DARK_PANEL_BG = "#0a0a0f"  # near-black panel background — deep cyberspace
 
 
 def _styled_text(content: str, style: str) -> Text:
@@ -155,9 +155,7 @@ def build_layout(
         ),
         Layout(_jobs_panel(snapshot.get("jobs", []) if snapshot else []), name="jobs"),
     )
-    layout["bottom"].update(
-        _health_panel(snapshot.get("health", {}) if snapshot else {})
-    )
+    layout["bottom"].update(_health_panel(snapshot.get("health", {}) if snapshot else {}))
 
     return layout
 
@@ -227,7 +225,7 @@ async def run(url: str) -> None:
     snapshot = client.get_latest_snapshot() or {}
     layout = build_layout(
         snapshot,
-        f"Press q to quit · f: force cleanup · k: kill job",
+        "Press q to quit · f: force cleanup · k: kill job",
     )
 
     waiting_for_kill_id = False
@@ -253,7 +251,7 @@ async def run(url: str) -> None:
                     snapshot = result
                     layout = build_layout(
                         snapshot,
-                        f"Press q to quit · f: force cleanup · k: kill job",
+                        "Press q to quit · f: force cleanup · k: kill job",
                     )
                     live.update(layout, refresh=True)
                     continue
@@ -309,7 +307,7 @@ async def run(url: str) -> None:
                         kill_id_buffer = ""
                         layout = build_layout(
                             snapshot,
-                            f"Press q to quit · f: force cleanup · k: kill job",
+                            "Press q to quit · f: force cleanup · k: kill job",
                         )
                         live.update(layout, refresh=True)
                     # 'q' while waiting → quit anyway
@@ -324,15 +322,13 @@ async def run(url: str) -> None:
                 elif key == "r":
                     latest = client.get_latest_snapshot() or {}
                     layout = build_layout(
-                        latest, f"Press q to quit · f: force cleanup · k: kill job"
+                        latest, "Press q to quit · f: force cleanup · k: kill job"
                     )
                     live.update(layout, refresh=True)
 
                 elif key == "f":
                     try:
-                        res = await _http_post(
-                            f"{url}/monitor/action", {"action": "force_cleanup"}
-                        )
+                        res = await _http_post(f"{url}/monitor/action", {"action": "force_cleanup"})
                         status_msg = f"force_cleanup: {res.get('cleaned', 0)} cleaned"
                     except Exception as exc:  # noqa: BLE001
                         status_msg = f"force_cleanup: error — {exc}"

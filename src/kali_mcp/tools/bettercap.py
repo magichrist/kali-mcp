@@ -92,9 +92,7 @@ class BettercapTool(BaseTool, NormalizedToolMixin):
             cmd.extend(["-eval", modules])
         return cmd
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         return {"normalized": {"session_output": (stdout or "").strip()[:2000]}}
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

@@ -51,8 +51,7 @@ def _recon(target: str, depth: str = "standard", scope: str = "") -> list[dict]:
 def _webapp(url: str, auth: str = "no") -> list[dict]:
     msgs = [
         _user(
-            "Perform a web application security assessment of "
-            f"**{url}** (authenticated: {auth})."
+            f"Perform a web application security assessment of **{url}** (authenticated: {auth})."
         ),
         _assistant(
             "I will follow this checklist, running one item at a time and reporting "
@@ -71,9 +70,7 @@ def _ad(domain: str, credentials: str = "") -> list[dict]:
     msgs = [
         _user(
             "Assess the Active Directory environment for domain "
-            f"**{domain}**"
-            + (f" using credentials {credentials}" if credentials else "")
-            + "."
+            f"**{domain}**" + (f" using credentials {credentials}" if credentials else "") + "."
         ),
         _assistant(
             "I will enumerate in this order:\n"
@@ -91,8 +88,7 @@ def _ad(domain: str, credentials: str = "") -> list[dict]:
 def _osint(subject: str, sources: str = "default") -> list[dict]:
     msgs = [
         _user(
-            f"Gather open-source intelligence on **{subject}** using the "
-            f"'{sources}' source set."
+            f"Gather open-source intelligence on **{subject}** using the '{sources}' source set."
         ),
         _assistant(
             "OSINT collection plan:\n"
@@ -106,9 +102,7 @@ def _osint(subject: str, sources: str = "default") -> list[dict]:
     return msgs
 
 
-def _quick_scan(
-    target: str, ports: str = "top1000", profile: str = "fast"
-) -> list[dict]:
+def _quick_scan(target: str, ports: str = "top1000", profile: str = "fast") -> list[dict]:
     msgs = [
         _user(
             f"Run a {profile} nmap scan of **{target}** on ports **{ports}** "
@@ -149,9 +143,7 @@ def register_prompts(mcp) -> None:
         name="recon_workflow",
         description="Guided external reconnaissance workflow for a target host/domain",
     )
-    def recon_workflow(
-        target: str, depth: str = "standard", scope: str = ""
-    ) -> list[dict]:
+    def recon_workflow(target: str, depth: str = "standard", scope: str = "") -> list[dict]:
         return _recon(target, depth, scope)
 
     @mcp.prompt(
@@ -179,9 +171,7 @@ def register_prompts(mcp) -> None:
         name="quick_scan",
         description="Quick nmap scan with findings summary",
     )
-    def quick_scan(
-        target: str, ports: str = "top1000", profile: str = "fast"
-    ) -> list[dict]:
+    def quick_scan(target: str, ports: str = "top1000", profile: str = "fast") -> list[dict]:
         return _quick_scan(target, ports, profile)
 
     @mcp.prompt(

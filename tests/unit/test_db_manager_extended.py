@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -90,7 +90,9 @@ class TestDBManagerEdgeCases:
         try:
             with patch.object(dbm, "config") as mock_config:
                 mock_config.db_enabled = True
-                mock_config.db_path = str(tmp_path := __import__("tempfile").mkdtemp()) + "/singleton.sqlite"
+                mock_config.db_path = (
+                    str(tmp_path := __import__("tempfile").mkdtemp()) + "/singleton.sqlite"
+                )
                 db1 = get_db()
                 db2 = get_db()
                 assert db1 is db2

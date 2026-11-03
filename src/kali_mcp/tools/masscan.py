@@ -71,16 +71,12 @@ class MasscanTool(BaseTool, NormalizedToolMixin):
         cmd.extend(["--rate", str(arguments.get("rate", 1000))])
         return cmd
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         findings = parse_masscan(stdout)
         return {
             "normalized": {
                 "open_ports": len(findings),
-                "ports": [
-                    {"port": f["port"], "protocol": f["service"]} for f in findings
-                ],
+                "ports": [{"port": f["port"], "protocol": f["service"]} for f in findings],
                 "raw_output": (stdout or "").strip()[:2000],
             }
         }

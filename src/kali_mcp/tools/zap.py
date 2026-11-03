@@ -72,9 +72,7 @@ class ZapTool(BaseTool, NormalizedToolMixin):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         return ["zap-baseline.py", "-t", arguments["target"]]
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         return {"normalized": {"scan_output": (stdout or "").strip()[:2000]}}
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:

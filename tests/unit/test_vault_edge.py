@@ -60,9 +60,7 @@ class TestContentHandling:
     def test_large_payload(self):
         payload = {"blob": "x" * 500_000}
         vault.vault_write("evidence", "big", payload)
-        assert (
-            json.loads(vault.vault_read("evidence", "big"))["blob"] == payload["blob"]
-        )
+        assert json.loads(vault.vault_read("evidence", "big"))["blob"] == payload["blob"]
 
     def test_nested_payload_structures(self):
         payload = {"deep": {"a": [1, 2, {"b": None}]}}
@@ -82,6 +80,4 @@ class TestPathSafety:
         found = list(vault.VAULT_ROOT.rglob("*.json"))
         assert found, "entry should be written somewhere under vault root"
         for f in found:
-            assert (
-                vault.VAULT_ROOT in f.resolve().parents or f.parent == vault.VAULT_ROOT
-            )
+            assert vault.VAULT_ROOT in f.resolve().parents or f.parent == vault.VAULT_ROOT

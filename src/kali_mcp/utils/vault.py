@@ -327,9 +327,7 @@ def vault_list(
         else:
             where = ""
             params = []
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM {TABLE} {where}", params
-        ).fetchone()[0]
+        total = conn.execute(f"SELECT COUNT(*) FROM {TABLE} {where}", params).fetchone()[0]
         rows = conn.execute(
             f"""
             SELECT category, name, target, tool, tags, content_size,
@@ -378,9 +376,7 @@ def vault_query(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     conn = _connect()
     try:
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM {TABLE} {where}", params
-        ).fetchone()[0]
+        total = conn.execute(f"SELECT COUNT(*) FROM {TABLE} {where}", params).fetchone()[0]
         rows = conn.execute(
             f"""
             SELECT category, name, target, tool, tags, content_size,
@@ -439,9 +435,7 @@ def vault_stats() -> dict[str, Any]:
                 f"SELECT tool, COUNT(*) FROM {TABLE} WHERE tool != '' GROUP BY tool"
             ).fetchall()
         }
-        size = conn.execute(
-            f"SELECT COALESCE(SUM(content_size), 0) FROM {TABLE}"
-        ).fetchone()[0]
+        size = conn.execute(f"SELECT COALESCE(SUM(content_size), 0) FROM {TABLE}").fetchone()[0]
     finally:
         conn.close()
     return {

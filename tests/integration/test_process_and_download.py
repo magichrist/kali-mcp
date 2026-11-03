@@ -9,9 +9,7 @@ from kali_mcp.utils.process import kill_process_tree
 
 class TestKillProcessTree:
     async def test_kill_running_process(self):
-        proc = await asyncio.create_subprocess_exec(
-            "sleep", "30", start_new_session=True
-        )
+        proc = await asyncio.create_subprocess_exec("sleep", "30", start_new_session=True)
         assert proc.returncode is None
         await kill_process_tree(proc)
         assert proc.returncode is not None  # died

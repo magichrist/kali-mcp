@@ -21,9 +21,7 @@ class HttpxTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return (
-            "Run httpx for HTTP probing, technology detection, and web reconnaissance."
-        )
+        return "Run httpx for HTTP probing, technology detection, and web reconnaissance."
 
     def input_schema(self) -> dict[str, Any]:
         return {

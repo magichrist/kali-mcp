@@ -131,9 +131,7 @@ class TestTimeoutsAndCleanup:
 
 class TestPathEnvironment:
     async def test_system_path_appended(self):
-        r = await engine.execute(
-            ["bash", "-c", "echo $PATH"], tool="test", env={"PATH": "/custom"}
-        )
+        r = await engine.execute(["bash", "-c", "echo $PATH"], tool="test", env={"PATH": "/custom"})
         assert r.stdout.strip().startswith("/custom")
         assert "/usr/bin" in r.stdout
 

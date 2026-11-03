@@ -116,9 +116,7 @@ async def test_mcp_roundtrip_execution(server_url):
         ClientSession(read, write) as session,
     ):
         await session.initialize()
-        result = await session.call_tool(
-            "generic_command", {"command": "echo e2e_roundtrip"}
-        )
+        result = await session.call_tool("generic_command", {"command": "echo e2e_roundtrip"})
         assert result.isError is False
         payload = json.loads(result.content[0].text)
         assert payload["success"] is True

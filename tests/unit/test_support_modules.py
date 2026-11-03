@@ -12,9 +12,7 @@ from kali_mcp.prompts import _ad, _osint, _quick_scan, _recon, _report, _webapp
 
 
 class TestPrompts:
-    @pytest.mark.parametrize(
-        "builder", [_recon, _webapp, _ad, _osint, _quick_scan, _report]
-    )
+    @pytest.mark.parametrize("builder", [_recon, _webapp, _ad, _osint, _quick_scan, _report])
     def test_returns_user_assistant_messages(self, builder):
         msg = builder("test-target")  # type: ignore[call-arg]
         assert len(msg) == 2

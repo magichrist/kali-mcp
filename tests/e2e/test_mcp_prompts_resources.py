@@ -80,9 +80,7 @@ async def test_prompts_listed_and_rendered(server_url):
                 "report_template",
             } <= names
 
-            result = await session.get_prompt(
-                "recon_workflow", {"target": "example.com"}
-            )
+            result = await session.get_prompt("recon_workflow", {"target": "example.com"})
             assert len(result.messages) == 2
             assert "example.com" in result.messages[0].content.text
 
@@ -130,9 +128,7 @@ async def test_orchestration_tools_callable_via_mcp(server_url):
             result = await session.call_tool("playbook_list", {})
             assert result.isError is False
             payload = json.loads(result.content[0].text)
-            assert (
-                payload["success"] is False or payload
-            )  # ExecutionResult or error dict
+            assert payload["success"] is False or payload  # ExecutionResult or error dict
 
             result = await session.call_tool("playbook_status", {"name": "nope"})
             payload = json.loads(result.content[0].text)

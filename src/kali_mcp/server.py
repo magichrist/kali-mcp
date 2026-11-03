@@ -25,6 +25,7 @@ from kali_mcp.db import manager as db_manager
 from kali_mcp.execution import engine, reset_progress_cb, set_progress_cb
 from kali_mcp.logging_utils import setup_logging
 from kali_mcp.monitor import Monitor
+from kali_mcp.monitor.sessions import session_registry
 from kali_mcp.notifications import emit_log, notify_resource_updated
 from kali_mcp.prompts import register_prompts
 from kali_mcp.registry import registry
@@ -32,7 +33,6 @@ from kali_mcp.resources import register_resources
 
 # Import all tools (triggers registration)
 from kali_mcp.tools import ALL_TOOLS
-from kali_mcp.monitor.sessions import session_registry
 from kali_mcp.utils.vault import ensure_vault_dirs
 
 setup_logging()
@@ -91,9 +91,7 @@ class HealthMonitor:
 
         # Force cleanup if too many stuck
         if len(stuck) > config.max_concurrent:
-            logger.warning(
-                "health: too many stuck executions (%d), force cleaning", len(stuck)
-            )
+            logger.warning("health: too many stuck executions (%d), force cleaning", len(stuck))
             engine.force_cleanup()
 
         # Log health metrics
@@ -337,9 +335,7 @@ for tool_instance in ALL_TOOLS:
                 return json.dumps({"error": "Request cancelled"})
             except Exception:
                 health.record_error()
-                logger.exception(
-                    "request=%s catastrophic error in tool %s", request_id, t.name
-                )
+                logger.exception("request=%s catastrophic error in tool %s", request_id, t.name)
                 emit_log(ctx, "error", f"Failed {t.name} ({request_id})")
                 return json.dumps({"error": "Tool execution failed"}, indent=2)
             finally:

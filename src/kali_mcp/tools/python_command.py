@@ -81,9 +81,7 @@ class PythonCommandTool(BaseTool):
         cwd = arguments.get("cwd") or None
 
         # Write code to a temp file and execute with python3
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", prefix="mcp_exec_", delete=False
-        )
+        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".py", prefix="mcp_exec_", delete=False)
         try:
             tmp.write(code)
             tmp.close()

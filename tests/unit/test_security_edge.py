@@ -51,8 +51,6 @@ class TestQuoteArgument:
     def test_plain_word_unquoted(self):
         assert quote_argument("nmap") == "nmap"
 
-    @pytest.mark.parametrize(
-        "value", ["hello world", "a;b", "a$b", "a`b", "a&b", "a|b"]
-    )
+    @pytest.mark.parametrize("value", ["hello world", "a;b", "a$b", "a`b", "a&b", "a|b"])
     def test_dangerous_chars_are_quoted(self, value):
         assert quote_argument(value).startswith("'")

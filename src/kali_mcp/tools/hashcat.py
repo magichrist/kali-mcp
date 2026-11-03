@@ -87,9 +87,7 @@ class HashcatTool(BaseTool, NormalizedToolMixin):
         cmd.append(arguments["hash_file"])
         return cmd
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         creds = parse_hashcat(stdout)
         return {
             "normalized": {

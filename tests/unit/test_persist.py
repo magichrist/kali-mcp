@@ -205,9 +205,7 @@ class TestPersistRun:
             {"stdout": "hi", "stderr": "", "success": True},
         )
         assert summary["vault_deposited"] is True
-        run_files = list(
-            (tmp_path / "vault" / "runs" / "generic_command").glob("*.json")
-        )
+        run_files = list((tmp_path / "vault" / "runs" / "generic_command").glob("*.json"))
         assert run_files, "run should be grouped under runs/generic_command"
         assert not (tmp_path / "vault" / "findings" / "unknown").exists(), (
             "unknown-target rows must not land in findings/unknown"

@@ -96,9 +96,7 @@ class PlaybookExecutor:
         for step in self.playbooks[playbook_name]:
             if step.parallel:
                 # Run independent sub-tools concurrently
-                batch_results = await asyncio.gather(
-                    *[self._run_tool(t) for t in step.tools]
-                )
+                batch_results = await asyncio.gather(*[self._run_tool(t) for t in step.tools])
             else:
                 # Run sequentially, passing output forward
                 result = await self._run_tool(step.tool, context=results)

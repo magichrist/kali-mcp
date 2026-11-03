@@ -116,9 +116,7 @@ def test_first_argv_element(name):
         assert isinstance(cmd, str) and cmd.startswith(expected_bin)
         return
     assert isinstance(cmd, list)
-    assert cmd[0] == expected_bin, (
-        f"{name}: argv[0]={cmd[0]!r}, expected {expected_bin!r}"
-    )
+    assert cmd[0] == expected_bin, f"{name}: argv[0]={cmd[0]!r}, expected {expected_bin!r}"
 
 
 @pytest.mark.parametrize("name", sorted(COMMAND_MATRIX))
@@ -198,9 +196,7 @@ def test_john_format_wordlist_show():
 
 
 def test_hashcat_mode():
-    cmd = TOOL_MAP["hashcat"].build_command(
-        {"hash_file": "/h", "mode": 0, "wordlist": "/w"}
-    )
+    cmd = TOOL_MAP["hashcat"].build_command({"hash_file": "/h", "mode": 0, "wordlist": "/w"})
     assert cmd[cmd.index("-m") + 1] == "0"
 
 

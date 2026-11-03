@@ -60,12 +60,8 @@ class TestCredentials:
 
 class TestUpsertSemantics:
     def test_target_upsert_updates_all_fields(self, db):
-        tid = db.upsert_target(
-            "t1", target_type="host", scope="in-scope", tags="a", notes="n1"
-        )
-        db.upsert_target(
-            "t1", target_type="domain", scope="out-of-scope", tags="b", notes="n2"
-        )
+        tid = db.upsert_target("t1", target_type="host", scope="in-scope", tags="a", notes="n1")
+        db.upsert_target("t1", target_type="domain", scope="out-of-scope", tags="b", notes="n2")
         row = db.conn.execute("SELECT * FROM targets WHERE id=?", (tid,)).fetchone()
         assert row["target_type"] == "domain"
         assert row["scope"] == "out-of-scope"
@@ -83,9 +79,7 @@ class TestScansAndFindings:
     def test_scan_findings_count_stored(self, db):
         tid = db.upsert_target("t")
         sid = db.add_scan(tid, "nmap", "nmap -q", "s", "e", 1.0, 1, 7, None)
-        row = db.conn.execute(
-            "SELECT findings_count FROM scans WHERE id=?", (sid,)
-        ).fetchone()
+        row = db.conn.execute("SELECT findings_count FROM scans WHERE id=?", (sid,)).fetchone()
         assert row["findings_count"] == 7
 
     def test_many_findings(self, db):
@@ -93,9 +87,9 @@ class TestScansAndFindings:
         sid = db.add_scan(tid, "gobuster", "gobuster", "s", "e", 1.0, 1, 0, None)
         for i in range(100):
             db.add_finding(tid, sid, "gobuster", "web_path", "info", f"p{i}", "", "")
-        count = db.conn.execute(
-            "SELECT COUNT(*) FROM findings WHERE scan_id=?", (sid,)
-        ).fetchone()[0]
+        count = db.conn.execute("SELECT COUNT(*) FROM findings WHERE scan_id=?", (sid,)).fetchone()[
+            0
+        ]
         assert count == 100
 
     def test_severity_grouping_query(self, db):
@@ -124,9 +118,7 @@ class TestRobustness:
 
         m2 = DBManager(tmp_path / "w.sqlite")
         m2.ensure_schema()
-        row = m2.conn.execute(
-            "SELECT target FROM targets WHERE id=?", (tid,)
-        ).fetchone()
+        row = m2.conn.execute("SELECT target FROM targets WHERE id=?", (tid,)).fetchone()
         assert row["target"] == "persist-test"
         m2.close()
 

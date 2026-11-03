@@ -23,8 +23,7 @@ def test_index_updated_on_write():
     index = json.loads((vault.VAULT_ROOT / "index.json").read_text())
     assert index["count"] == len(index["entries"])
     assert any(
-        e["category"] == "notes" and e["name"] == "test_index_entry"
-        for e in index["entries"]
+        e["category"] == "notes" and e["name"] == "test_index_entry" for e in index["entries"]
     )
 
 

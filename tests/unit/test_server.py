@@ -10,8 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-import time
-from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -27,7 +25,6 @@ from kali_mcp.server import (
     health_check,
     lifespan,
     main,
-    mcp,
 )
 
 
@@ -265,9 +262,6 @@ class TestMainEntry:
     """Tests for the server main() function."""
 
     def test_main_invokes_uvicorn(self) -> None:
-        with patch("uvicorn.run") as mock_uvicorn_run, patch(
-            "kali_mcp.server.signal"
-        ):
+        with patch("uvicorn.run") as mock_uvicorn_run, patch("kali_mcp.server.signal"):
             main()
             mock_uvicorn_run.assert_called_once()
-

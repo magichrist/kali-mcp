@@ -86,9 +86,7 @@ class JohnTool(BaseTool, NormalizedToolMixin):
         cmd.append(arguments["hash_file"])
         return cmd
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         creds = parse_john(stdout)
         return {
             "normalized": {

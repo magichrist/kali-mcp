@@ -43,10 +43,7 @@ class TestSqliteStorage:
         conn = sqlite3.connect(str(vault_env / "vault.sqlite"))
         try:
             indexes = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='index'"
-                )
+                row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
             }
         finally:
             conn.close()
@@ -93,9 +90,7 @@ class TestSqliteStorage:
     def test_row_keys_with_colons_and_slashes(self, vault_env):
         vault.vault_write("vulnerabilities", "vuln:VULN-010", {"x": 1})
         vault.vault_write("source_code", "repo:org/name", {"y": 2})
-        assert json.loads(vault.vault_read("vulnerabilities", "vuln:VULN-010")) == {
-            "x": 1
-        }
+        assert json.loads(vault.vault_read("vulnerabilities", "vuln:VULN-010")) == {"x": 1}
         assert json.loads(vault.vault_read("source_code", "repo:org/name")) == {"y": 2}
 
     def test_write_is_single_row_no_junk(self, vault_env):
@@ -111,9 +106,7 @@ class TestSqliteStorage:
         assert count == 1 and total == 1
 
     def test_metadata_columns_stored(self, vault_env):
-        vault.vault_write(
-            "handoff", "meta", {"x": 1}, target="10.0.0.1", tool="nmap", tags="recon"
-        )
+        vault.vault_write("handoff", "meta", {"x": 1}, target="10.0.0.1", tool="nmap", tags="recon")
         entry = vault.vault_query(target="10.0.0.1")["entries"][0]
         assert entry["tool"] == "nmap"
         assert entry["tags"] == "recon"
@@ -211,9 +204,7 @@ class TestLimits:
         with pytest.raises(ValueError, match="vault row too large"):
             vault.vault_write("stress", "too_big", "x" * 2048)
         # nothing was written
-        assert vault.vault_read("stress", "too_big") == json.dumps(
-            {"error": "not found"}
-        )
+        assert vault.vault_read("stress", "too_big") == json.dumps({"error": "not found"})
 
     def test_zero_limit_means_unlimited(self, vault_env, monkeypatch):
         import dataclasses

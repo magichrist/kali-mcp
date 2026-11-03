@@ -60,9 +60,7 @@ class TestDomain:
 
 
 class TestURL:
-    @pytest.mark.parametrize(
-        "value", ["https://example.com", "http://10.0.0.1:8080/path"]
-    )
+    @pytest.mark.parametrize("value", ["https://example.com", "http://10.0.0.1:8080/path"])
     def test_valid(self, value):
         assert validate_url(value) is None
 

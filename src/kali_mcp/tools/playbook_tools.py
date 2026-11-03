@@ -119,9 +119,7 @@ class PlaybookStatusTool(BaseTool):
         name = arguments.get("name")
         if name and name not in RUN_STATUS:
             return error_response(
-                ToolError(
-                    error="Unknown playbook", details=f"no run recorded for '{name}'"
-                )
+                ToolError(error="Unknown playbook", details=f"no run recorded for '{name}'")
             )
         statuses = {name: RUN_STATUS[name]} if name else dict(RUN_STATUS)
         return _make_result(self.name, {"statuses": statuses})

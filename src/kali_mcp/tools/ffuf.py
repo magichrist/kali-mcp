@@ -19,7 +19,9 @@ class FfufTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Run ffuf for web fuzzing — directory discovery, parameter fuzzing, vhost enumeration."
+        return (
+            "Run ffuf for web fuzzing — directory discovery, parameter fuzzing, vhost enumeration."
+        )
 
     @property
     def default_timeout(self) -> int:

@@ -65,9 +65,7 @@ class FileReadTool(BaseTool):
         # Path containment check (skip if no dirs configured = unrestricted)
         if ALLOWED_READ_DIRS:
             resolved = os.path.realpath(path)
-            if not any(
-                resolved.startswith(d + "/") or resolved == d for d in ALLOWED_READ_DIRS
-            ):
+            if not any(resolved.startswith(d + "/") or resolved == d for d in ALLOWED_READ_DIRS):
                 raise ValueError(
                     f"Path not in allowed directories: {resolved}. "
                     f"Allowed: {', '.join(ALLOWED_READ_DIRS)}"

@@ -58,9 +58,7 @@ class PlaybookEngineTool(BaseTool):
                 raise ValueError(f"playbook.steps[{i}] must have a 'tools' list")
             for spec in step["tools"]:
                 if not isinstance(spec, dict) or "tool" not in spec:
-                    raise ValueError(
-                        f"playbook.steps[{i}].tools entries must be {{tool, args}}"
-                    )
+                    raise ValueError(f"playbook.steps[{i}].tools entries must be {{tool, args}}")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         return ["playbook_engine"]
@@ -70,7 +68,5 @@ class PlaybookEngineTool(BaseTool):
         from kali_mcp.tools.playbook_engine import PlaybookEngine
 
         engine = PlaybookEngine()
-        res = await engine.run(
-            arguments["playbook"], resume=bool(arguments.get("resume"))
-        )
+        res = await engine.run(arguments["playbook"], resume=bool(arguments.get("resume")))
         return wrap_execution_result(res, self.name)

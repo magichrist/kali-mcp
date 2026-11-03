@@ -121,7 +121,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # start / s
     p_start = sub.add_parser("start", aliases=["s"], help="Start the MCP server")
-    p_start.add_argument("--host", default=None, help="Listen address (default: MCP_HOST or 0.0.0.0)")
+    p_start.add_argument(
+        "--host", default=None, help="Listen address (default: MCP_HOST or 0.0.0.0)"
+    )
     p_start.add_argument("--port", default=None, help="Listen port (default: MCP_PORT or 8399)")
     p_start.set_defaults(func=cmd_start)
 

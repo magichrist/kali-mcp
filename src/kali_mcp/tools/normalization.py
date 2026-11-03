@@ -13,8 +13,6 @@ from typing import Any
 
 class NormalizedToolMixin(ABC):
     @abstractmethod
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         """Return a dict containing at least 'raw', 'normalized', and parse metadata."""
         raise NotImplementedError

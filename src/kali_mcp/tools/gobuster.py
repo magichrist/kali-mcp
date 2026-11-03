@@ -70,9 +70,7 @@ class GobusterTool(BaseTool, NormalizedToolMixin):
         cmd.extend(["-t", str(arguments.get("threads", 10))])
         return cmd
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         findings = parse_gobuster(stdout)
         return {
             "normalized": {

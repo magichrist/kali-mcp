@@ -48,9 +48,7 @@ async def test_target_placeholder_substitution():
         "steps": [
             {
                 "parallel": False,
-                "tools": [
-                    {"tool": "generic_command", "args": {"command": "echo {{target}}"}}
-                ],
+                "tools": [{"tool": "generic_command", "args": {"command": "echo {{target}}"}}],
             },
         ],
     }
@@ -116,9 +114,7 @@ async def test_playbook_engine_tool_validates():
                 "steps": [
                     {
                         "parallel": False,
-                        "tools": [
-                            {"tool": "generic_command", "args": {"command": "echo ok"}}
-                        ],
+                        "tools": [{"tool": "generic_command", "args": {"command": "echo ok"}}],
                     }
                 ],
             }

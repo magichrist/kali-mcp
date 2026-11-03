@@ -60,9 +60,7 @@ class PlaybookEngine:
                 results.append(await self._run_tool(s))
             return results
 
-    async def run(
-        self, playbook: dict[str, Any], resume: bool = False
-    ) -> ExecutionResult:
+    async def run(self, playbook: dict[str, Any], resume: bool = False) -> ExecutionResult:
         name = playbook.get("name", "playbook")
         steps: list[dict[str, Any]] = playbook.get("steps", [])
         subst_target = playbook.get("target")
@@ -72,11 +70,7 @@ class PlaybookEngine:
             for step in steps:
                 for spec in step.get("tools", []):
                     spec["args"] = {
-                        k: (
-                            v.replace("{{target}}", str(subst_target))
-                            if isinstance(v, str)
-                            else v
-                        )
+                        k: (v.replace("{{target}}", str(subst_target)) if isinstance(v, str) else v)
                         for k, v in (spec.get("args") or {}).items()
                     }
 

@@ -133,9 +133,12 @@ No alerting is included in this phase.
 ```python
 # src/kali_mcp/monitor/sessions.py
 
+
 class SessionRegistry:
     def __init__(self):
-        self._sessions: dict[str, dict] = {}  # session_id -> {connect_at, last_activity, client_info}
+        self._sessions: dict[
+            str, dict
+        ] = {}  # session_id -> {connect_at, last_activity, client_info}
         self._lock = threading.RLock()
 
     def on_connect(self, session_id: str, client_info: dict) -> None:
@@ -187,6 +190,7 @@ def get_active_jobs(self) -> list[dict]:
 
 ```python
 # monitor/__init__.py
+
 
 def build_snapshot(session_registry, engine, health) -> dict:
     return {

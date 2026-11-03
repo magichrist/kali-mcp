@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from kali_mcp.prompts import (
     _ad,
     _osint,

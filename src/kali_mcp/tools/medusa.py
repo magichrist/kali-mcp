@@ -88,9 +88,7 @@ class MedusaTool(BaseTool, NormalizedToolMixin):
             cmd.extend(["-n", str(port)])
         return cmd
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         creds = parse_medusa(stdout)
         return {
             "normalized": {

@@ -85,9 +85,7 @@ class HydraTool(BaseTool, NormalizedToolMixin):
             str(arguments.get("threads", 4)),
         ]
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         creds = parse_hydra(stdout)
         return {
             "normalized": {

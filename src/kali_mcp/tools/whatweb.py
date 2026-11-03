@@ -19,7 +19,9 @@ class WhatwebTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Run whatweb for web technology fingerprinting — CMS, frameworks, libraries, plugins."
+        return (
+            "Run whatweb for web technology fingerprinting — CMS, frameworks, libraries, plugins."
+        )
 
     @property
     def default_timeout(self) -> int:

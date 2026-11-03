@@ -3,15 +3,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from kali_mcp import config as cfg_mod
 from kali_mcp.resources import (
     _artifact_resource,
-    _artifacts_index_resource,
     _config_resource,
     _db_stats_resource,
     _executions_resource,

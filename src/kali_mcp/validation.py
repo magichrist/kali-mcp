@@ -35,9 +35,7 @@ def validate_cidr(value: str, label: str = "CIDR") -> None:
 
 def validate_domain(value: str, label: str = "domain") -> None:
     """Raise ValueError if value is not a valid domain name."""
-    pattern = re.compile(
-        r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,}$"
-    )
+    pattern = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,}$")
     if not pattern.match(value):
         raise ValueError(f"Invalid {label}: {value}")
 
@@ -58,9 +56,7 @@ def validate_timeout(value: int | str, min_val: int = 1, max_val: int = 3600) ->
     except (ValueError, TypeError):
         raise ValueError(f"Timeout must be a number, got {value!r}")
     if value < min_val or value > max_val:
-        raise ValueError(
-            f"Timeout must be between {min_val} and {max_val}, got {value}"
-        )
+        raise ValueError(f"Timeout must be between {min_val} and {max_val}, got {value}")
 
 
 def validate_enum(value: str, allowed: list[str], label: str = "value") -> None:

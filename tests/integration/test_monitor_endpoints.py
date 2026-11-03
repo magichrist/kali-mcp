@@ -138,7 +138,7 @@ def test_monitor_stream_sse(server_url):
     assert len(data_lines) >= 1, "expected at least one SSE data line"
 
     # First line should be valid JSON
-    first_json = data_lines[0][len("data: "):]
+    first_json = data_lines[0][len("data: ") :]
     payload = json.loads(first_json)
     assert "timestamp" in payload
     assert "sessions" in payload

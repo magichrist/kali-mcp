@@ -101,7 +101,5 @@ class PlaybookWebappTool(BaseTool):
         from kali_mcp.tools.playbook_engine import PlaybookEngine
 
         engine = PlaybookEngine()
-        res = await engine.run(
-            self._playbook(arguments), resume=bool(arguments.get("resume"))
-        )
+        res = await engine.run(self._playbook(arguments), resume=bool(arguments.get("resume")))
         return wrap_execution_result(res, self.name)

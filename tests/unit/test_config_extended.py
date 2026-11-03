@@ -65,7 +65,11 @@ class TestConfigEnvParsing:
     def test_paths_override(self) -> None:
         with patch.dict(
             os.environ,
-            {"MCP_LOG_DIR": "/tmp/custom_logs", "MCP_ARTIFACT_DIR": "/tmp/custom_artifacts", "MCP_DB_PATH": "/tmp/custom.db"},
+            {
+                "MCP_LOG_DIR": "/tmp/custom_logs",
+                "MCP_ARTIFACT_DIR": "/tmp/custom_artifacts",
+                "MCP_DB_PATH": "/tmp/custom.db",
+            },
             clear=True,
         ):
             c = Config()

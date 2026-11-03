@@ -81,9 +81,9 @@ def persist_run(
                     None,
                 )
                 if data:
-                    evidence = (
-                        (data.get("stdout") or "") + "\n" + (data.get("stderr") or "")
-                    )[:100_000]
+                    evidence = ((data.get("stdout") or "") + "\n" + (data.get("stderr") or ""))[
+                        :100_000
+                    ]
                     db.add_finding(
                         target_id,
                         scan_id,
@@ -177,13 +177,9 @@ _MEDUSA_RE = re.compile(
 )
 _JOBN_SHOW_RE = re.compile(r"^([^:\s]+):([^\s:]+)$")  # hash:pass (john --show)
 _JOBN_PAREN_RE = re.compile(r"^(.+?)\s+\(([^)]+)\)$")  # password (user)
-_GOBBUSTER_RE = re.compile(
-    r"((?:https?://\S+|/\S+?))\s+\(Status:\s*(\d+)\)", re.IGNORECASE
-)
+_GOBBUSTER_RE = re.compile(r"((?:https?://\S+|/\S+?))\s+\(Status:\s*(\d+)\)", re.IGNORECASE)
 _DIRB_RE = re.compile(r"^\+?\s*(https?://\S+?)\s*\(CODE:(\d+)\)", re.IGNORECASE)
-_MASSCAN_RE = re.compile(
-    r"Discovered open port\s+(\d+)/(tcp|udp)\s+on\s+([\d.]+)", re.IGNORECASE
-)
+_MASSCAN_RE = re.compile(r"Discovered open port\s+(\d+)/(tcp|udp)\s+on\s+([\d.]+)", re.IGNORECASE)
 
 
 def parse_hydra(stdout: str) -> list[dict[str, Any]]:
@@ -228,15 +224,11 @@ def parse_john(stdout: str) -> list[dict[str, Any]]:
         if ":" in line and line.count(":") == 1:
             h, pw = line.split(":", 1)
             if h and pw:
-                creds.append(
-                    {"service": "hash", "username": "", "hash": h, "password": pw}
-                )
+                creds.append({"service": "hash", "username": "", "hash": h, "password": pw})
                 continue
         m = _JOBN_PAREN_RE.match(line)
         if m:
-            creds.append(
-                {"service": "hash", "username": m.group(2), "password": m.group(1)}
-            )
+            creds.append({"service": "hash", "username": m.group(2), "password": m.group(1)})
     return creds
 
 
@@ -248,9 +240,7 @@ def parse_hashcat(stdout: str) -> list[dict[str, Any]]:
         if ":" in line and not line.startswith(("Hash.Mode", "Options")):
             parts = line.split(":", 1)
             if len(parts) == 2 and parts[1] and len(parts[0]) >= 8:
-                creds.append(
-                    {"service": "hash", "username": parts[0], "password": parts[1]}
-                )
+                creds.append({"service": "hash", "username": parts[0], "password": parts[1]})
     return creds
 
 
@@ -390,9 +380,7 @@ async def run_tool_with_persistence(
             findings, credentials = [], []
     if hasattr(tool, "normalize"):
         try:
-            norm = tool.normalize(
-                result.stdout or "", result.stderr or "", result.exit_code
-            )
+            norm = tool.normalize(result.stdout or "", result.stderr or "", result.exit_code)
             normalized = norm.get("normalized", {}) if isinstance(norm, dict) else {}
         except Exception:  # noqa: BLE001
             normalized = {}

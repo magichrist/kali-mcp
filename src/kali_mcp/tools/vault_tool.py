@@ -265,7 +265,7 @@ class VaultQueryTool(BaseTool):
             "tool; or free-text search across names, tags, and content. "
             "Returns row metadata (read full rows with vault_read). "
             "Search is literal substring matching, not tokenized: JSON rows "
-            "store JSON text (e.g. '\"level\": \"info\"') and key=value rows "
+            'store JSON text (e.g. \'"level": "info"\') and key=value rows '
             "store key=value text — search for distinctive strings "
             "(hostnames, CVE IDs, ports, markers) rather than assuming a "
             "format."

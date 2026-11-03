@@ -28,9 +28,7 @@ class SseClient:
         self.url = url
         self._max_queue = max_queue
         self._snapshot: dict[str, Any] | None = None
-        self._queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(
-            maxsize=max_queue
-        )
+        self._queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=max_queue)
         self._task: asyncio.Task | None = None
         self._closed = False
 

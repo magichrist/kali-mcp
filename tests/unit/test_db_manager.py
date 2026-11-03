@@ -26,8 +26,7 @@ def test_schema_is_idempotent(tmp_path):
 
 def test_all_tables_created(db):
     tables = {
-        row[0]
-        for row in db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        row[0] for row in db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
     }
     assert {"targets", "scans", "findings", "credentials"} <= tables
 
@@ -85,7 +84,5 @@ def test_finding_foreign_key_enforced(db):
 def test_optional_finding_fields_default_null(db):
     tid = db.upsert_target("h2")
     fid = db.add_finding(tid, None, "tool", "type", "info", "t", "d", "e")
-    row = db.conn.execute(
-        "SELECT port, service, url FROM findings WHERE id=?", (fid,)
-    ).fetchone()
+    row = db.conn.execute("SELECT port, service, url FROM findings WHERE id=?", (fid,)).fetchone()
     assert row["port"] is None and row["service"] is None and row["url"] is None

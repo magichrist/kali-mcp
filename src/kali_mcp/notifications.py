@@ -24,9 +24,7 @@ def _session(ctx: Any) -> Any:
         session = getattr(ctx, "session", None)
         if session is None:
             request_context = getattr(ctx, "request_context", None)
-            session = (
-                getattr(request_context, "session", None) if request_context else None
-            )
+            session = getattr(request_context, "session", None) if request_context else None
         if session is None:
             return None
         if not hasattr(session, "send_notification"):
@@ -93,9 +91,7 @@ def notify_resources_changed(ctx: Context | None) -> None:
 
         _emit(
             session,
-            session.send_notification(
-                ServerNotification(ResourceListChangedNotification())
-            ),
+            session.send_notification(ServerNotification(ResourceListChangedNotification())),
         )
     except Exception:
         logger.debug("resources-changed notification failed", exc_info=True)

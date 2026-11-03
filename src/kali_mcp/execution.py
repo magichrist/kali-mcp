@@ -30,9 +30,7 @@ MAX_OUTPUT = 100_000  # 100KB per stream
 
 # Per-request progress callback, set by the MCP handler so tool executions
 # report progress without each tool needing to thread the callback through.
-_progress_ctx: contextvars.ContextVar = contextvars.ContextVar(
-    "kali_mcp_progress", default=None
-)
+_progress_ctx: contextvars.ContextVar = contextvars.ContextVar("kali_mcp_progress", default=None)
 
 
 def set_progress_cb(cb) -> contextvars.Token | None:
@@ -125,9 +123,7 @@ class ExecutionEngine:
         self._start_watchdog()
         req_id = request_id or uuid.uuid4().hex[:12]
         try:
-            effective_timeout = min(
-                int(timeout or config.default_timeout), config.max_timeout
-            )
+            effective_timeout = min(int(timeout or config.default_timeout), config.max_timeout)
         except (ValueError, TypeError):
             effective_timeout = config.default_timeout
 
@@ -167,9 +163,7 @@ class ExecutionEngine:
                     exec_env = env if env is not None else os.environ.copy()
                     system_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games"
                     existing = exec_env.get("PATH", "")
-                    exec_env["PATH"] = (
-                        f"{existing}:{system_path}" if existing else system_path
-                    )
+                    exec_env["PATH"] = f"{existing}:{system_path}" if existing else system_path
 
                     try:
                         if use_shell:
@@ -200,9 +194,7 @@ class ExecutionEngine:
                             hint = "install it with 'apt install bash'"
                         else:
                             binary = command[0] if command else "unknown"
-                            hint = (
-                                f"install it with 'apt install {binary}' or check PATH"
-                            )
+                            hint = f"install it with 'apt install {binary}' or check PATH"
                             logger.warning(
                                 "request=%s tool=%s binary not found: %s",
                                 req_id,
@@ -232,9 +224,7 @@ class ExecutionEngine:
                                 interval = max(min(effective_timeout / 20.0, 5.0), 0.25)
                                 for step in range(1, 20):
                                     await asyncio.sleep(interval)
-                                    await _call_progress(
-                                        progress_cb, min(step * 5, 95), 100
-                                    )
+                                    await _call_progress(progress_cb, min(step * 5, 95), 100)
                             except Exception:
                                 pass
 
@@ -294,12 +284,8 @@ class ExecutionEngine:
                                 pass
 
                     elapsed = time.monotonic() - start_monotonic
-                    stdout_str = stdout_bytes.decode("utf-8", errors="replace")[
-                        :MAX_OUTPUT
-                    ]
-                    stderr_str = stderr_bytes.decode("utf-8", errors="replace")[
-                        :MAX_OUTPUT
-                    ]
+                    stdout_str = stdout_bytes.decode("utf-8", errors="replace")[:MAX_OUTPUT]
+                    stderr_str = stderr_bytes.decode("utf-8", errors="replace")[:MAX_OUTPUT]
 
                     result = ExecutionResult(
                         tool=tool,
@@ -427,7 +413,7 @@ class ExecutionEngine:
         if proc is not None:
             try:
                 await kill_process_tree(proc)
-            except Exception:  # noqa: BLE001 — kill failure is non-fatal
+            except Exception:
                 logger.warning("monitor: failed to kill job %s", request_id, exc_info=True)
         return True
 

@@ -22,7 +22,7 @@ def isolated_db_vault(tmp_path, monkeypatch):
 def test_db_stats_resource(isolated_db_vault, monkeypatch):
     import dataclasses
 
-    import kali_mcp.resources as resources
+    from kali_mcp import resources
     from kali_mcp.config import config as real_config
     from kali_mcp.db import manager as dbm
 
@@ -42,8 +42,8 @@ def test_db_stats_resource(isolated_db_vault, monkeypatch):
 
 
 def test_db_stats_resource_disabled(monkeypatch):
+    from kali_mcp import resources
     from kali_mcp.db import manager as dbm
-    import kali_mcp.resources as resources
 
     monkeypatch.setattr(dbm, "get_db", lambda: None)
     stats = json.loads(resources._db_stats_resource())
@@ -51,7 +51,7 @@ def test_db_stats_resource_disabled(monkeypatch):
 
 
 def test_vault_index_resource(isolated_db_vault):
-    import kali_mcp.resources as resources
+    from kali_mcp import resources
     from kali_mcp.utils import vault as v
 
     v.vault_write("findings", "r1", {"x": 1})

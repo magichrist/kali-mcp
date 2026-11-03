@@ -72,9 +72,7 @@ class ResponderTool(BaseTool, NormalizedToolMixin):
             cmd.extend(["-lw", log_dir])
         return cmd
 
-    def normalize(
-        self, stdout: str, stderr: str, exit_code: int, **kwargs: Any
-    ) -> dict[str, Any]:
+    def normalize(self, stdout: str, stderr: str, exit_code: int, **kwargs: Any) -> dict[str, Any]:
         hashes = parse_responder_hashes(stdout)
         return {
             "normalized": {

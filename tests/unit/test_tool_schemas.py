@@ -93,9 +93,7 @@ VALID_ARGS = {
             "steps": [
                 {
                     "parallel": False,
-                    "tools": [
-                        {"tool": "generic_command", "args": {"command": "echo hi"}}
-                    ],
+                    "tools": [{"tool": "generic_command", "args": {"command": "echo hi"}}],
                 }
             ],
         }
@@ -214,13 +212,10 @@ def test_schema_shape(tool):
         assert "type" in prop, f"{tool.name}.{pname} has no type"
         types = prop["type"] if isinstance(prop["type"], list) else [prop["type"]]
         assert all(
-            t in ("string", "integer", "number", "boolean", "object", "array")
-            for t in types
+            t in ("string", "integer", "number", "boolean", "object", "array") for t in types
         ), f"{tool.name}.{pname} has invalid type {prop['type']}"
     for req in schema.get("required", []):
-        assert req in schema["properties"], (
-            f"{tool.name}: required '{req}' not in properties"
-        )
+        assert req in schema["properties"], f"{tool.name}: required '{req}' not in properties"
     assert tool.description.strip(), f"{tool.name}: empty description"
 
 
@@ -260,9 +255,7 @@ def test_python_command_prefix():
 
 
 def test_nmap_binary():
-    cmd = _tool_map()["nmap"].build_command(
-        {"target": "10.0.0.1", "scan_type": "quick"}
-    )
+    cmd = _tool_map()["nmap"].build_command({"target": "10.0.0.1", "scan_type": "quick"})
     assert cmd[0] == "nmap"
 
 

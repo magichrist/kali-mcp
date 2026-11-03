@@ -27,9 +27,7 @@ async def test_execute_missing_binary():
 
 
 async def test_execute_timeout_kills_process():
-    r = await engine.execute(
-        ["sleep", "30"], tool="test", timeout=1, request_id="timeout_test"
-    )
+    r = await engine.execute(["sleep", "30"], tool="test", timeout=1, request_id="timeout_test")
     assert r.timed_out is True
     assert r.success is False
 
