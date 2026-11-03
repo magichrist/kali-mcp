@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import threading
 from typing import Any
 
 import httpx
@@ -189,20 +188,18 @@ async def run(url: str) -> None:
 
     loop = asyncio.get_event_loop()
     input_queue: asyncio.Queue[str] = asyncio.Queue()
+    _reader_fd = sys.stdin.fileno()
 
-    def _read_stdin() -> None:
-        """Blocking stdin reader running in a background thread."""
-        while True:
-            try:
-                line = sys.stdin.readline()
-            except Exception:
-                break
-            if not line:
-                break
-            asyncio.run_coroutine_threadsafe(input_queue.put(line.strip()), loop)
+    def _on_stdin_readable() -> None:
+        """Callback when stdin has data available (non-blocking)."""
+        try:
+            line = sys.stdin.readline()
+        except Exception:
+            line = ""
+        if line:
+            input_queue.put_nowait(line.strip())
 
-    stdin_thread = threading.Thread(target=_read_stdin, daemon=True)
-    stdin_thread.start()
+    loop.add_reader(_reader_fd, _on_stdin_readable)
 
     snapshot = client.get_latest_snapshot() or {}
     layout = build_layout(
@@ -212,85 +209,91 @@ async def run(url: str) -> None:
 
     waiting_for_kill_id = False
 
-    with Live(layout, refresh_per_second=4, screen=True) as live:
-        while True:
-            snapshot_task = asyncio.create_task(client.next_snapshot())
-            input_task = asyncio.create_task(input_queue.get())
+    try:
+        with Live(layout, refresh_per_second=4, screen=True) as live:
+            while True:
+                snapshot_task = asyncio.create_task(client.next_snapshot())
+                input_task = asyncio.create_task(input_queue.get())
 
-            done, pending = await asyncio.wait(
-                [snapshot_task, input_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for task in pending:
-                task.cancel()
-
-            result = done.pop().result()
-
-            # ── New snapshot from SSE ──────────────────────────────
-            if isinstance(result, dict):
-                snapshot = result
-                layout = build_layout(
-                    snapshot,
-                    f"Press q to quit · f: force cleanup · k: kill job",
+                done, pending = await asyncio.wait(
+                    [snapshot_task, input_task],
+                    return_when=asyncio.FIRST_COMPLETED,
                 )
-                live.update(layout)
-                continue
+                for task in pending:
+                    task.cancel()
 
-            # ── User input ─────────────────────────────────────────
-            key = result.lower()
+                result = done.pop().result()
 
-            if waiting_for_kill_id:
-                # Expecting a request id
-                req_id = result.strip()
-                if req_id:
+                # ── New snapshot from SSE ──────────────────────────────
+                if isinstance(result, dict):
+                    snapshot = result
+                    layout = build_layout(
+                        snapshot,
+                        f"Press q to quit · f: force cleanup · k: kill job",
+                    )
+                    live.update(layout)
+                    continue
+
+                # ── User input ─────────────────────────────────────────
+                key = result.lower()
+
+                if waiting_for_kill_id:
+                    # Expecting a request id
+                    req_id = result.strip()
+                    if req_id:
+                        try:
+                            res = await _http_post(
+                                f"{url}/monitor/action",
+                                {"action": "kill_job", "request_id": req_id},
+                            )
+                            status_msg = (
+                                f"kill_job {req_id}: {'killed' if res.get('killed') else 'not found'}"
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            status_msg = f"kill_job {req_id}: error — {exc}"
+                    else:
+                        status_msg = "kill_job cancelled (no id)"
+                    waiting_for_kill_id = False
+                    layout = build_layout(snapshot, status_msg)
+                    live.update(layout)
+                    continue
+
+                if key == "q":
+                    break
+
+                elif key == "r":
+                    # Force an immediate re-render from the latest snapshot
+                    latest = client.get_latest_snapshot() or {}
+                    layout = build_layout(
+                        latest, f"Press q to quit · f: force cleanup · k: kill job"
+                    )
+                    live.update(layout)
+
+                elif key == "f":
                     try:
                         res = await _http_post(
-                            f"{url}/monitor/action",
-                            {"action": "kill_job", "request_id": req_id},
+                            f"{url}/monitor/action", {"action": "force_cleanup"}
                         )
-                        status_msg = (
-                            f"kill_job {req_id}: {'killed' if res.get('killed') else 'not found'}"
-                        )
+                        status_msg = f"force_cleanup: {res.get('cleaned', 0)} cleaned"
                     except Exception as exc:  # noqa: BLE001
-                        status_msg = f"kill_job {req_id}: error — {exc}"
-                else:
-                    status_msg = "kill_job cancelled (no id)"
-                waiting_for_kill_id = False
-                layout = build_layout(snapshot, status_msg)
-                live.update(layout)
-                continue
+                        status_msg = f"force_cleanup: error — {exc}"
+                    layout = build_layout(snapshot, status_msg)
+                    live.update(layout)
 
-            if key == "q":
-                break
-
-            elif key == "r":
-                # Force an immediate re-render from the latest snapshot
-                latest = client.get_latest_snapshot() or {}
-                layout = build_layout(
-                    latest, f"Press q to quit · f: force cleanup · k: kill job"
-                )
-                live.update(layout)
-
-            elif key == "f":
-                try:
-                    res = await _http_post(
-                        f"{url}/monitor/action", {"action": "force_cleanup"}
+                elif key == "k":
+                    waiting_for_kill_id = True
+                    layout = build_layout(
+                        snapshot,
+                        "Enter request id to kill (or Enter to cancel):",
                     )
-                    status_msg = f"force_cleanup: {res.get('cleaned', 0)} cleaned"
-                except Exception as exc:  # noqa: BLE001
-                    status_msg = f"force_cleanup: error — {exc}"
-                layout = build_layout(snapshot, status_msg)
-                live.update(layout)
+                    live.update(layout)
 
-            elif key == "k":
-                waiting_for_kill_id = True
-                layout = build_layout(
-                    snapshot,
-                    "Enter request id to kill (or Enter to cancel):",
-                )
-                live.update(layout)
-
-    await client.close()
+    except (KeyboardInterrupt, EOFError):
+        # Ctrl+C or Ctrl+D — exit gracefully without traceback noise
+        pass
+    finally:
+        loop.remove_reader(_reader_fd)
+        await client.close()
 
 
 def main(url: str = "http://127.0.0.1:8399") -> None:
