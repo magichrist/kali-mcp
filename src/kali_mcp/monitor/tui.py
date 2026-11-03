@@ -295,8 +295,8 @@ async def run(url: str) -> None:
                             f"Enter request id to kill: {kill_id_buffer}_",
                         )
                         live.update(layout, refresh=True)
-                    # Printable char → accumulate
-                    elif len(key) == 1 and key.isprintable():
+                    # Printable char → accumulate (digits only, it's a PID)
+                    elif len(key) == 1 and key.isdigit():
                         kill_id_buffer += key
                         layout = build_layout(
                             snapshot,
@@ -357,6 +357,9 @@ async def run(url: str) -> None:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             except Exception:
                 pass
+        # Clear the screen on exit so the TUI doesn't leave artifacts
+        sys.stdout.write("\x1b[2J\x1b[H")
+        sys.stdout.flush()
         await client.close()
 
 
