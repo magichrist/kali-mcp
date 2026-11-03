@@ -1,4 +1,4 @@
-# ✦ kali-mcp
+# ![✦](https://img.shields.io/badge/-✦-c58af2) kali-mcp
 
 *A warm, expressive MCP server that puts 56 Kali Linux pentesting tools at your AI agent's fingertips — soft voltage around sharp security tooling.*
 
@@ -8,7 +8,7 @@
 
 The Kali MCP Server is a production-grade Model Context Protocol (MCP) server that exposes Kali Linux penetration-testing tools (nmap, sqlmap, nuclei, hydra, metasploit, and 50 more) to AI agents. Every tool call is validated, every execution is sandboxed with timeouts, and every result can be shared between agents through a built-in inter-agent vault.
 
-## ✧ At a glance
+## ![✧](https://img.shields.io/badge/-✧-89b4fa) At a glance
 
 | | |
 |---|---|
@@ -20,7 +20,7 @@ The Kali MCP Server is a production-grade Model Context Protocol (MCP) server th
 | **Monitoring** | Live CLI/TUI with SSE push, job kill, force cleanup |
 | **Safety** | 3-layer timeout defense, process-tree cleanup, semaphore limits, output truncation |
 
-## ♡ Get started
+## ![♡](https://img.shields.io/badge/-♡-fab387) Get started
 
 ### Requirements
 
@@ -72,7 +72,7 @@ Copy `.env.example` to `.env` and adjust:
 | `MCP_DB_ENABLED` | `true` | Write executions to SQLite |
 | `MCP_DEBUG` | `false` | Verbose structured logging |
 
-## ✦ Features
+## ![✦](https://img.shields.io/badge/-✦-c58af2) Features
 
 **56 Kali tools, natively wrapped.** Nmap, sqlmap, nuclei, ffuf, katana, subfinder, amass, hydra, metasploit, bettercap, responder, zap, wpscan, and more. Each tool validates its arguments against a JSON schema, builds a safe subprocess argument list (no shell injection for native tools), and returns structured JSON with stdout, stderr, exit code, and timing.
 
@@ -95,7 +95,7 @@ Copy `.env.example` to `.env` and adjust:
 
 **MCP resources & prompts** — `kali://config`, `kali://tools`, `kali://health`, `kali://vault/index`, plus guided workflow prompts (recon, webapp, AD, OSINT, quick scan, report).
 
-## ⟡ How it works
+## ![⟡](https://img.shields.io/badge/-⟡-89b4fa) How it works
 
 Every tool call follows the same path:
 
@@ -112,7 +112,7 @@ Every tool call follows the same path:
 
 **Session tracking** — the monitor tracks connected MCP client sessions (connect time, last activity, client info) so you can see who's using the server.
 
-## ☾ Configuration
+## ![☾](https://img.shields.io/badge/-☾-fab387) Configuration
 
 Configuration is loaded from environment variables via `.env`. All values have safe defaults.
 
@@ -136,7 +136,7 @@ Configuration is loaded from environment variables via `.env`. All values have s
 | `MCP_DB_PATH` | `data/kali-mcp.sqlite` | SQLite database path |
 | `MCP_DB_ENABLED` | `true` | Write executions to SQLite |
 
-## ◈ Architecture
+## ![◈](https://img.shields.io/badge/-◈-c58af2) Architecture
 
 ```
 MCP Client (AI agent)
@@ -195,7 +195,7 @@ MCP Client (AI agent)
 - `utils/vault.py` — SQLite-backed inter-agent vault
 - `tools/` — 56 tool wrappers + base class + parsers + playbooks
 
-## 🧪 Tests & checks
+## ![🧪](https://img.shields.io/badge/-🧪-a6d189) Tests & checks
 
 ```bash
 # Full suite (unit + integration + e2e)
@@ -217,7 +217,7 @@ Quality checks:
 
 - `ruff` — linting (line-length 100)
 
-## ⚠ Known limitations
+## ![⚠](https://img.shields.io/badge/-⚠-f38ba8) Known limitations
 
 - **Kali tools must be installed on the host.** The server wraps binaries like `nmap`, `sqlmap`, `hydra`; it does not install them. If a binary isn't in `PATH`, the tool returns a structured "Binary not found" error with an install hint.
 - **`generic_command` runs arbitrary shell.** It's the escape hatch — use it deliberately. It is subject to the same timeout and semaphore limits as native tools.
@@ -225,7 +225,7 @@ Quality checks:
 - **No alerting yet.** The monitor displays status but does not send alerts for stuck executions or high error rates.
 - **Output truncation.** stdout/stderr are capped at 100 KB per stream to prevent memory exhaustion.
 
-## ◈ Troubleshooting
+## ![◈](https://img.shields.io/badge/-◈-fab387) Troubleshooting
 
 | Symptom | Likely cause | Next step |
 |---|---|---|
