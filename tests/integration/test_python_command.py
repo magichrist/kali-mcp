@@ -10,7 +10,7 @@ def parse_response(result: dict) -> dict:
 
 
 async def test_basic_print():
-    from tools.python_command import PythonCommandTool
+    from kali_mcp.tools.python_command import PythonCommandTool
 
     t = PythonCommandTool()
     result = await t.safe_execute({"code": "print(2 + 2)"})
@@ -20,7 +20,7 @@ async def test_basic_print():
 
 
 async def test_multiline_with_import():
-    from tools.python_command import PythonCommandTool
+    from kali_mcp.tools.python_command import PythonCommandTool
 
     t = PythonCommandTool()
     result = await t.safe_execute({"code": "import math\nprint(math.sqrt(144))"})
@@ -28,7 +28,7 @@ async def test_multiline_with_import():
 
 
 async def test_stderr_and_stdout_both_captured():
-    from tools.python_command import PythonCommandTool
+    from kali_mcp.tools.python_command import PythonCommandTool
 
     t = PythonCommandTool()
     result = await t.safe_execute(
@@ -40,7 +40,7 @@ async def test_stderr_and_stdout_both_captured():
 
 
 async def test_syntax_error_nonzero_exit():
-    from tools.python_command import PythonCommandTool
+    from kali_mcp.tools.python_command import PythonCommandTool
 
     t = PythonCommandTool()
     result = await t.safe_execute({"code": "def foo("})
@@ -48,14 +48,14 @@ async def test_syntax_error_nonzero_exit():
 
 
 async def test_empty_code_rejected():
-    from tools.python_command import PythonCommandTool
+    from kali_mcp.tools.python_command import PythonCommandTool
 
     t = PythonCommandTool()
     assert (await t.safe_execute({"code": ""}))["isError"] is True
 
 
 async def test_integer_timeout():
-    from tools.python_command import PythonCommandTool
+    from kali_mcp.tools.python_command import PythonCommandTool
 
     t = PythonCommandTool()
     result = await t.safe_execute({"code": "print('ok')", "timeout": 60})

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from security import quote_argument, sanitize_command_parts
+from kali_mcp.security import quote_argument, sanitize_command_parts
 
 
 class TestSanitizeCommandParts:

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kali-mcp"
+version = "1.0.0"
+description = "MCP server exposing Kali Linux penetration-testing tools to AI agents"
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{ name = "kali-mcp" }]
+dependencies = [
+    "mcp>=1.26.0,<2",
+    "uvicorn>=0.30.0",
+    "fastmcp",
+    "python-dotenv",
+]
+
+[project.scripts]
+kali-mcp = "kali_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"
+markers = [
+    "e2e: end-to-end tests that spawn a real server process (deselect with '-m \"not e2e\"')",
+]
+
+[tool.ruff]
+line-length = 100

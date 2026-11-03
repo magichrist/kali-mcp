@@ -31,7 +31,7 @@ def server_url():
         "MCP_DB_ENABLED": "false",
     }
     proc = subprocess.Popen(
-        [sys.executable, "server.py"],
+        [sys.executable, str(REPO_ROOT / "src" / "kali_mcp" / "server.py")],
         cwd=REPO_ROOT,
         env=env,
         stdout=subprocess.DEVNULL,

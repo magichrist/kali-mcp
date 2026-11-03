@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from utils import vault
+from kali_mcp.utils import vault
 
 
 def test_write_and_read_roundtrip():

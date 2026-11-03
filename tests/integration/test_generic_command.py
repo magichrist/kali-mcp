@@ -12,7 +12,7 @@ def parse_response(result: dict) -> dict:
 
 
 async def test_basic_echo():
-    from tools.generic_command import GenericCommandTool
+    from kali_mcp.tools.generic_command import GenericCommandTool
 
     t = GenericCommandTool()
     result = await t.safe_execute({"command": "echo hello"})
@@ -23,7 +23,7 @@ async def test_basic_echo():
 
 
 async def test_pipe():
-    from tools.generic_command import GenericCommandTool
+    from kali_mcp.tools.generic_command import GenericCommandTool
 
     t = GenericCommandTool()
     result = await t.safe_execute({"command": "echo abc | tr a-z A-Z"})
@@ -31,7 +31,7 @@ async def test_pipe():
 
 
 async def test_command_substitution():
-    from tools.generic_command import GenericCommandTool
+    from kali_mcp.tools.generic_command import GenericCommandTool
 
     t = GenericCommandTool()
     result = await t.safe_execute({"command": "echo $(echo nested)"})
@@ -39,7 +39,7 @@ async def test_command_substitution():
 
 
 async def test_glob_expansion():
-    from tools.generic_command import GenericCommandTool
+    from kali_mcp.tools.generic_command import GenericCommandTool
 
     t = GenericCommandTool()
     result = await t.safe_execute({"command": "ls /etc/hos*"})
@@ -47,7 +47,7 @@ async def test_glob_expansion():
 
 
 async def test_integer_and_string_timeouts():
-    from tools.generic_command import GenericCommandTool
+    from kali_mcp.tools.generic_command import GenericCommandTool
 
     t = GenericCommandTool()
     assert parse_response(await t.safe_execute({"command": "echo ok", "timeout": 60}))[
@@ -60,7 +60,7 @@ async def test_integer_and_string_timeouts():
 
 
 async def test_empty_command_rejected():
-    from tools.generic_command import GenericCommandTool
+    from kali_mcp.tools.generic_command import GenericCommandTool
 
     t = GenericCommandTool()
     assert (await t.safe_execute({"command": ""}))["isError"] is True
@@ -68,7 +68,7 @@ async def test_empty_command_rejected():
 
 
 async def test_cwd():
-    from tools.generic_command import GenericCommandTool
+    from kali_mcp.tools.generic_command import GenericCommandTool
 
     t = GenericCommandTool()
     result = await t.safe_execute({"command": "pwd", "cwd": "/tmp"})

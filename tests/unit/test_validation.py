@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from validation import (
+from kali_mcp.validation import (
     validate_cidr,
     validate_domain,
     validate_enum,

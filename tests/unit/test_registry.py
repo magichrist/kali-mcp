@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from registry import ToolRegistry
-from tools.base import BaseTool
+from kali_mcp.registry import ToolRegistry
+from kali_mcp.tools.base import BaseTool
 
 
 class DummyTool(BaseTool):

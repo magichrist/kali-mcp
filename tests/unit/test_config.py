@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 def test_default_config():
-    from config import config
+    from kali_mcp.config import config
 
     assert config.port == 8399
     assert config.default_timeout == 300
@@ -14,7 +14,7 @@ def test_default_config():
 
 
 def test_db_config_defaults():
-    from config import config
+    from kali_mcp.config import config
 
     assert config.db_enabled is True
     assert str(config.db_path).endswith("kali-mcp.sqlite")

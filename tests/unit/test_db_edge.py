@@ -7,7 +7,7 @@ import threading
 
 import pytest
 
-from db.manager import DBManager
+from kali_mcp.db.manager import DBManager
 
 
 @pytest.fixture()

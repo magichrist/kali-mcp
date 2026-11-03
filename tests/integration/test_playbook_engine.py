@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from tools.playbook_engine import PlaybookEngine
+from kali_mcp.tools.playbook_engine import PlaybookEngine
 
 
 async def test_sequential_and_parallel_playbook():

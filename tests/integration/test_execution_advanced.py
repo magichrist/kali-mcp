@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from execution import MAX_OUTPUT, ExecutionEngine, engine
+from kali_mcp.execution import MAX_OUTPUT, ExecutionEngine, engine
 
 
 class TestOutputTruncation:
@@ -28,7 +28,7 @@ class TestOutputTruncation:
 class TestConcurrency:
     async def test_semaphore_caps_concurrency(self):
         eng = ExecutionEngine()
-        # max_concurrent comes from config (10); verify by timing batch
+        # max_concurrent comes from kali_mcp.config (10); verify by timing batch
         results = await asyncio.gather(
             *[eng.execute(["sleep", "0.3"], tool="test") for _ in range(6)]
         )

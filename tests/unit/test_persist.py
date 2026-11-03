@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from tools.parallel_execute import aggregate_results
-from tools.persist import (
+from kali_mcp.tools.parallel_execute import aggregate_results
+from kali_mcp.tools.persist import (
     extract_target,
     parse_dirb,
     parse_gobuster,
@@ -147,13 +147,13 @@ class TestPersistRun:
         # so patch the module-level reference with a replaced instance)
         import dataclasses
 
-        from config import config as real_config
+        from kali_mcp.config import config as real_config
 
         new_cfg = dataclasses.replace(real_config, db_path=tmp_path / "db.sqlite")
-        monkeypatch.setattr("db.manager.config", new_cfg)
-        monkeypatch.setattr("db.manager._db_singleton", None)
+        monkeypatch.setattr("kali_mcp.db.manager.config", new_cfg)
+        monkeypatch.setattr("kali_mcp.db.manager._db_singleton", None)
 
-        from utils import vault as v
+        from kali_mcp.utils import vault as v
 
         monkeypatch.setattr(v, "VAULT_ROOT", tmp_path / "vault")
         v.ensure_vault_dirs()
@@ -184,7 +184,7 @@ class TestPersistRun:
         assert json.loads(cred_files[0].read_text())["username"] == "u"
 
     def test_survives_db_failure(self, monkeypatch):
-        import db.manager as dbm
+        from kali_mcp.db import manager as dbm
 
         monkeypatch.setattr(dbm, "get_db", lambda: None)
         summary = persist_run("t", {"target": "x"}, "t", None)
@@ -193,7 +193,7 @@ class TestPersistRun:
     def test_unknown_target_groups_under_runs(self, tmp_path, monkeypatch):
         # No target-ish argument (e.g. generic_command) → row lands in
         # runs/<tool>, not findings/unknown
-        from utils import vault as v
+        from kali_mcp.utils import vault as v
 
         monkeypatch.setattr(v, "VAULT_ROOT", tmp_path / "vault")
         v.ensure_vault_dirs()

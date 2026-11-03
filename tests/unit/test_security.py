@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from security import quote_argument, sanitize_command_parts
+from kali_mcp.security import quote_argument, sanitize_command_parts
 
 
 def test_sanitize_strings():

@@ -308,91 +308,100 @@ just test-e2e          # spawns a real server, speaks MCP over HTTP
 |-------|----------|----------------|
 | Unit | `tests/unit/` | Config, models, validators, registry, tool schemas, SQLite CRUD, vault |
 | Integration | `tests/integration/` | Execution engine, generic/python/file tools, safe_execute, playbook engine |
-| E2E | `tests/e2e/` | Boots `server.py` on a random port, verifies MCP handshake, tool inventory, and round-trip execution |
+| E2E | `tests/e2e/` | Boots `src/kali_mcp/server.py` on a random port, verifies MCP handshake, tool inventory, and round-trip execution |
 
 ## Directory Structure
 
 ```
 kali-mcp/
-├── server.py              ← HTTP/SSE server, tool dispatch, health monitor
-├── execution.py           ← 3-layer hardened execution engine
-├── security.py            ← Allowlist, input validation, shell injection prevention
-├── config.py              ← Configuration loading with validation
-├── models.py              ← ExecutionResult, ToolError, ToolDefinition dataclasses
-├── responses.py           ← Standardized JSON response builders
-├── registry.py            ← Tool registration and lookup
-├── logging_utils.py       ← Structured logging with execution tracking
-├── utils/
-│   └── process.py         ← Process tree cleanup
-├── tools/
-│   ├── __init__.py        ← Tool registration
-│   ├── base.py            ← BaseTool ABC — all tools extend this
-│   ├── generic_command.py ← GenericCommandTool — shell escape hatch
-│   ├── python_command.py  ← PythonCommandTool — Python execution
-│   ├── file_read.py       ← FileReadTool — file reading
-│   ├── file_write.py      ← FileWriteTool — file writing
-│   ├── file_download.py   ← FileDownloadTool — file download links
-│   ├── nmap.py            ← NmapTool — port scanner
-│   ├── httpx.py           ← HttpxTool — HTTP probing
-│   ├── nuclei.py          ← NucleiTool — vuln scanner
-│   ├── ffuf.py            ← FfufTool — web fuzzer
-│   ├── katana.py          ← KatanaTool — web crawler
-│   ├── subfinder.py       ← SubfinderTool — subdomain discovery
-│   ├── amass.py           ← AmassTool — attack surface mapping
-│   ├── sqlmap.py          ← SqlmapTool — SQL injection
-│   ├── commix.py          ← CommixTool — command injection
-│   ├── wpscan.py          ← WpscanTool — WordPress scanner
-│   ├── enum4linux.py      ← Enum4linuxTool — SMB enumeration
-│   ├── netexec.py         ← NetexecTool — network protocol execution
-│   ├── crackmapexec.py    ← CrackmapexecTool — network auth testing
-│   ├── bloodhound.py      ← BloodhoundTool — AD enumeration
-│   ├── theharvester.py    ← TheharvesterTool — OSINT harvesting
-│   ├── spiderfoot.py      ← SpiderfootTool — OSINT automation
-│   ├── naabu.py           ← NaabuTool — fast port scanner
-│   ├── arjun.py           ← ArjunTool — parameter discovery
-│   ├── whatweb.py         ← WhatwebTool — technology fingerprinting
-│   ├── dursgo.py          ← DursgoTool — web app scanner
-│   ├── zighound.py        ← ZighoundTool — red team framework
-│   ├── searchsploit.py    ← SearchsploitTool — exploit search
-│   ├── farsight.py        ← FarsightTool — domain intelligence
-│   ├── flowlyt.py         ← FlowlytTool — CI/CD security
-│   ├── zizmor.py          ← ZizmorTool — GitHub Actions audit
-│   ├── msfconsole.py      ← MsfconsoleTool — Metasploit
-│   ├── hydra.py           ← HydraTool — login brute-force
-│   ├── hashcat.py         ← HashcatTool — GPU hash cracking
-│   ├── john.py            ← JohnTool — password cracking
-│   ├── gobuster.py        ← GobusterTool — directory brute-force
-│   ├── dirb.py            ← DirbTool — web content scanner
-│   ├── wfuzz.py           ← WfuzzTool — web fuzzer
-│   ├── medusa.py          ← MedusaTool — parallel brute-force
-│   ├── masscan.py         ← MasscanTool — masscan port scanner
-│   ├── zap.py             ← ZapTool — OWASP ZAP scanner
-│   ├── bettercap.py       ← BettercapTool — MITM framework
-│   ├── responder.py       ← ResponderTool — LLMNR poisoning
-│   ├── parallel_execute.py← ParallelExecuteTool + ParallelStatusTool — fan-out
-│   ├── playbook_engine.py ← PlaybookEngine — state tracking, resume, {{target}} substitution
-│   ├── playbook_recon.py  ← PlaybookReconTool — recon pipeline
-│   ├── playbook_webapp.py ← PlaybookWebappTool — web app pipeline
-│   ├── playbook_ad.py     ← PlaybookAdTool — AD pipeline
-│   ├── playbook_tools.py  ← PlaybookListTool + PlaybookStatusTool
-│   ├── persist.py         ← Shared persistence + per-tool output parsers
-│   ├── vault_tool.py      ← vault_write/read/query/list/delete/stats MCP tools
-│   └── normalization.py   ← NormalizedToolMixin — per-tool output schema
-├── db/
-│   └── manager.py         ← SQLite persistence: targets, scans, findings, creds
-├── utils/
-│   ├── process.py         ← Process tree cleanup
-│   └── vault.py           ← SQLite-backed inter-agent vault
+├── pyproject.toml          ← Package metadata, deps, console script, pytest config
+├── src/kali_mcp/           ← Main package (installed editable via `pip install -e .`)
+│   ├── __init__.py         ← Package version + exports
+│   ├── __main__.py         ← Entry point: `python -m kali_mcp`
+│   ├── server.py           ← HTTP/SSE server, tool dispatch, health monitor, MCP tools
+│   ├── execution.py        ← 3-layer hardened execution engine
+│   ├── security.py         ← Allowlist, input validation, shell injection prevention
+│   ├── config.py           ← Configuration loading with validation
+│   ├── models.py           ← ExecutionResult, ToolError dataclasses
+│   ├── responses.py        ← Standardized JSON response builders
+│   ├── registry.py         ← Tool registration and lookup
+│   ├── logging_utils.py    ← Structured logging with execution tracking
+│   ├── notifications.py    ← MCP server→client notification helpers
+│   ├── prompts.py          ← MCP prompt templates (guided workflows)
+│   ├── resources.py        ← MCP resources (kali://config, kali://tools, etc.)
+│   ├── db/
+│   │   ├── __init__.py
+│   │   └── manager.py      ← SQLite persistence: targets, scans, findings, creds
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── process.py      ← Process tree cleanup
+│   │   └── vault.py        ← SQLite-backed inter-agent vault
+│   └── tools/
+│       ├── __init__.py     ← ALL_TOOLS inventory (56 tools)
+│       ├── base.py         ← BaseTool ABC — all tools extend this
+│       ├── normalization.py← NormalizedToolMixin — per-tool output schema
+│       ├── persist.py      ← Shared persistence + per-tool output parsers
+│       ├── generic_command.py ← GenericCommandTool — shell escape hatch
+│       ├── python_command.py ← PythonCommandTool — Python execution
+│       ├── file_read.py    ← FileReadTool — file reading
+│       ├── file_write.py   ← FileWriteTool — file writing
+│       ├── file_download.py← FileDownloadTool — file download links
+│       ├── nmap.py         ← NmapTool — port scanner
+│       ├── httpx.py        ← HttpxTool — HTTP probing
+│       ├── nuclei.py       ← NucleiTool — vuln scanner
+│       ├── ffuf.py         ← FfufTool — web fuzzer
+│       ├── katana.py       ← KatanaTool — web crawler
+│       ├── subfinder.py    ← SubfinderTool — subdomain discovery
+│       ├── amass.py        ← AmassTool — attack surface mapping
+│       ├── sqlmap.py       ← SqlmapTool — SQL injection
+│       ├── commix.py       ← CommixTool — command injection
+│       ├── wpscan.py       ← WpscanTool — WordPress scanner
+│       ├── enum4linux.py   ← Enum4linuxTool — SMB enumeration
+│       ├── netexec.py      ← NetexecTool — network protocol execution
+│       ├── crackmapexec.py ← CrackmapexecTool — network auth testing
+│       ├── bloodhound.py   ← BloodhoundTool — AD enumeration
+│       ├── theharvester.py ← TheharvesterTool — OSINT harvesting
+│       ├── spiderfoot.py   ← SpiderfootTool — OSINT automation
+│       ├── naabu.py        ← NaabuTool — fast port scanner
+│       ├── arjun.py        ← ArjunTool — parameter discovery
+│       ├── whatweb.py      ← WhatwebTool — technology fingerprinting
+│       ├── dursgo.py       ← DursgoTool — web app scanner
+│       ├── zighound.py     ← ZighoundTool — red team framework
+│       ├── searchsploit.py ← SearchsploitTool — exploit search
+│       ├── farsight.py     ← FarsightTool — domain intelligence
+│       ├── flowlyt.py      ← FlowlytTool — CI/CD security
+│       ├── zizmor.py       ← ZizmorTool — GitHub Actions audit
+│       ├── msfconsole.py   ← MsfconsoleTool — Metasploit
+│       ├── hydra.py        ← HydraTool — login brute-force
+│       ├── hashcat.py      ← HashcatTool — GPU hash cracking
+│       ├── john.py         ← JohnTool — password cracking
+│       ├── gobuster.py     ← GobusterTool — directory brute-force
+│       ├── dirb.py         ← DirbTool — web content scanner
+│       ├── wfuzz.py        ← WfuzzTool — web fuzzer
+│       ├── medusa.py       ← MedusaTool — parallel brute-force
+│       ├── masscan.py      ← MasscanTool — masscan port scanner
+│       ├── zap.py          ← ZapTool — OWASP ZAP scanner
+│       ├── bettercap.py    ← BettercapTool — MITM framework
+│       ├── responder.py    ← ResponderTool — LLMNR poisoning
+│       ├── parallel_execute.py ← ParallelExecuteTool + ParallelStatusTool — fan-out
+│       ├── playbook_engine.py ← PlaybookEngine — state tracking, resume, {{target}} substitution
+│       ├── playbook_recon.py ← PlaybookReconTool — recon pipeline
+│       ├── playbook_webapp.py ← PlaybookWebappTool — web app pipeline
+│       ├── playbook_ad.py ← PlaybookAdTool — AD pipeline
+│       ├── playbook_engine_tool.py ← PlaybookEngineTool MCP wrapper
+│       ├── playbook_tools.py ← PlaybookListTool + PlaybookStatusTool
+│       └── vault_tool.py ← vault_write/read/query/list/delete/stats MCP tools
 ├── tests/
 │   ├── conftest.py        ← Shared fixtures + global registry wiring
 │   ├── unit/              ← Fast isolated tests (schemas, validation, DB, vault)
 │   ├── integration/       ← Async engine + tool execution tests
 │   └── e2e/               ← Spawns a real server, speaks MCP over HTTP
-├── pytest.ini
-├── requirements.txt
-├── Justfile
-├── logs/
-├── artifacts/
-├── data/                   ← SQLite DB (kali-mcp.sqlite)
-└── .env
+├── docs/                  ← Architecture and implementation plans
+├── Justfile               ← Project commands (install, start, test, purge, deploy)
+├── requirements.txt       ← Runtime dependencies
+├── .env                   ← Runtime environment variables
+├── .env.example           ← Example env file
+├── logs/                  ← Runtime logs
+├── artifacts/             ← Runtime artifacts + vault store
+└── data/                  ← SQLite DB (kali-mcp.sqlite)
 ```

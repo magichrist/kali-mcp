@@ -11,7 +11,7 @@ import sqlite3
 
 import pytest
 
-from utils import vault
+from kali_mcp.utils import vault
 
 
 @pytest.fixture()
@@ -204,7 +204,7 @@ class TestLimits:
         """Rows over MCP_VAULT_MAX_ROW_BYTES are rejected with a clear error."""
         import dataclasses
 
-        from config import config as real_config
+        from kali_mcp.config import config as real_config
 
         small = dataclasses.replace(real_config, vault_max_row_bytes=1024)
         monkeypatch.setattr(vault, "config", small)
@@ -218,7 +218,7 @@ class TestLimits:
     def test_zero_limit_means_unlimited(self, vault_env, monkeypatch):
         import dataclasses
 
-        from config import config as real_config
+        from kali_mcp.config import config as real_config
 
         unlimited = dataclasses.replace(real_config, vault_max_row_bytes=0)
         monkeypatch.setattr(vault, "config", unlimited)
