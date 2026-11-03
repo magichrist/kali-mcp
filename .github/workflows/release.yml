@@ -77,3 +77,5 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           generate_release_notes: true
+          prerelease: false
+          make_latest: true

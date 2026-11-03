@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 *.pyo
+src/kali_mcp/_version.py
 .pytest_cache/
 *.egg-info/
 dist/
