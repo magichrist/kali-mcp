@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
+from kali_mcp.cli import main as cli_main
 
 
-def test_main_calls_server_main() -> None:
-    """``python -m kali_mcp`` must invoke kali_mcp.server.main."""
-    with patch("kali_mcp.server.main") as mock_main:
-        from kali_mcp import __main__ as main_mod
-
-        main_mod.main()
-        mock_main.assert_called_once()
+def test_main_calls_start_by_default() -> None:
+    """``python -m kali_mcp`` with no args defaults to starting the server."""
+    with patch("kali_mcp.cli.cmd_start", return_value=0) as mock_start:
+        assert cli_main([]) == 0
+        mock_start.assert_called_once()
 
 
 def test_main_guard_invokes_main() -> None:

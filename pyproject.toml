@@ -22,6 +22,7 @@ dependencies = [
 [project.scripts]
 kali-mcp = "kali_mcp.server:main"
 kali-mcp-monitor = "kali_mcp.monitor.tui:main"
+kmcp = "kali_mcp.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
