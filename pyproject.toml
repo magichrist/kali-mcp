@@ -15,10 +15,13 @@ dependencies = [
     "uvicorn>=0.30.0",
     "fastmcp",
     "python-dotenv",
+    "rich",
+    "httpx",
 ]
 
 [project.scripts]
 kali-mcp = "kali_mcp.server:main"
+kali-mcp-monitor = "kali_mcp.monitor.tui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
