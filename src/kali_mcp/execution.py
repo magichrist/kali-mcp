@@ -245,7 +245,7 @@ class ExecutionEngine:
                             proc.communicate(),
                             timeout=effective_timeout,
                         )
-                    except TimeoutError:
+                    except (TimeoutError, asyncio.TimeoutError):
                         logger.warning(
                             "request=%s tool=%s timed out after %ds, killing process",
                             req_id,
