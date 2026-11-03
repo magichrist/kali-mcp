@@ -33,7 +33,7 @@ import logging
 import re
 import sqlite3
 import threading
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +53,7 @@ _SAFE_COMPONENT = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _normalize_categories(category: Any) -> list[str] | None:

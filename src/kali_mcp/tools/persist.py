@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from kali_mcp.utils.vault import vault_write
@@ -22,7 +22,7 @@ def _sanitize_fs(name: str) -> str:
 
 
 def now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    return datetime.now(timezone.utc).isoformat()
 
 
 def extract_target(arguments: dict[str, Any]) -> str:
