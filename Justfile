@@ -91,3 +91,18 @@ deploy host="kali-linux.shared" dest="~/kali-mcp":
         nohup python -m kali_mcp > logs/stdout.log 2>&1 & sleep 2; \
         curl -sf --max-time 5 http://127.0.0.1:8399/sse -o /dev/null \
         && echo 'server restarted OK' || echo 'server did not come up — check logs/stdout.log'"
+
+# Commit all changes, tag with version, and push — triggers PyPI release
+release version="0.0.0":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "{{version}}" = "0.0.0" ]; then
+        echo "Usage: just release version=0.1.3" >&2
+        exit 1
+    fi
+    git add -A
+    git commit -m "chore: release v{{version}}" || echo "nothing to commit"
+    git tag -f "v{{version}}"
+    git push origin master
+    git push origin "v{{version}}" --force
+    echo "Released v{{version}} — GitHub Actions will build and publish to PyPI"
