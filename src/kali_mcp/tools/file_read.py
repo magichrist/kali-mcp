@@ -135,7 +135,7 @@ class FileReadTool(BaseTool):
             )
 
             return success_response(result)
-        except Exception as e: # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             return error_response(
                 ToolError(
                     error="Read failed",

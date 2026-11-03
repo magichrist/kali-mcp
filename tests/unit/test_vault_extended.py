@@ -153,7 +153,5 @@ class TestVaultRowSizeLimit:
             from kali_mcp import config as cfg
 
             small_cfg = replace(cfg.config, vault_max_row_bytes=100)
-            with patch("kali_mcp.utils.vault.config", small_cfg), pytest.raises(
-                ValueError
-            ):
+            with patch("kali_mcp.utils.vault.config", small_cfg), pytest.raises(ValueError):
                 vault_write("runs/big", "big", {"data": "x" * 1000})

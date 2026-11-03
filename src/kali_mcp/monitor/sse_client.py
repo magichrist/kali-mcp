@@ -39,28 +39,29 @@ class SseClient:
     async def _read_loop(self) -> None:
         while not self._closed:
             try:
-                async with httpx.AsyncClient(timeout=None) as http, http.stream(
-                    "GET", self.url
-                ) as response:
-                        response.raise_for_status()
-                        async for line in response.aiter_lines():
-                            if self._closed:
-                                return
-                            if line.startswith("data: "):
+                async with (
+                    httpx.AsyncClient(timeout=None) as http,
+                    http.stream("GET", self.url) as response,
+                ):
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if self._closed:
+                            return
+                        if line.startswith("data: "):
+                            try:
+                                payload = json.loads(line[len("data: ") :])
+                            except json.JSONDecodeError:
+                                continue
+                            self._snapshot = payload
+                            try:
+                                self._queue.put_nowait(payload)
+                            except asyncio.QueueFull:
+                                # Slow consumer — drop this snapshot
                                 try:
-                                    payload = json.loads(line[len("data: ") :])
-                                except json.JSONDecodeError:
-                                    continue
-                                self._snapshot = payload
-                                try:
-                                    self._queue.put_nowait(payload)
-                                except asyncio.QueueFull:
-                                    # Slow consumer — drop this snapshot
-                                    try:
-                                        self._queue.get_nowait()
-                                    except asyncio.QueueEmpty:
-                                        pass
-                                    self._queue.put_nowait(payload)
+                                    self._queue.get_nowait()
+                                except asyncio.QueueEmpty:
+                                    pass
+                                self._queue.put_nowait(payload)
             except (httpx.ConnectError, httpx.ReadError, OSError):
                 # Server went down — retry after a short pause
                 await asyncio.sleep(2.0)

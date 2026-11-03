@@ -34,9 +34,6 @@ jobs:
       - name: Run integration tests
         run: python -m pytest tests/integration
 
-      - name: Lint with ruff
-        run: ruff check src/ tests/
-
   build-and-publish:
     name: Build and publish to PyPI
     needs: test

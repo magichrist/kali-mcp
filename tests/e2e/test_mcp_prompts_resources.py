@@ -65,57 +65,59 @@ def server_url():
 
 @pytest.mark.e2e
 async def test_prompts_listed_and_rendered(server_url):
-    async with streamable_http_client(server_url) as (read, write, _sid), ClientSession(
-        read, write
-    ) as session:
-            await session.initialize()
+    async with (
+        streamable_http_client(server_url) as (read, write, _sid),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
 
-            prompts = await session.list_prompts()
-            names = {p.name for p in prompts.prompts}
-            assert {
-                "recon_workflow",
-                "webapp_assessment",
-                "ad_assessment",
-                "osint_harvest",
-                "quick_scan",
-                "report_template",
-            } <= names
+        prompts = await session.list_prompts()
+        names = {p.name for p in prompts.prompts}
+        assert {
+            "recon_workflow",
+            "webapp_assessment",
+            "ad_assessment",
+            "osint_harvest",
+            "quick_scan",
+            "report_template",
+        } <= names
 
-            result = await session.get_prompt("recon_workflow", {"target": "example.com"})
-            assert len(result.messages) == 2
-            assert "example.com" in result.messages[0].content.text
+        result = await session.get_prompt("recon_workflow", {"target": "example.com"})
+        assert len(result.messages) == 2
+        assert "example.com" in result.messages[0].content.text
 
 
 @pytest.mark.e2e
 async def test_resources_listed_and_read(server_url):
-    async with streamable_http_client(server_url) as (read, write, _sid), ClientSession(
-        read, write
-    ) as session:
-            await session.initialize()
+    async with (
+        streamable_http_client(server_url) as (read, write, _sid),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
 
-            resources = await session.list_resources()
-            uris = {str(r.uri) for r in resources.resources}
-            assert {
-                "kali://config",
-                "kali://tools",
-                "kali://health",
-                "kali://db/stats",
-                "kali://vault/index",
-                "kali://artifacts",
-            } <= uris
+        resources = await session.list_resources()
+        uris = {str(r.uri) for r in resources.resources}
+        assert {
+            "kali://config",
+            "kali://tools",
+            "kali://health",
+            "kali://db/stats",
+            "kali://vault/index",
+            "kali://artifacts",
+        } <= uris
 
-            # Read config + health resources
-            config_res = await session.read_resource("kali://config")
-            assert config_res.contents[0].mimeType == "application/json"
-            import json
+        # Read config + health resources
+        config_res = await session.read_resource("kali://config")
+        assert config_res.contents[0].mimeType == "application/json"
+        import json
 
-            cfg = json.loads(config_res.contents[0].text)
-            # The server runs on a random port — config must reflect reality
-            assert cfg["port"] == int(server_url.split(":")[2].split("/")[0])
+        cfg = json.loads(config_res.contents[0].text)
+        # The server runs on a random port — config must reflect reality
+        assert cfg["port"] == int(server_url.split(":")[2].split("/")[0])
 
-            health_res = await session.read_resource("kali://health")
-            health = json.loads(health_res.contents[0].text)
-            assert len(health) > 0
+        health_res = await session.read_resource("kali://health")
+        health = json.loads(health_res.contents[0].text)
+        assert len(health) > 0
 
 
 @pytest.mark.e2e
@@ -123,17 +125,18 @@ async def test_orchestration_tools_callable_via_mcp(server_url):
     """playbook_list / playbook_status / parallel_status must round-trip."""
     import json
 
-    async with streamable_http_client(server_url) as (read, write, _sid), ClientSession(
-        read, write
-    ) as session:
-            await session.initialize()
+    async with (
+        streamable_http_client(server_url) as (read, write, _sid),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
 
-            result = await session.call_tool("playbook_list", {})
-            assert result.isError is False
-            payload = json.loads(result.content[0].text)
-            assert payload["success"] is False or payload  # ExecutionResult or error dict
+        result = await session.call_tool("playbook_list", {})
+        assert result.isError is False
+        payload = json.loads(result.content[0].text)
+        assert payload["success"] is False or payload  # ExecutionResult or error dict
 
-            result = await session.call_tool("playbook_status", {"name": "nope"})
-            payload = json.loads(result.content[0].text)
-            assert payload["success"] is False
-            assert "Unknown playbook" in payload["error"]
+        result = await session.call_tool("playbook_status", {"name": "nope"})
+        payload = json.loads(result.content[0].text)
+        assert payload["success"] is False
+        assert "Unknown playbook" in payload["error"]

@@ -275,7 +275,7 @@ class ExecutionEngine:
                             heartbeat_task.cancel()
                             try:
                                 await heartbeat_task
-                            except (asyncio.CancelledError, Exception): # noqa: S110, BLE001
+                            except (asyncio.CancelledError, Exception):  # noqa: S110, BLE001
                                 pass
                         if progress_cb is not None:
                             try:
@@ -313,7 +313,7 @@ class ExecutionEngine:
                         heartbeat_task.cancel()
                         try:
                             await heartbeat_task
-                        except (asyncio.CancelledError, Exception): # noqa: S110, BLE001
+                        except (asyncio.CancelledError, Exception):  # noqa: S110, BLE001
                             pass
                     return result
 

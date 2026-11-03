@@ -92,9 +92,7 @@ class TestDBManagerEdgeCases:
                 mock_config.db_enabled = True
                 import tempfile
 
-                mock_config.db_path = (
-                    str(tempfile.mkdtemp()) + "/singleton.sqlite"
-                )
+                mock_config.db_path = str(tempfile.mkdtemp()) + "/singleton.sqlite"
                 db1 = get_db()
                 db2 = get_db()
                 assert db1 is db2
