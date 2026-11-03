@@ -1,5 +1,6 @@
+<div align="center">
 # $\textsf{\color{#c58af2}{✦}}$ $\textsf{\color{#c58af2}{kali-mcp}}$ $\textsf{\color{#c58af2}{✦}}$
-
+</div>
 *A warm, expressive MCP server that puts 56 Kali Linux pentesting tools at your AI agent's fingertips — soft voltage around sharp security tooling.*
 
 <div align="center">
