@@ -7,18 +7,18 @@ from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
 
 def _result(**overrides) -> ExecutionResult:
     ts = utc_now_iso()
-    defaults = dict(
-        tool="test",
-        command="echo hi",
-        stdout="hi\n",
-        stderr="",
-        exit_code=0,
-        success=True,
-        timed_out=False,
-        duration=0.123,
-        start_time=ts,
-        end_time=ts,
-    )
+    defaults = {
+        "tool": "test",
+        "command": "echo hi",
+        "stdout": "hi\n",
+        "stderr": "",
+        "exit_code": 0,
+        "success": True,
+        "timed_out": False,
+        "duration": 0.123,
+        "start_time": ts,
+        "end_time": ts,
+    }
     defaults.update(overrides)
     return ExecutionResult(**defaults)
 

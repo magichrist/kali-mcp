@@ -32,5 +32,5 @@ async def kill_process_tree(proc: asyncio.subprocess.Process) -> None:
         except TimeoutError:
             pass
 
-    except Exception as e:
+    except Exception as e: # noqa: BLE001
         logger.warning("Error killing process %s: %s", getattr(proc, "pid", "?"), e)

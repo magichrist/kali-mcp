@@ -97,7 +97,7 @@ class DBManager:
     def close(self) -> None:
         try:
             self.conn.close()
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
     # Convenience helpers for common operations
@@ -236,12 +236,13 @@ def get_db() -> DBManager | None:
             if getattr(config, "db_enabled", True):
                 _db_singleton = DBManager(config.db_path)
                 _db_singleton.ensure_schema()
-        except Exception:
+        except Exception:  # noqa: BLE001
             _db_singleton = None
     return _db_singleton
 
 
 def _now():
     import datetime
+    from datetime import timezone
 
-    return datetime.datetime.utcnow().isoformat() + "Z"
+    return datetime.datetime.now(timezone.utc).isoformat() + "Z"

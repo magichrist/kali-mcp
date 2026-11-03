@@ -49,13 +49,13 @@ class PlaybookEngineTool(BaseTool):
     def validate(self, arguments: dict[str, Any]) -> None:
         pb = arguments.get("playbook")
         if not isinstance(pb, dict):
-            raise ValueError("playbook must be an object")
+            raise TypeError("playbook must be an object")
         steps = pb.get("steps")
         if not isinstance(steps, list) or not steps:
             raise ValueError("playbook.steps must be a non-empty list")
         for i, step in enumerate(steps):
             if not isinstance(step, dict) or not isinstance(step.get("tools"), list):
-                raise ValueError(f"playbook.steps[{i}] must have a 'tools' list")
+                raise TypeError(f"playbook.steps[{i}] must have a 'tools' list")
             for spec in step["tools"]:
                 if not isinstance(spec, dict) or "tool" not in spec:
                     raise ValueError(f"playbook.steps[{i}].tools entries must be {{tool, args}}")

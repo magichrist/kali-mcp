@@ -20,7 +20,7 @@ from pathlib import Path
 
 try:
     from dotenv import load_dotenv
-except Exception:  # pragma: no cover - optional dependency missing
+except Exception:  # pragma: no cover - optional dependency missing # noqa: BLE001
 
     def load_dotenv(*args, **kwargs):
         return None

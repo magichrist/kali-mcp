@@ -233,7 +233,7 @@ def test_invalid_args_rejected(tool):
     invalid = INVALID_ARGS.get(tool.name)
     if invalid is None:
         pytest.skip("tool has all-optional args")
-    with pytest.raises((ValueError, KeyError)):
+    with pytest.raises((ValueError, TypeError, KeyError)):
         tool.validate(invalid)
 
 

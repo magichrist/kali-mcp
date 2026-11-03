@@ -39,8 +39,9 @@ class SseClient:
     async def _read_loop(self) -> None:
         while not self._closed:
             try:
-                async with httpx.AsyncClient(timeout=None) as http:
-                    async with http.stream("GET", self.url) as response:
+                async with httpx.AsyncClient(timeout=None) as http, http.stream(
+                    "GET", self.url
+                ) as response:
                         response.raise_for_status()
                         async for line in response.aiter_lines():
                             if self._closed:

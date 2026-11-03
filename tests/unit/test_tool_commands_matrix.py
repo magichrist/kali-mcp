@@ -98,10 +98,11 @@ COMMAND_MATRIX = {
 
 
 def test_matrix_covers_every_tool():
-    assert set(COMMAND_MATRIX) == {t.name for t in ALL_TOOLS}, (
+    all_tool_names = {t.name for t in ALL_TOOLS}
+    assert set(COMMAND_MATRIX) == all_tool_names, (
         "COMMAND_MATRIX out of sync with ALL_TOOLS: "
-        f"missing={set(t.name for t in ALL_TOOLS) - set(COMMAND_MATRIX)}, "
-        f"extra={set(COMMAND_MATRIX) - set(t.name for t in ALL_TOOLS)}"
+        f"missing={all_tool_names - set(COMMAND_MATRIX)}, "
+        f"extra={set(COMMAND_MATRIX) - all_tool_names}"
     )
 
 

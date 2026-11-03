@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from kali_mcp.config import config
 
@@ -162,7 +163,7 @@ def _db_stats_resource() -> str:
                     "SELECT severity, COUNT(*) FROM findings GROUP BY severity"
                 ).fetchall()
             }
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
         return json.dumps(stats, indent=2)
     except Exception as exc:  # noqa: BLE001

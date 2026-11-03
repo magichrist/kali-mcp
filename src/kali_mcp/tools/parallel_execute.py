@@ -31,7 +31,6 @@ def aggregate_results(results: list[dict[str, Any]]) -> dict[str, Any]:
     """
     ports: dict[tuple, dict] = {}
     vulns: dict[tuple, dict] = {}
-    creds: dict[tuple, dict] = {}
     errors: list[str] = []
 
     for res in results:
@@ -46,7 +45,7 @@ def aggregate_results(results: list[dict[str, Any]]) -> dict[str, Any]:
             inner = json.loads(stdout)
             if isinstance(inner, dict) and "normalized" in inner:
                 stdout = json.dumps(inner.get("normalized", {}))
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S110
             pass
 
         target = data.get("tool")  # per-tool section marker

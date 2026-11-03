@@ -30,7 +30,7 @@ def _session(ctx: Any) -> Any:
         if not hasattr(session, "send_notification"):
             return None
         return session
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
 
 

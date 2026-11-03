@@ -65,8 +65,9 @@ def server_url():
 
 @pytest.mark.e2e
 async def test_prompts_listed_and_rendered(server_url):
-    async with streamable_http_client(server_url) as (read, write, _sid):
-        async with ClientSession(read, write) as session:
+    async with streamable_http_client(server_url) as (read, write, _sid), ClientSession(
+        read, write
+    ) as session:
             await session.initialize()
 
             prompts = await session.list_prompts()
@@ -87,8 +88,9 @@ async def test_prompts_listed_and_rendered(server_url):
 
 @pytest.mark.e2e
 async def test_resources_listed_and_read(server_url):
-    async with streamable_http_client(server_url) as (read, write, _sid):
-        async with ClientSession(read, write) as session:
+    async with streamable_http_client(server_url) as (read, write, _sid), ClientSession(
+        read, write
+    ) as session:
             await session.initialize()
 
             resources = await session.list_resources()
@@ -121,8 +123,9 @@ async def test_orchestration_tools_callable_via_mcp(server_url):
     """playbook_list / playbook_status / parallel_status must round-trip."""
     import json
 
-    async with streamable_http_client(server_url) as (read, write, _sid):
-        async with ClientSession(read, write) as session:
+    async with streamable_http_client(server_url) as (read, write, _sid), ClientSession(
+        read, write
+    ) as session:
             await session.initialize()
 
             result = await session.call_tool("playbook_list", {})

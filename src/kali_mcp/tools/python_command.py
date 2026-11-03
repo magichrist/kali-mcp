@@ -81,18 +81,20 @@ class PythonCommandTool(BaseTool):
         cwd = arguments.get("cwd") or None
 
         # Write code to a temp file and execute with python3
-        tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".py", prefix="mcp_exec_", delete=False)
-        try:
-            tmp.write(code)
-            tmp.close()
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", prefix="mcp_exec_", delete=False
+        ) as tmp:
+            try:
+                tmp.write(code)
+                tmp.close()
 
-            result = await engine.execute(
-                command=["python3", tmp.name],
-                tool=self.name,
-                timeout=timeout,
-                cwd=cwd,
-            )
+                result = await engine.execute(
+                    command=["python3", tmp.name],
+                    tool=self.name,
+                    timeout=timeout,
+                    cwd=cwd,
+                )
 
-            return success_response(result)
-        finally:
-            os.unlink(tmp.name)
+                return success_response(result)
+            finally:
+                os.unlink(tmp.name)

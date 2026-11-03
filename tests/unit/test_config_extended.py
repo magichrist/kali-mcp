@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 from unittest.mock import patch
 
@@ -104,7 +105,7 @@ class TestConfigPostInit:
             },
             clear=True,
         ):
-            c = Config()
+            Config()
             assert (tmp_path / "logs").is_dir()
             assert (tmp_path / "artifacts").is_dir()
             assert (tmp_path / "data").is_dir()
@@ -152,5 +153,5 @@ class TestConfigPostInit:
 
     def test_frozen_dataclass(self) -> None:
         c = Config()
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             c.port = 1234

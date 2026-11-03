@@ -70,5 +70,5 @@ def log_execution(result) -> None:
             result.duration,
             result.timed_out,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass  # Never let logging failure crash the handler

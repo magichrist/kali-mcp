@@ -29,7 +29,7 @@ def _get_download_host() -> str:
         ip = s.getsockname()[0]
         s.close()
         return ip
-    except Exception:
+    except Exception:  # noqa: BLE001
         return "localhost"
 
 

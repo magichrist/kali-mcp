@@ -13,7 +13,6 @@ import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Union
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.server import Context
@@ -67,7 +66,7 @@ class HealthMonitor:
             time.sleep(30)
             try:
                 self._check()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass  # Monitor must never crash
 
     def _check(self) -> None:
@@ -144,7 +143,7 @@ def _get_memory_mb() -> float:
 
         usage = _resource.getrusage(_resource.RUSAGE_SELF)
         return round(usage.ru_maxrss / 1024, 1)  # Linux: bytes→MB
-    except Exception:
+    except Exception:  # noqa: BLE001
         return 0.0
 
 
@@ -230,9 +229,9 @@ for tool_instance in ALL_TOOLS:
             is_required = name in required
             json_type = prop.get("type", "string")
             if isinstance(json_type, list):
-                # Union type (e.g. ["object", "string"]) → Union[dict, str]
+                # Union type (e.g. ["object", "string"])
                 py_types = tuple(TYPE_MAP.get(t, str) for t in json_type)
-                py_type = py_types[0] if len(py_types) == 1 else Union[py_types]
+                py_type = py_types[0] if len(py_types) == 1 else py_types[0] | py_types[1]
             else:
                 py_type = TYPE_MAP.get(json_type, str)
 
@@ -280,7 +279,7 @@ for tool_instance in ALL_TOOLS:
             async def progress(completed, total, message=None) -> None:
                 try:
                     await ctx.report_progress(completed, total, message=message)
-                except Exception:
+                except Exception:  # noqa: BLE001, S110
                     pass  # client didn't ask for progress — no-op
 
             token = set_progress_cb(progress)
@@ -444,7 +443,7 @@ async def monitor_action(request):
     req = Request(request.scope, request.receive)
     try:
         body = await req.json()
-    except Exception:
+    except Exception:  # noqa: BLE001
         return JSONResponse({"error": "invalid JSON"}, status_code=400)
 
     action = body.get("action")

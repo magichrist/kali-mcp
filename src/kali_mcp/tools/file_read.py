@@ -95,7 +95,7 @@ class FileReadTool(BaseTool):
         try:
             file_size = os.path.getsize(path)
 
-            with open(path, "r", errors="replace") as f:
+            with open(path, "r", errors="replace") as f:  # noqa: ASYNC230
                 if offset > 0:
                     f.seek(offset)
                 content = f.read(max_bytes)
@@ -135,7 +135,7 @@ class FileReadTool(BaseTool):
             )
 
             return success_response(result)
-        except Exception as e:
+        except Exception as e: # noqa: BLE001
             return error_response(
                 ToolError(
                     error="Read failed",

@@ -120,7 +120,7 @@ def persist_run(
                 summary["db_recorded"] = True
                 summary["target_id"] = target_id
                 summary["scan_id"] = scan_id
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
 
         # ── Vault ─────────────────────────────────────────────────────────
@@ -159,9 +159,9 @@ def persist_run(
                     tags=f"tool:{tool_name},target:{_sanitize_fs(target)}",
                 )
             summary["vault_deposited"] = True
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     return summary
 

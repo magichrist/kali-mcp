@@ -68,7 +68,7 @@ class FileWriteTool(BaseTool):
             raise ValueError("Path must be a non-empty string")
         content = arguments["content"]
         if not isinstance(content, str):
-            raise ValueError("Content must be a string")
+            raise TypeError("Content must be a string")
         # Path containment check (skip if no dirs configured = unrestricted)
         if ALLOWED_WRITE_DIRS:
             resolved = os.path.realpath(path)
@@ -98,7 +98,7 @@ class FileWriteTool(BaseTool):
             os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 
             file_mode = "w" if mode == "overwrite" else "a"
-            with open(path, file_mode) as f:
+            with open(path, file_mode) as f:  # noqa: ASYNC230
                 f.write(content)
 
             file_size = os.path.getsize(path)

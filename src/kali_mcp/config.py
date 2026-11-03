@@ -9,7 +9,7 @@ from pathlib import Path
 # Optional: dotenv for local development. If not installed, fall back gracefully.
 try:
     from dotenv import load_dotenv
-except Exception:  # pragma: no cover - optional dependency missing in test env
+except Exception:  # pragma: no cover - optional dependency missing in test env # noqa: BLE001
 
     def load_dotenv(*args, **kwargs):
         return None

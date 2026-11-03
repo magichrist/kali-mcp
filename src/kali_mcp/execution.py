@@ -151,7 +151,7 @@ class ExecutionEngine:
         if progress_cb is not None:
             try:
                 await _call_progress(progress_cb, 0, 100)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 progress_cb = None
 
         try:
@@ -225,7 +225,7 @@ class ExecutionEngine:
                                 for step in range(1, 20):
                                     await asyncio.sleep(interval)
                                     await _call_progress(progress_cb, min(step * 5, 95), 100)
-                            except Exception:
+                            except Exception:  # noqa: BLE001, S110
                                 pass
 
                         heartbeat_task = asyncio.create_task(_heartbeat())
@@ -275,12 +275,12 @@ class ExecutionEngine:
                             heartbeat_task.cancel()
                             try:
                                 await heartbeat_task
-                            except (asyncio.CancelledError, Exception):
+                            except (asyncio.CancelledError, Exception): # noqa: S110, BLE001
                                 pass
                         if progress_cb is not None:
                             try:
                                 await _call_progress(progress_cb, 100, 100)
-                            except Exception:
+                            except Exception:  # noqa: BLE001, S110
                                 pass
 
                     elapsed = time.monotonic() - start_monotonic
@@ -313,7 +313,7 @@ class ExecutionEngine:
                         heartbeat_task.cancel()
                         try:
                             await heartbeat_task
-                        except (asyncio.CancelledError, Exception):
+                        except (asyncio.CancelledError, Exception): # noqa: S110, BLE001
                             pass
                     return result
 

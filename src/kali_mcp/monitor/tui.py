@@ -197,12 +197,12 @@ async def run(url: str) -> None:
     old_settings = None
     try:
         old_settings = termios.tcgetattr(fd)
-    except Exception:
+    except Exception:  # noqa: BLE001
         old_settings = None
     if old_settings is not None:
         try:
             tty.setcbreak(fd)
-        except Exception:
+        except Exception:  # noqa: BLE001
             old_settings = None
 
     def _read_stdin() -> None:
@@ -214,7 +214,7 @@ async def run(url: str) -> None:
                     break
                 try:
                     loop.call_soon_threadsafe(input_queue.put_nowait, ch.decode(errors="replace"))
-                except Exception:
+                except Exception:  # noqa: BLE001
                     break
         except OSError:
             pass
@@ -351,7 +351,7 @@ async def run(url: str) -> None:
         if old_settings is not None:
             try:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
         # Clear the screen on exit so the TUI doesn't leave artifacts
         sys.stdout.write("\x1b[2J\x1b[H")
