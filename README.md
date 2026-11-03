@@ -1,10 +1,10 @@
-# ✦ kali-mcp
+# <span style="color:#c58af2">✦</span> kali-mcp
 
-*A warm, expressive MCP server that puts 56 Kali Linux pentesting tools at your AI agent's fingertips — soft voltage around sharp security tooling.*
+<span style="color:#a6d189">*A warm, expressive MCP server that puts 56 Kali Linux pentesting tools at your AI agent's fingertips — soft voltage around sharp security tooling.*</span>
 
 The Kali MCP Server is a production-grade Model Context Protocol (MCP) server that exposes Kali Linux penetration-testing tools (nmap, sqlmap, nuclei, hydra, metasploit, and 50 more) to AI agents. Every tool call is validated, every execution is sandboxed with timeouts, and every result can be shared between agents through a built-in inter-agent vault.
 
-## ✧ At a glance
+## <span style="color:#89b4fa">✧</span> At a glance
 
 | | |
 |---|---|
@@ -16,7 +16,7 @@ The Kali MCP Server is a production-grade Model Context Protocol (MCP) server th
 | **Monitoring** | Live CLI/TUI with SSE push, job kill, force cleanup |
 | **Safety** | 3-layer timeout defense, process-tree cleanup, semaphore limits, output truncation |
 
-## ♡ Get started
+## <span style="color:#fab387">♡</span> Get started
 
 ### Requirements
 
@@ -68,7 +68,7 @@ Copy `.env.example` to `.env` and adjust:
 | `MCP_DB_ENABLED` | `true` | Write executions to SQLite |
 | `MCP_DEBUG` | `false` | Verbose structured logging |
 
-## ✦ Features
+## <span style="color:#c58af2">✦</span> Features
 
 **56 Kali tools, natively wrapped.** Nmap, sqlmap, nuclei, ffuf, katana, subfinder, amass, hydra, metasploit, bettercap, responder, zap, wpscan, and more. Each tool validates its arguments against a JSON schema, builds a safe subprocess argument list (no shell injection for native tools), and returns structured JSON with stdout, stderr, exit code, and timing.
 
@@ -77,6 +77,7 @@ Copy `.env.example` to `.env` and adjust:
 **`python_command`** — execute Python scripts directly on the host. Full access to installed libraries (scapy, impacket, requests, etc.).
 
 **Playbooks** — multi-step pipelines with `{{target}}` substitution and resume support:
+
 - `playbook_recon` — subfinder → httpx → masscan → whatweb+nmap → nuclei
 - `playbook_webapp` — katana → arjun+ffuf → nuclei → sqlmap+commix
 - `playbook_ad` — enum4linux → bloodhound → netexec+crackmapexec
@@ -90,22 +91,24 @@ Copy `.env.example` to `.env` and adjust:
 
 **MCP resources & prompts** — `kali://config`, `kali://tools`, `kali://health`, `kali://vault/index`, plus guided workflow prompts (recon, webapp, AD, OSINT, quick scan, report).
 
-## ⟡ How it works
+## <span style="color:#89b4fa">⟡</span> How it works
 
 Every tool call follows the same path:
 
 1. **Validate** — arguments checked against the tool's JSON schema (required fields, IP/CIDR/domain/URL/timeout formats, enums).
 2. **Build command** — arguments converted to a safe subprocess argument list. No shell interpolation for native tools; `generic_command` is the only shell path.
 3. **Execute** — subprocess runs in its own process group with a 3-layer timeout defense:
+
    - `asyncio.wait_for` enforced timeout
    - Watchdog thread kills stuck executions
    - Semaphore limits concurrent executions (`MCP_MAX_CONCURRENT`, default 10)
+
 4. **Persist** — run recorded to SQLite (`targets`, `scans`, `findings`, `credentials`) and deposited to the vault.
 5. **Respond** — structured JSON with stdout, stderr, exit_code, timing, and success flag.
 
 **Session tracking** — the monitor tracks connected MCP client sessions (connect time, last activity, client info) so you can see who's using the server.
 
-## ☾ Configuration
+## <span style="color:#fab387">☾</span> Configuration
 
 Configuration is loaded from environment variables via `.env`. All values have safe defaults.
 
@@ -129,7 +132,7 @@ Configuration is loaded from environment variables via `.env`. All values have s
 | `MCP_DB_PATH` | `data/kali-mcp.sqlite` | SQLite database path |
 | `MCP_DB_ENABLED` | `true` | Write executions to SQLite |
 
-## ◈ Architecture
+## <span style="color:#c58af2">◈</span> Architecture
 
 ```
 MCP Client (AI agent)
@@ -188,7 +191,7 @@ MCP Client (AI agent)
 - `utils/vault.py` — SQLite-backed inter-agent vault
 - `tools/` — 56 tool wrappers + base class + parsers + playbooks
 
-## 🧪 Tests & checks
+## <span style="color:#a6d189">🧪</span> Tests & checks
 
 ```bash
 # Full suite (unit + integration + e2e)
@@ -207,9 +210,10 @@ just test-e2e
 The suite runs on `pytest` with `pytest-asyncio`. 803 tests pass, 11 skipped (conditional/environment-dependent). Coverage is approximately 84% across the package.
 
 Quality checks:
+
 - `ruff` — linting (line-length 100)
 
-## ⚠ Known limitations
+## <span style="color:#f38ba8">⚠</span> Known limitations
 
 - **Kali tools must be installed on the host.** The server wraps binaries like `nmap`, `sqlmap`, `hydra`; it does not install them. If a binary isn't in `PATH`, the tool returns a structured "Binary not found" error with an install hint.
 - **`generic_command` runs arbitrary shell.** It's the escape hatch — use it deliberately. It is subject to the same timeout and semaphore limits as native tools.
@@ -217,7 +221,7 @@ Quality checks:
 - **No alerting yet.** The monitor displays status but does not send alerts for stuck executions or high error rates.
 - **Output truncation.** stdout/stderr are capped at 100 KB per stream to prevent memory exhaustion.
 
-## ◈ Troubleshooting
+## <span style="color:#fab387">◈</span> Troubleshooting
 
 | Symptom | Likely cause | Next step |
 |---|---|---|
@@ -233,4 +237,4 @@ MIT
 
 ---
 
-*Built with soft voltage — sharp security tooling wrapped in a warm, expressive MCP server.*
+<span style="color:#cba6f7">*Built with soft voltage — sharp security tooling wrapped in a warm, expressive MCP server.*</span>
