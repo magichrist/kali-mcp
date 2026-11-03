@@ -2,9 +2,11 @@
 
 *A warm, expressive MCP server that puts 56 Kali Linux pentesting tools at your AI agent's fingertips — soft voltage around sharp security tooling.*
 
+<p align="center">
 [![License](https://img.shields.io/github/license/magichrist/kali-mcp?color=c58af2)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-89b4fa)](https://www.python.org/)
 [![kmcp on PyPI](https://img.shields.io/badge/pypi-kmcp-a6d189)](https://pypi.org/project/kmcp/)
+</p>
 
 The Kali MCP Server is a production-grade Model Context Protocol (MCP) server that exposes Kali Linux penetration-testing tools (nmap, sqlmap, nuclei, hydra, metasploit, and 50 more) to AI agents. Every tool call is validated, every execution is sandboxed with timeouts, and every result can be shared between agents through a built-in inter-agent vault.
 
