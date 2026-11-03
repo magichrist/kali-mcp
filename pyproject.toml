@@ -30,6 +30,8 @@ where = ["src"]
 [tool.setuptools_scm]
 write_to = "src/kali_mcp/_version.py"
 tag_regex = '^(?:v)?(?P<version>[^\+]+)$'
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
