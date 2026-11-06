@@ -37,10 +37,10 @@ def test_wal_mode_enabled(db):
 
 
 def test_upsert_target_creates_then_updates(db):
-    tid = db.upsert_target("10.0.0.5", target_type="host")
+    tid = db.upsert_target("127.0.0.1", target_type="host")
     assert tid > 0
     # Same target string → same row, updated fields
-    tid2 = db.upsert_target("10.0.0.5", target_type="host", tags="web,dmz")
+    tid2 = db.upsert_target("127.0.0.1", target_type="host", tags="web,dmz")
     assert tid2 == tid
     row = db.conn.execute("SELECT tags FROM targets WHERE id=?", (tid,)).fetchone()
     assert row["tags"] == "web,dmz"
@@ -51,7 +51,7 @@ def test_add_scan_and_finding(db):
     sid = db.add_scan(
         tid,
         "nmap",
-        "nmap -q 10.0.0.5",
+        "nmap -q 127.0.0.1",
         "2026-10-31T00:00:00Z",
         "2026-10-31T00:00:10Z",
         10.0,
