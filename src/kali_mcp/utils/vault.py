@@ -79,6 +79,9 @@ def _db_path() -> Path:
 
 
 def _connect() -> sqlite3.Connection:
+    # Self-healing: sqlite3.connect cannot create the DB file if VAULT_ROOT
+    # was removed by a concurrent purge/cleanup since the last mkdir.
+    Path(VAULT_ROOT).mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(_db_path()), check_same_thread=False, timeout=10.0)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA busy_timeout = 5000;")
@@ -172,6 +175,10 @@ def _write_index(conn: sqlite3.Connection) -> None:
     ).fetchall()
     entries = [dict(row) for row in rows]
     index_path = Path(VAULT_ROOT) / INDEX_NAME
+    # Another process (purge, cleanup, concurrent test run) may remove the
+    # directory between mkdir() and this write — recreate before replacing
+    # so the ENOENT flip-flop cannot happen.
+    index_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = index_path.with_suffix(".json.tmp")
     tmp_path.write_text(
         json.dumps({"count": len(entries), "entries": entries}, indent=2),
