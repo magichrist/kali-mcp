@@ -82,4 +82,4 @@ def register() -> None:
     )
 
 
-__all__ = ["register", "_certificate"]
+__all__ = ["_certificate", "register"]
