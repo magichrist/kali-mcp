@@ -1,21 +1,21 @@
 """Phase 6 evaluation suite package."""
 
 from kali_mcp.eval.harness import (
-    EvalHarness,
-    EvalSuite,
-    LabTarget,
-    GroundTruthFinding,
+    LAB_TARGETS,
     AssessmentResult,
     CallRecord,
-    LAB_TARGETS,
+    EvalHarness,
+    EvalSuite,
+    GroundTruthFinding,
+    LabTarget,
 )
 
 __all__ = [
-    "EvalHarness",
-    "EvalSuite",
-    "LabTarget",
-    "GroundTruthFinding",
+    "LAB_TARGETS",
     "AssessmentResult",
     "CallRecord",
-    "LAB_TARGETS",
+    "EvalHarness",
+    "EvalSuite",
+    "GroundTruthFinding",
+    "LabTarget",
 ]
