@@ -139,6 +139,18 @@ class PlaybookEngine:
 
 
 def run_playbook(playbook: dict[str, Any], resume: bool = False) -> ExecutionResult:
-    """Synchronous wrapper to run a playbook via the internal engine."""
+    """Synchronous wrapper to run a playbook via the internal engine.
+
+    Kept for CLI/script compatibility. Callers running inside an active
+    event loop must use :func:`run_playbook_async` instead.
+    """
     eng = PlaybookEngine()
     return asyncio.run(eng.run(playbook, resume=resume))
+
+
+async def run_playbook_async(
+    playbook: dict[str, Any], resume: bool = False
+) -> ExecutionResult:
+    """Async-native entry point: directly awaits the engine's ``run()``."""
+    eng = PlaybookEngine()
+    return await eng.run(playbook, resume=resume)
