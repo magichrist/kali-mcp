@@ -39,23 +39,19 @@ steps:
     checkpoint: true
     description: "Discover API endpoints via katana (api_discovery module)"
   - id: param_discovery
-    type: tool
-    tool: arjun
+    module: param_discovery
     depends_on: [api_discovery]
     args:
       target: "{{target}}"
-      timeout: 300
     parallel: true
     checkpoint: true
     description: "Discover hidden request parameters via arjun"
   - id: api_dir_enum
-    type: tool
-    tool: ffuf
+    module: ffuf
     depends_on: [api_discovery]
     args:
       target: "{{target}}"
       wordlist: "/usr/share/wordlists/dirb/common.txt"
-      timeout: 300
     parallel: true
     checkpoint: true
     description: "Enumerate API directories via ffuf"
