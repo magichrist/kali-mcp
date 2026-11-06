@@ -25,6 +25,25 @@ from kali_mcp.workflow.modules_runtime import (
 CTX = ModuleContext(assessment_id="assess_test", job_id="job_test")
 
 
+@pytest.fixture(autouse=True)
+def _restore_modules_runtime_state():
+    """Snapshot and restore the shared module-registry globals.
+
+    The LoadBuiltinModules tests intentionally call ``mr.clear()`` (emptying
+    the registry and resetting the loaded flag). Without restoring, every
+    later test file in the session sees an empty registry while
+    ``_BUILTIN_LOADED=True``, so ``load_builtin_modules()`` short-circuits and
+    any ``type="custom"`` step validation reports "module not registered"
+    (observed as the test_studio_* playbook failures in full-suite runs).
+    """
+    saved_registry = dict(mr._REGISTRY)
+    saved_flag = mr._BUILTIN_LOADED
+    yield
+    mr._REGISTRY.clear()
+    mr._REGISTRY.update(saved_registry)
+    mr._BUILTIN_LOADED = saved_flag
+
+
 class TestExecuteSync:
     def test_coroutine_function_runs_via_asyncio_run(self):
         # No event loop is running in a sync test, so execute() falls back
