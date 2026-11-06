@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
 from kali_mcp.workflow import modules_runtime as mr
@@ -14,8 +12,8 @@ from kali_mcp.workflow.modules_runtime import (
     execute_async,
     has,
     list_modules,
-    register,
     load_builtin_modules,
+    register,
 )
 
 
@@ -140,7 +138,7 @@ class TestBuiltinLoading:
 
 def test_no_circular_import():
     """Engine and runtime import cleanly in any order."""
-    from kali_mcp.workflow import dag_executor as de  # noqa: F401
+    from kali_mcp.workflow import dag_executor as de
     from kali_mcp.workflow.modules_runtime import register as _r  # noqa: F401
 
     assert hasattr(de, "MAX_ITERATIONS")
