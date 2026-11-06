@@ -31,7 +31,7 @@ class TestExecutionScopeEnforcement:
             eng.execute(
                 command="echo hello",
                 tool="generic_command",
-                target="10.0.0.99",
+                target="any.external.host",
                 timeout=5,
             )
         )
@@ -40,13 +40,13 @@ class TestExecutionScopeEnforcement:
 
     def test_scope_violation_returns_failure_result(self, monkeypatch):
         _clear_scope_env(monkeypatch)
-        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "10.0.0.1")
+        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "127.0.0.1")
         eng = ExecutionEngine()
         result = asyncio.run(
             eng.execute(
                 command="echo hello",
                 tool="generic_command",
-                target="10.0.0.99",
+                target="any.external.host",
                 timeout=5,
             )
         )
@@ -58,13 +58,13 @@ class TestExecutionScopeEnforcement:
 
     def test_in_scope_target_executes_normally(self, monkeypatch):
         _clear_scope_env(monkeypatch)
-        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "10.0.0.1")
+        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "127.0.0.1")
         eng = ExecutionEngine()
         result = asyncio.run(
             eng.execute(
                 command="echo hello",
                 tool="generic_command",
-                target="10.0.0.1",
+                target="127.0.0.1",
                 timeout=5,
             )
         )
@@ -79,7 +79,7 @@ class TestExecutionScopeEnforcement:
             eng.execute(
                 command="echo hello",
                 tool="generic_command",
-                target="10.0.0.1",
+                target="127.0.0.1",
                 timeout=5,
             )
         )
@@ -88,14 +88,14 @@ class TestExecutionScopeEnforcement:
 
     def test_excluded_target_rejected(self, monkeypatch):
         _clear_scope_env(monkeypatch)
-        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "10.0.0.*")
-        monkeypatch.setenv("MCP_SCOPE_EXCLUDED_TARGETS", "10.0.0.1")
+        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "localhost,127.0.0.1")
+        monkeypatch.setenv("MCP_SCOPE_EXCLUDED_TARGETS", "127.0.0.1")
         eng = ExecutionEngine()
         result = asyncio.run(
             eng.execute(
                 command="echo hello",
                 tool="generic_command",
-                target="10.0.0.1",
+                target="127.0.0.1",
                 timeout=5,
             )
         )
@@ -109,7 +109,7 @@ class TestExecutionScopeEnforcement:
             eng.execute(
                 command="echo hello",
                 tool="generic_command",
-                target="10.0.0.1",
+                target="127.0.0.1",
                 assessment_id="assessment_abc123def456",
                 job_id="job_abc123def456",
                 timeout=5,
@@ -120,7 +120,7 @@ class TestExecutionScopeEnforcement:
 
     def test_no_target_and_no_tool_skips_scope(self, monkeypatch):
         _clear_scope_env(monkeypatch)
-        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "10.0.0.1")
+        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "127.0.0.1")
         eng = ExecutionEngine()
         result = asyncio.run(
             eng.execute(
