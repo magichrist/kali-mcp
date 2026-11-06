@@ -81,6 +81,17 @@ class Config:
         default_factory=lambda: _int_env("MCP_VAULT_MAX_ROW_BYTES", 26_214_400)
     )  # 25MB ceiling per vault row (0 = unlimited)
 
+    # Studio
+    studio_enabled: bool = field(default_factory=lambda: _bool_env("STUDIO_ENABLED", True))
+    studio_db_path: str = field(default_factory=lambda: os.getenv("STUDIO_DB_PATH", ""))
+    studio_default_visibility: str = field(
+        default_factory=lambda: os.getenv("STUDIO_DEFAULT_VISIBILITY", "agent_callable")
+    )
+    external_mcp_timeout: int = field(default_factory=lambda: _int_env("EXTERNAL_MCP_TIMEOUT", 30))
+    studio_mcp_import_timeout: int = field(
+        default_factory=lambda: _int_env("STUDIO_MCP_IMPORT_TIMEOUT", 30)
+    )
+
     # Database
     db_path: Path = field(
         default_factory=lambda: Path(os.getenv("MCP_DB_PATH", "data/kali-mcp.sqlite"))
