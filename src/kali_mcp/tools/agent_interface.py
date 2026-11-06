@@ -41,6 +41,7 @@ from typing import Any
 from kali_mcp.config import config
 from kali_mcp.db import manager as dbm
 from kali_mcp.execution import engine
+from kali_mcp.identifiers import get_assessment_context
 from kali_mcp.intelligence import (
     FindingCorrelator,
     AssetRelationshipBuilder,
@@ -335,8 +336,25 @@ class AssessmentRunTool(BaseTool):
         detail = _normalize_output_level(output_cfg.get("detail", "summary"))
         include_raw = output_cfg.get("include_raw", False)
 
-        assessment_id = _new_id("assessment")
-        job_id = None
+        # Consume the server-set assessment/job context so every persisted
+        # finding, scan, and evidence artifact carries the SAME assessment_id
+        # that set_assessment_context() published. Falls back to generating a
+        # fresh id when invoked outside an MCP request (e.g. in tests).
+        ctx_assessment_id, ctx_job_id = get_assessment_context()
+        assessment_id = ctx_assessment_id or _new_id("assessment")
+        job_id = ctx_job_id
+
+        # Prefer a server-set assessment context when present (Task 3.1)
+        try:
+            from kali_mcp.identifiers import get_assessment_context
+
+            ctx_aid, ctx_job = get_assessment_context()
+            if ctx_aid:
+                assessment_id = ctx_aid
+            if ctx_job:
+                job_id = ctx_job
+        except Exception:  # noqa: BLE001
+            pass
 
         # Persist assessment start to DB
         db = dbm.get_db()
@@ -397,9 +415,21 @@ class AssessmentRunTool(BaseTool):
             },
         }
 
+        # Persist the completed inline assessment to the vault so that
+        # report_generate (and job_control) can consume it by assessment_id.
+        self._write_assessment_vault_summary(
+            assessment_id=assessment_id,
+            job_id=job_id,
+            status="completed",
+            summary=summary,
+            findings=findings,
+            next_actions=next_actions,
+            targets=targets,
+        )
+
         return _make_assessment_result(
             self.name, assessment_id, "completed", summary, findings, next_actions,
-            job_id=None, detail=detail, raw_included=include_raw,
+            job_id=job_id, detail=detail, raw_included=include_raw,
         )
 
     # ── internal: inline execution for short assessments ─────────────
@@ -476,6 +506,39 @@ class AssessmentRunTool(BaseTool):
                            "vulnerability_validation, custom_assessment"]
 
         return findings, assets, next_actions
+
+    def _write_assessment_vault_summary(
+        self,
+        *,
+        assessment_id: str,
+        job_id: str | None,
+        status: str,
+        summary: dict[str, Any],
+        findings: list[dict[str, Any]],
+        next_actions: list[str],
+        targets: list[str],
+    ) -> None:
+        """Deposit a completed assessment summary into the vault assessments
+        category so report_generate / job_control can consume it by id."""
+        try:
+            payload = {
+                "assessment_id": assessment_id,
+                "job_id": job_id,
+                "status": status,
+                "summary": summary,
+                "findings": findings,
+                "next_actions": next_actions,
+            }
+            vault_write(
+                category="assessments",
+                name=assessment_id,
+                content=payload,
+                target=",".join(targets),
+                tool=self.name,
+                tags=f"assessment:{assessment_id}" + (f",job:{job_id}" if job_id else ""),
+            )
+        except Exception:  # noqa: BLE001 — vault persistence must never fail a run
+            pass
 
     # ── workflow implementations ───────────────────────────────────────
 
@@ -766,21 +829,14 @@ class AssessmentRunTool(BaseTool):
                 },
             }
             # Store completed result in vault for retrieval
-            payload = {
-                "assessment_id": assessment_id,
-                "job_id": job_id,
-                "status": "completed",
-                "summary": summary,
-                "findings": findings,
-                "next_actions": next_actions,
-            }
-            vault_write(
-                category="assessments",
-                name=assessment_id,
-                content=payload,
-                target=",".join(targets),
-                tool=self.name,
-                tags=f"assessment:{assessment_id},job:{job_id}",
+            self._write_assessment_vault_summary(
+                assessment_id=assessment_id,
+                job_id=job_id,
+                status="completed",
+                summary=summary,
+                findings=findings,
+                next_actions=next_actions,
+                targets=targets,
             )
         except Exception:  # noqa: BLE001
             payload = {"assessment_id": assessment_id, "job_id": job_id, "status": "failed"}
