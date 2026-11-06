@@ -68,9 +68,9 @@ class TestValidate:
 
 class TestBuildCommand:
     def test_with_target(self):
-        assert PlaybookAdTool().build_command({"target": "10.0.0.1"}) == [
+        assert PlaybookAdTool().build_command({"target": "127.0.0.1"}) == [
             "playbook_ad",
-            "10.0.0.1",
+            "127.0.0.1",
         ]
 
     def test_without_target_defaults_empty(self):
@@ -93,7 +93,7 @@ class TestPlaybookDefinition:
     def test_custom_domain(self):
         tool = PlaybookAdTool()
         definition = tool._playbook_definition(
-            {"target": "10.0.0.1", "domain": "corp.local"}
+            {"target": "127.0.0.1", "domain": "corp.local"}
         )
         bloodhound = self._steps_by_id(definition)["bloodhound"]
         assert bloodhound["args"]["domain"] == "corp.local"
@@ -101,17 +101,17 @@ class TestPlaybookDefinition:
     def test_empty_domain_uses_target(self):
         tool = PlaybookAdTool()
         definition = tool._playbook_definition(
-            {"target": "10.0.0.1", "domain": ""}
+            {"target": "127.0.0.1", "domain": ""}
         )
         bloodhound = self._steps_by_id(definition)["bloodhound"]
-        assert bloodhound["args"]["domain"] == "10.0.0.1"
+        assert bloodhound["args"]["domain"] == "127.0.0.1"
 
     def test_default_execution(self):
         tool = PlaybookAdTool()
-        definition = tool._playbook_definition({"target": "10.0.0.1"})
+        definition = tool._playbook_definition({"target": "127.0.0.1"})
         assert definition["name"] == "playbook_ad"
         assert definition["version"] == "2.0"
-        assert definition["inputs"] == {"target": "10.0.0.1"}
+        assert definition["inputs"] == {"target": "127.0.0.1"}
         assert definition["execution"]["max_parallel"] == 4
         assert definition["execution"]["timeout"] == 1800
         assert definition["execution"]["resume"] is False
@@ -119,14 +119,14 @@ class TestPlaybookDefinition:
     def test_resume_and_timeout_honored(self):
         tool = PlaybookAdTool()
         definition = tool._playbook_definition(
-            {"target": "10.0.0.1", "resume": True, "timeout": 1200}
+            {"target": "127.0.0.1", "resume": True, "timeout": 1200}
         )
         assert definition["execution"]["resume"] is True
         assert definition["execution"]["timeout"] == 1200
 
     def test_step_structure_and_parallel_flags(self):
         tool = PlaybookAdTool()
-        definition = tool._playbook_definition({"target": "10.0.0.1", "domain": "corp.local"})
+        definition = tool._playbook_definition({"target": "127.0.0.1", "domain": "corp.local"})
         steps = self._steps_by_id(definition)
         ids = self._step_ids(definition)
         assert ids[0] == "validate"
@@ -158,7 +158,7 @@ class TestExecute:
             "kali_mcp.workflow.run_playbook_async",
             new=AsyncMock(return_value=fake_result),
         ) as mock_run:
-            result = await tool.execute({"target": "10.0.0.1"})
+            result = await tool.execute({"target": "127.0.0.1"})
         mock_load.assert_called_once()
         mock_run.assert_awaited_once()
         assert mock_run.await_args.kwargs["resume"] is False
@@ -174,7 +174,7 @@ class TestExecute:
             "kali_mcp.workflow.run_playbook_async",
             new=AsyncMock(return_value=fake_result),
         ) as mock_run:
-            await tool.execute({"target": "10.0.0.1", "resume": True})
+            await tool.execute({"target": "127.0.0.1", "resume": True})
         assert mock_run.await_args.kwargs["resume"] is True
 
     async def test_execute_validation_error_propagates(self):
