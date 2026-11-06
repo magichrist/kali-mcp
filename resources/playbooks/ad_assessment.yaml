@@ -1,0 +1,59 @@
+name: ad_assessment
+version: "2.0"
+
+inputs:
+  target:
+    type: string
+    required: true
+  domain:
+    type: string
+    required: false
+
+execution:
+  max_parallel: 4
+  timeout: 1800
+  resume: true
+
+steps:
+  - id: validate
+    type: scope_check
+    args:
+      target: "{{target}}"
+
+  - id: enum4linux
+    tool: enum4linux
+    depends_on: [validate]
+    args:
+      target: "{{target}}"
+
+  - id: bloodhound
+    tool: bloodhound
+    depends_on: [enum4linux]
+    args:
+      domain: "{{domain}}"
+
+  - id: netexec
+    tool: netexec
+    depends_on: [bloodhound]
+    args:
+      target: "{{target}}"
+      protocol: smb
+    parallel: true
+
+  - id: crackmapexec
+    tool: crackmapexec
+    depends_on: [bloodhound]
+    args:
+      target: "{{target}}"
+      protocol: smb
+    parallel: true
+
+  - id: correlate
+    type: finding_correlation
+    depends_on: [netexec, crackmapexec]
+    args: {}
+
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    args: {}
