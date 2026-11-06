@@ -19,6 +19,7 @@ from mcp.server.fastmcp.server import Context
 from mcp.server.fastmcp.tools.base import Tool as MCPTool
 from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 
+from kali_mcp.agent_context import agent_context
 from kali_mcp.config import config
 from kali_mcp.db import manager as db_manager
 from kali_mcp.execution import engine, reset_progress_cb, set_progress_cb
@@ -285,6 +286,28 @@ for tool_instance in ALL_TOOLS:
         async def handler(ctx: Context, **kwargs) -> str:
             request_id = uuid.uuid4().hex[:12]
             health.record_request()
+            # ── Agent profile resolution + per-call enforcement ────────
+            # Resolve the profile from the request headers (no header → no
+            # agent context → unchanged default behavior). When a profile IS
+            # resolved, every tool call is deny-by-default checked against
+            # its agent_tool_permissions grants (07_SECURITY §Layer 2).
+            profile_token = None
+            profile_ctx = None
+            try:
+                profile_ctx = agent_context.resolve_from_context(ctx)
+            except Exception:  # noqa: BLE001 — resolution must never crash the dispatch
+                logger.debug("agent profile resolution failed", exc_info=True)
+                profile_ctx = None
+            if profile_ctx:
+                profile_token = agent_context.set_current_profile(profile_ctx)
+                if not agent_context.can_call_tool(profile_ctx, t.name):
+                    health.record_error()
+                    emit_log(
+                        ctx,
+                        "warning",
+                        f"Forbidden {t.name} for profile {profile_ctx} ({request_id})",
+                    )
+                    return agent_context.forbidden_tool_payload(t.name, profile_ctx)
             # ── Scope enforcement (Phase 1 Foundation) ──────────────────
             # Every tool call passes through the server-side scope check
             # before it is dispatched to the tool implementation.
@@ -378,6 +401,8 @@ for tool_instance in ALL_TOOLS:
             finally:
                 reset_assessment_context(ctx_tokens)
                 reset_progress_cb(token)
+                if profile_token is not None:
+                    agent_context.reset_current_profile(profile_token)
 
         handler.__name__ = t.name
         handler.__doc__ = t.description
