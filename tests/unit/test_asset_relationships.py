@@ -31,9 +31,9 @@ def test_add_asset_updates_existing(builder):
 
 
 def test_add_asset_with_attributes(builder):
-    node = builder.add_asset("ip1", "ip", "192.0.2.10",
-                             attributes={"cidr": "192.0.2.0/24", "asn": "AS1234"})
-    assert node.attributes["cidr"] == "192.0.2.0/24"
+    node = builder.add_asset("ip1", "ip", "127.0.0.1",
+                             attributes={"cidr": "127.0.0.0/24", "asn": "AS1234"})
+    assert node.attributes["cidr"] == "127.0.0.0/24"
     assert node.attributes["asn"] == "AS1234"
 
 
@@ -41,7 +41,7 @@ def test_add_asset_with_attributes(builder):
 
 def test_add_relationship_creates_edge(builder):
     builder.add_asset("d1", "domain", "example.com")
-    builder.add_asset("ip1", "ip", "192.0.2.10")
+    builder.add_asset("ip1", "ip", "127.0.0.1")
     edge = builder.add_relationship("d1", "ip1", "resolves_to", 0.9, "subfinder")
     assert edge.source_asset_id == "d1"
     assert edge.target_asset_id == "ip1"
@@ -52,7 +52,7 @@ def test_add_relationship_creates_edge(builder):
 
 def test_add_relationship_prevents_duplicates_upsert(builder):
     builder.add_asset("d1", "domain", "example.com")
-    builder.add_asset("ip1", "ip", "192.0.2.10")
+    builder.add_asset("ip1", "ip", "127.0.0.1")
     builder.add_relationship("d1", "ip1", "resolves_to", 0.9, "subfinder")
     edge_count_before = len(builder.list_relationships())
     # Same relationship again → upsert, not duplicate
@@ -65,7 +65,7 @@ def test_add_relationship_prevents_duplicates_upsert(builder):
 
 def test_add_relationship_invalid_type_raises(builder):
     builder.add_asset("d1", "domain", "example.com")
-    builder.add_asset("ip1", "ip", "192.0.2.10")
+    builder.add_asset("ip1", "ip", "127.0.0.1")
     with pytest.raises(ValueError):
         builder.add_relationship("d1", "ip1", "invalid_type", 0.5, "tool")
 
@@ -74,7 +74,7 @@ def test_add_relationship_invalid_type_raises(builder):
 
 def test_build_graph_returns_assets_and_relationships(builder):
     builder.add_asset("d1", "domain", "example.com")
-    builder.add_asset("ip1", "ip", "192.0.2.10")
+    builder.add_asset("ip1", "ip", "127.0.0.1")
     builder.add_relationship("d1", "ip1", "resolves_to", 0.9, "subfinder")
     graph = builder.build_graph()
     assert "assets" in graph
@@ -85,7 +85,7 @@ def test_build_graph_returns_assets_and_relationships(builder):
 
 def test_query_relationships_by_asset(builder):
     builder.add_asset("d1", "domain", "example.com")
-    builder.add_asset("ip1", "ip", "192.0.2.10")
+    builder.add_asset("ip1", "ip", "127.0.0.1")
     builder.add_asset("svc1", "service", "HTTP:443")
     builder.add_relationship("d1", "ip1", "resolves_to", 0.9, "subfinder")
     builder.add_relationship("ip1", "svc1", "contains", 0.95, "nmap")
@@ -109,7 +109,7 @@ def test_query_relationships_nonexistent_asset(builder):
 
 def test_all_valid_relationship_types(builder):
     builder.add_asset("a1", "domain", "example.com")
-    builder.add_asset("a2", "ip", "192.0.2.10")
+    builder.add_asset("a2", "ip", "127.0.0.1")
     builder.add_asset("a3", "service", "HTTP:443")
     builder.add_asset("a4", "subdomain", "app.example.com")
     builder.add_asset("a5", "technology", "Apache")
@@ -132,7 +132,7 @@ def test_build_graph_merges_context_assets(builder):
         def __init__(self):
             self.asset_id = "ctx_asset"
             self.asset_type = "ip"
-            self.name = "10.0.0.1"
+            self.name = "127.0.0.1"
             self.scope = "in-scope"
             self.attributes = {}
             self.relationships = []
