@@ -4,16 +4,11 @@ from __future__ import annotations
 
 import json
 import tempfile
-from pathlib import Path
-
-import pytest
 
 from kali_mcp.eval import (
-    EvalHarness,
+    LAB_TARGETS,
     EvalSuite,
     GroundTruthFinding,
-    LabTarget,
-    LAB_TARGETS,
 )
 
 
@@ -41,8 +36,9 @@ def test_ground_truth_finding():
 
 def test_assessment_result_compute_metrics():
     """Metrics are computed correctly from calls and findings."""
-    from kali_mcp.eval.harness import CallRecord, AssessmentResult
     from datetime import datetime, timezone
+
+    from kali_mcp.eval.harness import AssessmentResult, CallRecord
 
     now = datetime.now(timezone.utc).isoformat() + "Z"
 
@@ -101,8 +97,9 @@ def test_eval_suite_write_results(tmp_path):
     """EvalSuite writes individual results and aggregate report."""
     suite = EvalSuite(output_dir=tmp_path)
 
-    from kali_mcp.eval.harness import AssessmentResult, CallRecord
     from datetime import datetime, timezone
+
+    from kali_mcp.eval.harness import AssessmentResult, CallRecord
 
     now = datetime.now(timezone.utc).isoformat() + "Z"
 
@@ -164,8 +161,9 @@ def test_success_criteria():
     """Success criteria checker works."""
     suite = EvalSuite(output_dir=tempfile.mkdtemp())
 
-    from kali_mcp.eval.harness import AssessmentResult, CallRecord
     from datetime import datetime, timezone
+
+    from kali_mcp.eval.harness import AssessmentResult, CallRecord
 
     now = datetime.now(timezone.utc).isoformat() + "Z"
 
