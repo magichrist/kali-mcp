@@ -11,6 +11,7 @@ expressions.
 from kali_mcp.workflow.dag_executor import (
     PlaybookEngine,
     run_playbook,
+    run_playbook_async,
     RUN_STATUS,
     MAX_ITERATIONS,
 )
@@ -26,6 +27,7 @@ from kali_mcp.workflow.scope_gate import ScopeViolationError, assert_target_allo
 __all__ = [
     "PlaybookEngine",
     "run_playbook",
+    "run_playbook_async",
     "load_playbook",
     "PlaybookDefinition",
     "RUN_STATUS",
