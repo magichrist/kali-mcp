@@ -44,8 +44,8 @@ class TestPromptFactories:
         assert "breach" in msgs[1]["content"]["text"]
 
     def test_quick_scan(self) -> None:
-        msgs = _quick_scan("10.0.0.1", ports="22,80", profile="fast")
-        assert "10.0.0.1" in msgs[0]["content"]["text"]
+        msgs = _quick_scan("127.0.0.1", ports="22,80", profile="fast")
+        assert "127.0.0.1" in msgs[0]["content"]["text"]
         assert "nmap_scan" in msgs[1]["content"]["text"]
 
     def test_report(self) -> None:
