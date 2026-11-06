@@ -139,8 +139,8 @@ class PlaybookWebappTool(BaseTool):
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         self.validate(arguments)
-        from kali_mcp.workflow import load_playbook, run_playbook
+        from kali_mcp.workflow import load_playbook, run_playbook_async
 
         pb = load_playbook(self._playbook_definition(arguments))
-        res = await run_playbook(pb, resume=bool(arguments.get("resume", False)))
+        res = await run_playbook_async(pb, resume=bool(arguments.get("resume", False)))
         return wrap_execution_result(res, self.name)
