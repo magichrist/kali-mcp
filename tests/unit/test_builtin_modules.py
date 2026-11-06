@@ -26,10 +26,10 @@ class TestTargetModules:
         assert mr.has("target.scope_check")
 
     def test_target_validate_valid_ip(self):
-        res = mr.execute("target.validate", CTX, {"target": "10.0.0.1"})
+        res = mr.execute("target.validate", CTX, {"target": "127.0.0.1"})
         assert res["valid"] is True
         assert res["kind"] == "ip"
-        assert res["target"] == "10.0.0.1"
+        assert res["target"] == "127.0.0.1"
 
     def test_target_validate_valid_domain(self):
         res = mr.execute("target.validate", CTX, {"target": "example.com"})
@@ -49,7 +49,7 @@ class TestTargetModules:
 
     def test_target_scope_check_permissive(self):
         # No scope env vars → permissive → allowed
-        res = mr.execute("target.scope_check", CTX, {"target": "10.0.0.1"})
+        res = mr.execute("target.scope_check", CTX, {"target": "127.0.0.1"})
         assert res["allowed"] is True
 
 
@@ -83,7 +83,7 @@ class TestNetworkModules:
         assert mr.has("network.port_discovery")
 
     def test_network_port_discovery_unregistered_tool(self):
-        res = mr.execute("network.port_discovery", CTX, {"target": "10.0.0.1", "tool": "nonexistent_network_tool_xyz"})
+        res = mr.execute("network.port_discovery", CTX, {"target": "127.0.0.1", "tool": "nonexistent_network_tool_xyz"})
         assert "not registered" in res.get("error", "")
 
 
@@ -102,9 +102,9 @@ class TestIntelligenceModules:
 
     def test_intelligence_correlate_dedupes(self):
         findings = [
-            {"id": "f1", "target": "10.0.0.1", "type": "xss", "name": "XSS", "severity": "high"},
-            {"id": "f2", "target": "10.0.0.2", "type": "sqli", "name": "SQLi", "severity": "critical"},
-            {"id": "f1", "target": "10.0.0.1", "type": "xss", "name": "XSS", "severity": "high"},  # dup
+            {"id": "f1", "target": "127.0.0.1", "type": "xss", "name": "XSS", "severity": "high"},
+            {"id": "f2", "target": "example.org", "type": "sqli", "name": "SQLi", "severity": "critical"},
+            {"id": "f1", "target": "127.0.0.1", "type": "xss", "name": "XSS", "severity": "high"},  # dup
         ]
         res = mr.execute("intelligence.correlate", CTX, {"findings": findings})
         assert res["count"] == 2
