@@ -18,7 +18,7 @@ COMMAND_MATRIX = {
         "true",
     ),  # no subprocess — sentinel
     "file_download": ({"server_path": "/etc/hosts"}, "file_download"),
-    "nmap": ({"target": "10.0.0.1", "scan_type": "quick"}, "nmap"),
+    "nmap": ({"target": "127.0.0.1", "scan_type": "quick"}, "nmap"),
     "httpx": ({"target": "127.0.0.1"}, "/usr/bin/httpx-toolkit"),
     "nuclei": ({"target": "127.0.0.1"}, "nuclei"),
     "ffuf": ({"target": "http://x", "wordlist": "/w.txt"}, "ffuf"),
@@ -29,8 +29,8 @@ COMMAND_MATRIX = {
     "commix": ({"target": "http://x"}, "commix"),
     "wpscan": ({"target": "http://x"}, "wpscan"),
     "enum4linux": ({"target": "127.0.0.1"}, "enum4linux"),
-    "netexec": ({"target": "1.2.3.4", "protocol": "smb"}, "nxc"),
-    "crackmapexec": ({"target": "1.2.3.4", "protocol": "smb"}, "crackmapexec"),
+    "netexec": ({"target": "127.0.0.1", "protocol": "smb"}, "nxc"),
+    "crackmapexec": ({"target": "127.0.0.1", "protocol": "smb"}, "crackmapexec"),
     "bloodhound": ({"domain": "corp.local"}, "bloodhound-python"),
     "theharvester": ({"domain": "example.com"}, "theHarvester"),
     "spiderfoot": ({"target": "127.0.0.1"}, "spiderfoot-cli"),
@@ -46,7 +46,7 @@ COMMAND_MATRIX = {
     "msfconsole": ({"resource": "/tmp/x.rc"}, "msfconsole"),
     "hydra": (
         {
-            "target": "10.0.0.1",
+            "target": "127.0.0.1",
             "service": "ssh",
             "user_list": "/u.txt",
             "pass_list": "/p.txt",
@@ -55,21 +55,21 @@ COMMAND_MATRIX = {
     ),
     "hashcat": ({"hash_file": "/h.txt"}, "hashcat"),
     "gobuster": ({"target": "http://x", "wordlist": "/w.txt"}, "gobuster"),
-    "masscan": ({"target": "10.0.0.1"}, "masscan"),
+    "masscan": ({"target": "127.0.0.1"}, "masscan"),
     "john": ({"hash_file": "/h.txt"}, "john"),
     "zap": ({"target": "http://x"}, "zap-baseline.py"),
     "wfuzz": ({"target": "http://x/FUZZ", "wordlist": "/w.txt"}, "wfuzz"),
     "dirb": ({"target": "http://x", "wordlist": "/w.txt"}, "dirb"),
     "medusa": (
         {
-            "target": "10.0.0.1",
+            "target": "127.0.0.1",
             "service": "ssh",
             "user_list": "/u.txt",
             "pass_list": "/p.txt",
         },
         "medusa",
     ),
-    "bettercap": ({"target": "10.0.0.1", "modules": "net.sniff on"}, "bettercap"),
+    "bettercap": ({"target": "127.0.0.1", "modules": "net.sniff on"}, "bettercap"),
     "responder": ({"interface": "eth0"}, "responder"),
     "parallel_execute": (
         {"target": "t", "tools": [{"tool": "nmap"}]},
@@ -78,7 +78,7 @@ COMMAND_MATRIX = {
     "parallel_status": ({"job_id": "j1"}, "parallel_status"),
     "playbook_recon": ({"target": "example.com"}, "playbook_recon"),
     "playbook_webapp": ({"target": "http://x"}, "playbook_webapp"),
-    "playbook_ad": ({"target": "10.0.0.1"}, "playbook_ad"),
+    "playbook_ad": ({"target": "127.0.0.1"}, "playbook_ad"),
     "playbook_engine": (
         {"playbook": {"name": "n", "steps": [{"tools": [{"tool": "nmap"}]}]}},
         "playbook_engine",
@@ -206,7 +206,7 @@ def test_hydra_flags():
 
 def test_masscan_port_and_rate():
     cmd = TOOL_MAP["masscan"].build_command(
-        {"target": "10.0.0.0/24", "ports": "80,443", "rate": 5000}
+        {"target": "127.0.0.0/24", "ports": "80,443", "rate": 5000}
     )
     assert "-p" in cmd and "80,443" in cmd
     assert cmd[cmd.index("--rate") + 1] == "5000"
@@ -251,7 +251,7 @@ def test_wfuzz_rejects_missing_placeholder():
 
 def test_bettercap_requires_caplet_or_modules():
     with pytest.raises(ValueError, match="caplet"):
-        TOOL_MAP["bettercap"].validate({"target": "10.0.0.1"})
+        TOOL_MAP["bettercap"].validate({"target": "127.0.0.1"})
 
 
 def test_zap_rejects_non_http():
