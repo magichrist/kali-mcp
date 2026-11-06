@@ -280,6 +280,8 @@ class TestMainEntry:
             insecure = True
             api_token = ""
             token_in_query = False
+            debug = False
+            db_enabled = False
 
         srv.config = _C()
         try:
