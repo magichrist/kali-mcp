@@ -22,6 +22,7 @@ from kali_mcp.config import config
 from kali_mcp.logging_utils import log_execution
 from kali_mcp.models import ExecutionResult, utc_now_iso
 from kali_mcp.security import sanitize_command_parts
+from kali_mcp.scope import Scope, check_scope, load_scope
 from kali_mcp.utils.process import kill_process_tree
 
 logger = logging.getLogger("kali_mcp.execution")
@@ -50,6 +51,19 @@ async def _call_progress(progress_cb, completed: int, total: int) -> None:
     result = progress_cb(completed, total)
     if inspect.isawaitable(result):
         await result
+
+
+def _enforce_scope(tool_name: str | None, target: str | None) -> None:
+    """Scope enforcement hook.
+
+    Called before any command is executed. Loads the authorization scope
+    from the environment and raises :class:`ValueError`` if the target or
+    operation is out of scope. A permissive (allow-all) scope is the
+    default, so executions are unaffected unless scope is configured.
+    """
+    if target is None and tool_name is None:
+        return
+    check_scope(target, tool_name, load_scope())
 
 
 class ExecutionEngine:
@@ -114,11 +128,18 @@ class ExecutionEngine:
         env: dict[str, str] | None = None,
         request_id: str | None = None,
         progress_cb: object | None = None,
+        target: str | None = None,
+        assessment_id: str | None = None,
+        job_id: str | None = None,
     ) -> ExecutionResult:
         """Execute a command and return structured result. Never raises.
         If command is a str, runs via create_subprocess_shell (for shell commands).
         If command is a list, runs via create_subprocess_exec (for direct binary exec).
         progress_cb, if given, is called as progress_cb(completed, total) over time.
+
+        ``target`` is assessed against the configured authorization scope before
+        execution; out-of-scope targets are rejected. ``assessment_id`` and
+        ``job_id`` are opaque handles stored on result records for traceability.
         """
         self._start_watchdog()
         req_id = request_id or uuid.uuid4().hex[:12]
@@ -129,6 +150,28 @@ class ExecutionEngine:
 
         use_shell = isinstance(command, str)
         command_str = command if use_shell else " ".join(command)
+
+        # ── Scope enforcement hook ─────────────────────────────────────
+        # Reject out-of-scope targets / operations before any command runs.
+        try:
+            _enforce_scope(tool, target)
+        except ValueError as exc:
+            now = utc_now_iso()
+            result = ExecutionResult(
+                tool=tool,
+                command=command_str,
+                stdout="",
+                stderr=f"Scope violation: {exc}",
+                exit_code=-1,
+                success=False,
+                timed_out=False,
+                duration=0.0,
+                start_time=now,
+                end_time=now,
+            )
+            log_execution(result)
+            return result
+
         if not use_shell:
             command = sanitize_command_parts(command)
 
