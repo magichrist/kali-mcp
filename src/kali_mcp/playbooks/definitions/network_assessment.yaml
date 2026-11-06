@@ -30,13 +30,11 @@ steps:
     checkpoint: true
     description: "Validate target against active assessment scope"
   - id: discover
-    type: tool
-    tool: nmap
+    module: nmap
     depends_on: [validate]
     args:
       target: "{{target}}"
       ports: "{{options.ports}}"
-      timeout: 600
     checkpoint: true
     description: "Discover open ports and services via nmap"
   - id: resolve
@@ -57,14 +55,12 @@ steps:
     checkpoint: true
     description: "Enumerate ports via the ports module (nmap)"
   - id: enumerate
-    type: tool
-    tool: nmap
+    module: nmap
     depends_on: [resolve, ports]
     args:
       target: "{{target}}"
       ports: "{{options.ports}}"
       extra_args: "-sV -sC"
-      timeout: 600
     checkpoint: true
     description: "Service and version enumeration on resolved hosts"
   - id: correlate
