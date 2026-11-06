@@ -4,24 +4,24 @@ Agents never import from this package directly. It is used exclusively by
 playbook_run to execute assessments internally.
 """
 
+from kali_mcp.playbooks.engine import PlaybookEngine
 from kali_mcp.playbooks.registry import (
+    ModuleNotFound,
+    PlaybookNotFound,
+    get_module,
     get_playbook,
     list_playbooks,
-    register_playbook,
     register_module,
-    get_module,
-    PlaybookNotFound,
-    ModuleNotFound,
+    register_playbook,
 )
-from kali_mcp.playbooks.engine import PlaybookEngine
 
 __all__ = [
-    "get_playbook",
-    "list_playbooks",
-    "register_playbook",
-    "register_module",
-    "get_module",
+    "ModuleNotFound",
     "PlaybookEngine",
     "PlaybookNotFound",
-    "ModuleNotFound",
+    "get_module",
+    "get_playbook",
+    "list_playbooks",
+    "register_module",
+    "register_playbook",
 ]
