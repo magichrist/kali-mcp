@@ -18,17 +18,14 @@ from collections import deque
 from typing import Any
 
 from kali_mcp.db import manager as dbm
-from kali_mcp.execution import engine as exec_engine
-from kali_mcp.intelligence import FindingCorrelator, AssetRelationshipBuilder
-from kali_mcp.tools.persist import now_iso
-from kali_mcp.utils.vault import vault_write
+from kali_mcp.intelligence import AssetRelationshipBuilder, FindingCorrelator
 from kali_mcp.playbooks.context import AssessmentContext, Asset, Finding
 from kali_mcp.playbooks.registry import (
-    get_playbook,
-    get_module,
-    PlaybookNotFound,
     ModuleNotFound,
+    get_module,
+    get_playbook,
 )
+from kali_mcp.utils.vault import vault_write
 
 
 def _now_utc() -> str:
