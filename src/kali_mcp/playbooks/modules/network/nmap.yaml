@@ -1,0 +1,26 @@
+id: nmap
+name: "Network Mapper"
+description: "Port and service discovery via nmap"
+tool: nmap
+timeout: 600
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target host or network"
+  ports:
+    type: string
+    description: "Port range"
+    default: "1-1000"
+  rate:
+    type: string
+    description: "Packet rate"
+    default: "500"
+  extra_args:
+    type: string
+    description: "Extra nmap arguments"
+    default: ""
+outputs:
+  - open_ports
+  - open_ports_count
+  - services
