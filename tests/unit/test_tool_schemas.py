@@ -77,7 +77,7 @@ VALID_ARGS = {
         "user_list": "/tmp/users.txt",
         "pass_list": "/tmp/pass.txt",
     },
-    "bettercap": {"target": "192.168.1.0/24", "modules": "net.sniff on"},
+    "bettercap": {"target": "127.0.0.0/24", "modules": "net.sniff on"},
     "responder": {"interface": "eth0"},
     "parallel_execute": {
         "target": "127.0.0.1",
@@ -181,8 +181,8 @@ INVALID_ARGS = {
     "commix": {},
     "wpscan": {},
     "enum4linux": {},
-    "netexec": {"target": "1.2.3.4"},
-    "crackmapexec": {"target": "1.2.3.4"},
+    "netexec": {"target": "127.0.0.1"},
+    "crackmapexec": {"target": "127.0.0.1"},
     "bloodhound": {},
     "theharvester": {},
     "spiderfoot": {},
@@ -205,7 +205,7 @@ INVALID_ARGS = {
     "wfuzz": {},
     "dirb": {},
     "medusa": {},
-    "bettercap": {"target": "192.168.1.0/24"},
+    "bettercap": {"target": "127.0.0.0/24"},
     "responder": {},
     "parallel_execute": {"target": "127.0.0.1"},
     "parallel_status": None,
@@ -323,7 +323,7 @@ def test_python_command_prefix():
 
 
 def test_nmap_binary():
-    cmd = _tool_map()["nmap"].build_command({"target": "10.0.0.1", "scan_type": "quick"})
+    cmd = _tool_map()["nmap"].build_command({"target": "127.0.0.1", "scan_type": "quick"})
     assert cmd[0] == "nmap"
 
 
@@ -338,7 +338,7 @@ def test_amass_enum_subcommand():
 
 
 def test_netexec_uses_nxc():
-    cmd = _tool_map()["netexec"].build_command({"target": "1.2.3.4", "protocol": "smb"})
+    cmd = _tool_map()["netexec"].build_command({"target": "127.0.0.1", "protocol": "smb"})
     assert cmd[0] == "nxc"
 
 
@@ -357,17 +357,17 @@ def test_searchsploit_binary():
 
 def test_nmap_bad_target_rejected():
     with pytest.raises(ValueError):
-        _tool_map()["nmap"].validate({"target": "1.2.3.4!@#"})
+        _tool_map()["nmap"].validate({"target": "127.0.0.1!@#"})
 
 
 def test_nmap_timeout_above_max_rejected():
     with pytest.raises(ValueError):
-        _tool_map()["nmap"].validate({"target": "1.2.3.4", "timeout": 9999})
+        _tool_map()["nmap"].validate({"target": "127.0.0.1", "timeout": 9999})
 
 
 def test_netexec_bad_protocol_rejected():
     with pytest.raises(ValueError):
-        _tool_map()["netexec"].validate({"target": "1.2.3.4", "protocol": "badproto"})
+        _tool_map()["netexec"].validate({"target": "127.0.0.1", "protocol": "badproto"})
 
 
 def test_ffuf_requires_wordlist():
