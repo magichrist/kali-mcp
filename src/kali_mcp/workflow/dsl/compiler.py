@@ -29,22 +29,16 @@ import re
 from typing import Any
 
 from kali_mcp.workflow.dsl.parser import (
-    Execution,
     FieldRef,
-    InputDecl,
-    InputMapping,
     Literal,
-    OutputMap,
     PlaybookAST,
     StepDecl,
-    TypeExpr,
 )
 from kali_mcp.workflow.yaml_loader import (
-    PlaybookDefinition,
-    PlaybookError,
-    StepDefinition,
     VALID_ON_FAILURE,
     VALID_STEP_TYPES,
+    PlaybookDefinition,
+    StepDefinition,
 )
 
 # Shell / template-injection denylist (mirrors security.py and
@@ -285,10 +279,7 @@ def compile(
                 when=step.when,
                 parallel=step.parallel,
                 foreach=_field_ref_str(step.foreach) if step.foreach else None,
-                output_mapping={
-                    om.name: _field_ref_str(om.field_ref) for om in step.inputs
-                    if isinstance(om.value, FieldRef)
-                },
+                output_mapping={},
                 retry=step.retry,
                 on_failure=step.on_failure,
                 checkpoint=step.checkpoint,
