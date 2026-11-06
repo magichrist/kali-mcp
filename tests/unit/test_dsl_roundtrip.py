@@ -14,8 +14,8 @@ import pytest
 
 from kali_mcp.workflow import modules_runtime as mr
 from kali_mcp.workflow.dsl import compile_dsl, deserialize, parse, roundtrip
-from kali_mcp.workflow.dsl.compiler import CompileError
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
+from kali_mcp.workflow.dsl.compiler import CompileError, compile as dsl_compile
+from kali_mcp.workflow.yaml_loader import PlaybookDefinition
 
 VALID_DSL = """id: custom.domain_recon
 name: "Custom Domain Reconnaissance"
@@ -98,7 +98,7 @@ class TestRoundTrip:
         defn1 = compile_dsl(VALID_DSL)
         dsl_text = deserialize(defn1)
         ast2 = parse(dsl_text)
-        defn2 = compile(ast2)
+        defn2 = dsl_compile(ast2)
 
         by_id1 = {s.id: s for s in defn1.steps}
         by_id2 = {s.id: s for s in defn2.steps}
@@ -116,7 +116,7 @@ class TestRoundTrip:
         defn1 = compile_dsl(VALID_DSL)
         dsl_text = deserialize(defn1)
         ast2 = parse(dsl_text)
-        defn2 = compile(ast2)
+        defn2 = dsl_compile(ast2)
 
         assert defn1.inputs == defn2.inputs
         assert defn1.execution == defn2.execution
@@ -125,7 +125,7 @@ class TestRoundTrip:
         defn1 = compile_dsl(VALID_DSL)
         dsl_text = deserialize(defn1)
         ast2 = parse(dsl_text)
-        defn2 = compile(ast2)
+        defn2 = dsl_compile(ast2)
 
         assert defn1.raw["outputs"] == defn2.raw["outputs"]
 
@@ -134,7 +134,7 @@ class TestRoundTrip:
         defn1 = compile_dsl(VALID_DSL)
         dsl_text = deserialize(defn1)
         ast2 = parse(dsl_text)
-        defn2 = compile(ast2)
+        defn2 = dsl_compile(ast2)
         # Names/versions match
         assert defn1.name == defn2.name
         assert defn1.version == defn2.version
@@ -154,7 +154,7 @@ class TestDomainReconExample:
         assert defn.name == "Custom Domain Reconnaissance"
 
     def test_example_validates(self):
-        from kali_mcp.workflow.validator import validate_playbook, is_valid
+        from kali_mcp.workflow.validator import is_valid, validate_playbook
 
         defn = compile_dsl(VALID_DSL)
         module_catalog = [
