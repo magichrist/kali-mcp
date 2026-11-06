@@ -728,6 +728,12 @@ class DBManager:
         if target:
             clauses.append("target_id IN (SELECT id FROM targets WHERE target = ?)")
             params.append(target)
+        if asset_id:
+            clauses.append(
+                "target_id IN (SELECT t.id FROM targets t "
+                "JOIN assets a ON t.id = a.target_id WHERE a.asset_id = ?)"
+            )
+            params.append(asset_id)
         if severity:
             clauses.append("severity = ?")
             params.append(severity)
