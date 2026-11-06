@@ -11,7 +11,6 @@ import contextvars
 import uuid
 from typing import Any
 
-
 # ── context variables ───────────────────────────────────────────────────
 
 _assessment_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -64,7 +63,7 @@ def get_assessment_context() -> tuple[str | None, str | None]:
 __all__ = [
     "generate_assessment_id",
     "generate_job_id",
-    "set_assessment_context",
-    "reset_assessment_context",
     "get_assessment_context",
+    "reset_assessment_context",
+    "set_assessment_context",
 ]
