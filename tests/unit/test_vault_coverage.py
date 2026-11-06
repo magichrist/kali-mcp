@@ -103,16 +103,16 @@ class TestVaultList:
 
 class TestVaultQuery:
     def test_query_filters_by_tool(self):
-        vault.vault_write("findings", "f1", {"tool": "nmap"}, target="10.0.0.1", tool="nmap")
-        vault.vault_write("findings", "f2", {"tool": "httpx"}, target="10.0.0.2", tool="httpx")
+        vault.vault_write("findings", "f1", {"tool": "nmap"}, target="127.0.0.1", tool="nmap")
+        vault.vault_write("findings", "f2", {"tool": "httpx"}, target="example.org", tool="httpx")
         by_tool = vault.vault_query(tool="nmap")
         assert by_tool["count"] == 1
         assert by_tool["entries"][0]["name"] == "f1"
 
     def test_query_filters_by_target(self):
-        vault.vault_write("findings", "f1", {"tool": "nmap"}, target="10.0.0.1", tool="nmap")
-        vault.vault_write("findings", "f2", {"tool": "httpx"}, target="10.0.0.2", tool="httpx")
-        by_target = vault.vault_query(target="10.0.0.2")
+        vault.vault_write("findings", "f1", {"tool": "nmap"}, target="127.0.0.1", tool="nmap")
+        vault.vault_write("findings", "f2", {"tool": "httpx"}, target="example.org", tool="httpx")
+        by_target = vault.vault_query(target="example.org")
         assert by_target["count"] == 1
         assert by_target["entries"][0]["tool"] == "httpx"
 
@@ -124,8 +124,8 @@ class TestVaultQuery:
         assert result["entries"][0]["name"] == "f1"
 
     def test_query_search_matches_name_tags_content(self):
-        vault.vault_write("findings", "ssh_brute", {"note": "open port 22"}, target="10.0.0.1", tool="nmap", tags="brute,ssh")
-        vault.vault_write("findings", "http_header", {"note": "server: apache"}, target="10.0.0.2", tool="httpx", tags="web")
+        vault.vault_write("findings", "ssh_brute", {"note": "open port 22"}, target="127.0.0.1", tool="nmap", tags="brute,ssh")
+        vault.vault_write("findings", "http_header", {"note": "server: apache"}, target="example.org", tool="httpx", tags="web")
         by_name = vault.vault_query(search="ssh_brute")
         assert by_name["count"] == 1
         by_tag = vault.vault_query(search="web")
