@@ -259,7 +259,7 @@ async def _run_background(job_id: str, coroutine_factory) -> None:
     """Run a background playbook task and keep the registry entry updated."""
     try:
         await coroutine_factory()
-    except Exception as e:  # noqa: BLE001 — background jobs must never raise
+    except Exception as e:
         STATUS = JOB_REGISTRY.get(job_id)
         if STATUS is not None:
             STATUS["status"] = "failed"
@@ -411,7 +411,7 @@ class PlaybookResultTool(BaseTool):
 
         # 2. Vault fallback (past jobs across sessions)
         try:
-            from kali_mcp.utils.vault import vault_read, vault_query
+            from kali_mcp.utils.vault import vault_query, vault_read
 
             raw = vault_read("playbook_results", key)
             raw_text = raw if isinstance(raw, str) else json.dumps(raw)
