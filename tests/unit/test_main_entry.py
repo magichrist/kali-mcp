@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 from unittest.mock import patch
 
 from kali_mcp.cli import main as cli_main
 
 
-def test_main_calls_start_by_default() -> None:
-    """``python -m kali_mcp`` with no args defaults to starting the server."""
-    with patch("kali_mcp.cli.cmd_start", return_value=0) as mock_start:
+def test_main_no_arguments_prints_help() -> None:
+    """``python -m kali_mcp`` with no args prints help instead of starting the server."""
+    from io import StringIO
+
+    import contextlib
+
+    buf = StringIO()
+    with contextlib.redirect_stdout(buf):
         assert cli_main([]) == 0
-        mock_start.assert_called_once()
+    output = buf.getvalue()
+    assert "usage:" in output
+    assert "playbook" in output
+    assert "tool" in output
+    assert "execution" in output
 
 
 def test_main_guard_invokes_main() -> None:
