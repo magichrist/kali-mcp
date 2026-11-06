@@ -243,6 +243,72 @@ class ExecutionEngine:
                             log_execution(result)
                             return result
                         self._procs[req_id] = proc
+
+                        heartbeat_task = None
+                        if progress_cb is not None:
+
+                            async def _heartbeat():
+                                try:
+                                    interval = max(min(effective_timeout / 20.0, 5.0), 0.25)
+                                    for step in range(1, 20):
+                                        await asyncio.sleep(interval)
+                                        await _call_progress(progress_cb, min(step * 5, 95), 100)
+                                except Exception:  # noqa: BLE001, S110
+                                    pass
+
+                            heartbeat_task = asyncio.create_task(_heartbeat())
+
+                        try:
+                            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                                proc.communicate(),
+                                timeout=effective_timeout,
+                            )
+                        except (TimeoutError, asyncio.TimeoutError):
+                            try:
+                                os.killpg(proc.pid, 9)
+                            except (ProcessLookupError, OSError):
+                                try:
+                                    proc.kill()
+                                except ProcessLookupError:
+                                    pass
+                            try:
+                                await proc.wait()
+                            except Exception:  # noqa: BLE001
+                                pass
+                            elapsed = time.monotonic() - start_monotonic
+                            result = ExecutionResult(
+                                tool=tool,
+                                command=command_str,
+                                stdout="",
+                                stderr="Execution timed out",
+                                exit_code=-1,
+                                success=False,
+                                timed_out=True,
+                                duration=round(elapsed, 3),
+                                start_time=start_time,
+                                end_time=utc_now_iso(),
+                            )
+                            log_execution(result)
+                            return result
+                        finally:
+                            if heartbeat_task is not None:
+                                heartbeat_task.cancel()
+
+                        elapsed = time.monotonic() - start_monotonic
+                        result = ExecutionResult(
+                            tool=tool,
+                            command=command_str,
+                            stdout=stdout_bytes.decode("utf-8", errors="replace"),
+                            stderr=stderr_bytes.decode("utf-8", errors="replace"),
+                            exit_code=proc.returncode if proc.returncode is not None else 0,
+                            success=(proc.returncode == 0),
+                            timed_out=False,
+                            duration=round(elapsed, 3),
+                            start_time=start_time,
+                            end_time=utc_now_iso(),
+                        )
+                        log_execution(result)
+                        return result
                     else:
                         # ── Non-shell mode (nmap, katana, enum4linux, …) ──
                         # Use the isolation guard: per-step rlimits (Linux) +
@@ -278,7 +344,32 @@ class ExecutionEngine:
                                 end_time=utc_now_iso(),
                             )
                             log_execution(result)
+
                             return result
+                        elapsed = time.monotonic() - start_monotonic
+                        timed_out = exit_code == -1 and "Timed out" in (stderr_str or "")
+                        # Truncate output to MAX_OUTPUT per stream.
+                        stdout_str = (stdout_str or "")[:MAX_OUTPUT]
+                        stderr_str = (stderr_str or "")[:MAX_OUTPUT]
+                        result = ExecutionResult(
+                            tool=tool,
+                            command=command_str,
+                            stdout=stdout_str,
+                            stderr=stderr_str,
+                            exit_code=exit_code,
+                            success=(exit_code == 0),
+                            timed_out=timed_out,
+                            duration=round(_duration, 3) if _duration else round(elapsed, 3),
+                            start_time=start_time,
+                            end_time=utc_now_iso(),
+                        )
+                        log_execution(result)
+                        if progress_cb is not None:
+                            try:
+                                await _call_progress(progress_cb, 100, 100)
+                            except Exception:  # noqa: BLE001
+                                pass
+                        return result
 
                 finally:
                     self._cleanup_request(req_id)
