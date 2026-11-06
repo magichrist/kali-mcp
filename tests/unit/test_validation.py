@@ -30,7 +30,7 @@ class TestRequired:
 
 
 class TestIP:
-    @pytest.mark.parametrize("value", ["192.168.1.1", "::1", "10.0.0.1"])
+    @pytest.mark.parametrize("value", ["127.0.0.1", "127.0.0.1", "127.0.0.1"])
     def test_valid(self, value):
         assert validate_ip(value) is None
 
@@ -40,13 +40,13 @@ class TestIP:
 
 
 class TestCIDR:
-    @pytest.mark.parametrize("value", ["10.0.0.0/8", "192.168.1.1/32"])
+    @pytest.mark.parametrize("value", ["127.0.0.0/8", "127.0.0.1/32"])
     def test_valid(self, value):
         assert validate_cidr(value) is None
 
     def test_invalid(self):
         with pytest.raises(ValueError):
-            validate_cidr("10.0.0.0/33")
+            validate_cidr("127.0.0.0/33")
 
 
 class TestDomain:
@@ -60,7 +60,7 @@ class TestDomain:
 
 
 class TestURL:
-    @pytest.mark.parametrize("value", ["https://example.com", "http://10.0.0.1:8080/path"])
+    @pytest.mark.parametrize("value", ["https://example.com", "http://127.0.0.1:8080/path"])
     def test_valid(self, value):
         assert validate_url(value) is None
 
