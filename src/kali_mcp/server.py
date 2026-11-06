@@ -500,25 +500,52 @@ async def monitor_action(request):
 
 # ── Middleware ───────────────────────────────────────────────────
 class TokenAuthMiddleware:
-    def __init__(self, app, token: str, token_in_query: bool = False):
+    """Bearer-token gate for the HTTP surface.
+
+    ``open_paths`` lists path prefixes (e.g. ``("/studio",)``) that are
+    served WITHOUT authentication. This exists so the Playbook Studio
+    static UI can load in a regular browser — the UI is inert without
+    the API, and every ``/api/*``, MCP, and monitor path still requires
+    the token.
+    """
+
+    # Methods that may pass through an open path (browser asset loads).
+    _OPEN_METHODS = ("GET", "HEAD")
+
+    def __init__(
+        self,
+        app,
+        token: str,
+        token_in_query: bool = False,
+        open_paths: tuple[str, ...] = (),
+    ):
         self.app = app
         self.token = token
         self.token_in_query = token_in_query
+        self.open_paths = tuple(open_paths)
+
+    def _is_open(self, path: str, method: str) -> bool:
+        if method not in self._OPEN_METHODS:
+            return False
+        return any(path == p or path.startswith(p + "/") for p in self.open_paths)
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http" and self.token:
-            from starlette.requests import Request
-            from starlette.responses import JSONResponse
+            path = scope.get("path", "")
+            method = scope.get("method", "")
+            if not self._is_open(path, method):
+                from starlette.requests import Request
+                from starlette.responses import JSONResponse
 
-            request = Request(scope, receive)
-            auth = request.headers.get("authorization", "")
-            provided = auth.removeprefix("Bearer ").strip()
-            if self.token_in_query:
-                provided = provided or request.query_params.get("token", "")
-            if provided != self.token:
-                response = JSONResponse({"error": "Unauthorized"}, status_code=401)
-                await response(scope, receive, send)
-                return
+                request = Request(scope, receive)
+                auth = request.headers.get("authorization", "")
+                provided = auth.removeprefix("Bearer ").strip()
+                if self.token_in_query:
+                    provided = provided or request.query_params.get("token", "")
+                if provided != self.token:
+                    response = JSONResponse({"error": "Unauthorized"}, status_code=401)
+                    await response(scope, receive, send)
+                    return
 
         await self.app(scope, receive, send)
 
@@ -550,16 +577,20 @@ def main() -> None:
             "MCP_API_TOKEN is required. Set MCP_API_TOKEN in .env, or set "
             "KALI_MCP_INSECURE=1 to run without authentication (dev only)."
         )
-    if api_token:
+    if api_token and not config.insecure:
         app.add_middleware(
             TokenAuthMiddleware,
             token=api_token,
             token_in_query=config.token_in_query,
+            open_paths=("/studio",),
         )
-        logger.info("API token authentication enabled")
+        logger.info(
+            "API token authentication enabled (/studio UI assets are public;"
+            " /api/* and MCP are token-protected)"
+        )
     else:
         logger.warning(
-            "No MCP_API_TOKEN set and KALI_MCP_INSECURE=1 — server is open."
+            "KALI_MCP_INSECURE=1 or no MCP_API_TOKEN set — server is open."
         )
 
     # Graceful shutdown
