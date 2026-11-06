@@ -9,6 +9,10 @@ default:
 install:
     pip install -e .
 
+# Bootstrap .env from .env.example (fills MCP_API_TOKEN with a secure random value)
+init:
+    python -m kali_mcp init
+
 # Start the server (foreground)
 start:
     python -m kali_mcp
