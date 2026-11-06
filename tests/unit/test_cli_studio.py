@@ -84,6 +84,51 @@ class TestStudioPortSelection:
         assert any(":9001/studio" in u for u in reached)
 
 
+class TestWildcardHostResolution:
+    def test_wildcard_bind_resolves_to_lan_ip(self, monkeypatch) -> None:
+        """MCP_HOST=0.0.0.0 → browser URL uses the machine's LAN IP."""
+        monkeypatch.setenv("MCP_HOST", "0.0.0.0")
+        monkeypatch.delenv("STUDIO_PORT", raising=False)
+        monkeypatch.delenv("MCP_PORT", raising=False)
+        monkeypatch.setenv("KALI_MCP_INSECURE", "1")  # silence protection note
+        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "192.168.2.4")
+        monkeypatch.setattr("kali_mcp.cli._server_reachable", lambda url, timeout=1.5: True)
+        monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
+
+        assert cmd_studio(_args()) == 0
+
+    def test_primary_lan_ip_returned_is_used_in_url(self, monkeypatch) -> None:
+        from kali_mcp.cli import _browser_url_for_host
+
+        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "192.168.2.4")
+        url = _browser_url_for_host("0.0.0.0", 8399)
+        assert url == "http://192.168.2.4:8399/studio"
+
+    def test_wildcard_bind_falls_back_to_localhost_offline(self, monkeypatch) -> None:
+        from kali_mcp.cli import _browser_url_for_host
+
+        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "")
+        assert _browser_url_for_host("0.0.0.0", 8399) == "http://127.0.0.1:8399/studio"
+        assert _browser_url_for_host("::", 8399) == "http://127.0.0.1:8399/studio"
+
+    def test_explicit_host_is_never_remapped(self, monkeypatch) -> None:
+        from kali_mcp.cli import _browser_url_for_host
+
+        monkeypatch.setattr(
+            "kali_mcp.cli._primary_lan_ip",
+            lambda: (_ for _ in ()).throw(AssertionError("must not be called")),
+        )
+        assert _browser_url_for_host("127.0.0.1", 8399) == "http://127.0.0.1:8399/studio"
+        assert _browser_url_for_host("192.168.2.9", 8399) == "http://192.168.2.9:8399/studio"
+        assert _browser_url_for_host("staging.internal", 8399) == "http://staging.internal:8399/studio"
+
+    def test_port_env_still_applies_with_wildcard(self, monkeypatch) -> None:
+        from kali_mcp.cli import _browser_url_for_host
+
+        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "10.0.0.7")
+        assert _browser_url_for_host("0.0.0.0", 8340) == "http://10.0.0.7:8340/studio"
+
+
 class TestMainBehaviour:
     def test_duplicate_frontend_commands_removed(self) -> None:
         import contextlib
