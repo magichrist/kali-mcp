@@ -217,18 +217,30 @@ def persist_run(
                 vault_category = f"runs/{_sanitize_fs(tool_name)}"
             else:
                 vault_category = f"findings/{_sanitize_fs(target)}"
+            # Redact secrets before depositing to the vault (defense in depth).
+            safe_payload = redact_dict(payload)
             vault_write(
                 vault_category,
                 f"{now_iso().replace(':', '')}_{tool_name}",
-                payload,
+                safe_payload,
                 target=target,
                 tool=tool_name,
                 tags=f"tool:{tool_name}",
             )
+            # Store credentials as secret references (never plaintext in vault).
             for c in credentials or []:
+                service = c.get("service", "svc")
+                username = c.get("username", "user")
+                password = c.get("password", "")
+                if password:
+                    ref = write_secret_ref(
+                        f"{_sanitize_fs(service)}_{_sanitize_fs(username)}",
+                        password,
+                    )
+                    c = {**c, "password_ref": ref, "password": "[REDACTED]"}
                 vault_write(
                     "credentials",
-                    f"{_sanitize_fs(c.get('service', 'svc'))}_{_sanitize_fs(c.get('username', 'user'))}_{now_iso().replace(':', '')}",
+                    f"{_sanitize_fs(service)}_{_sanitize_fs(username)}_{now_iso().replace(':', '')}",
                     {**c, "source_tool": tool_name, "target": target},
                     target=target,
                     tool=tool_name,
