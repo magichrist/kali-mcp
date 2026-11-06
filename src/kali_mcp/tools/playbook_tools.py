@@ -1,4 +1,4 @@
-"""Playbook registry + status tools for AI agents."""
+"""Playbook registry + status tools for AI agents (v2.0 DAG-aware)."""
 
 from __future__ import annotations
 
@@ -9,18 +9,28 @@ from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
 from kali_mcp.responses import error_response, success_response
 from kali_mcp.tools.base import BaseTool
 
+
+def _workflow_run_status() -> dict:
+    """Lazy import of the workflow RUN_STATUS dict (breaks circular import)."""
+    from kali_mcp.workflow import RUN_STATUS
+
+    return RUN_STATUS
+
 BUILTIN_PLAYBOOKS: dict[str, dict[str, Any]] = {
     "playbook_recon": {
-        "description": "External recon: subfinder → httpx → masscan → whatweb+nmap (parallel) → nuclei",
-        "input": {"target": "domain or host"},
+        "description": "External recon: validate → subfinder → httpx → masscan → whatweb+nmap (parallel) → nuclei → correlate → report",
+        "input": {"target": "domain or host", "skip_nuclei": "optional bool", "resume": "optional bool"},
+        "workflow": "external_recon",
     },
     "playbook_webapp": {
-        "description": "Web app: katana → arjun+ffuf (parallel) → nuclei → sqlmap+commix (parallel)",
-        "input": {"target": "URL", "wordlist": "optional"},
+        "description": "Web app: validate → katana → arjun+ffuf (parallel) → nuclei → sqlmap+commix (parallel) → correlate → report",
+        "input": {"target": "URL", "wordlist": "optional path", "resume": "optional bool"},
+        "workflow": "web_assessment",
     },
     "playbook_ad": {
-        "description": "AD: enum4linux → bloodhound → netexec+crackmapexec (parallel)",
-        "input": {"target": "DC host/IP", "domain": "AD domain"},
+        "description": "AD: validate → enum4linux → bloodhound → netexec+crackmapexec (parallel) → correlate → report",
+        "input": {"target": "DC host/IP", "domain": "optional AD domain", "resume": "optional bool"},
+        "workflow": "ad_assessment",
     },
 }
 
@@ -50,9 +60,9 @@ class PlaybookListTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "List available playbooks with their pipelines and required inputs. "
+            "List available DAG playbooks with their steps and required inputs. "
             "Execute one via its tool name (e.g. playbook_recon) or via "
-            "playbook_engine for custom step sequences."
+            "playbook_engine for custom DAG sequences."
         )
 
     def input_schema(self) -> dict[str, Any]:
@@ -74,10 +84,8 @@ class PlaybookListTool(BaseTool):
         return ["playbook_list"]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        from kali_mcp.tools.playbook_engine import RUN_STATUS
-
         playbooks = {
-            name: {**meta, "last_status": RUN_STATUS.get(name, {}).get("status")}
+            name: {**meta, "last_status": _workflow_run_status().get(name, {}).get("status")}
             for name, meta in BUILTIN_PLAYBOOKS.items()
         }
         return _make_result(self.name, {"playbooks": playbooks})
@@ -91,8 +99,8 @@ class PlaybookStatusTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Check the run status of a playbook — which steps completed, which "
-            "remain — to decide whether to resume an interrupted run."
+            "Check the run status of a DAG playbook — which steps completed, "
+            "which remain — to decide whether to resume an interrupted run."
         )
 
     def input_schema(self) -> dict[str, Any]:
@@ -114,12 +122,11 @@ class PlaybookStatusTool(BaseTool):
         return ["playbook_status", arguments.get("name", "")]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        from kali_mcp.tools.playbook_engine import RUN_STATUS
-
         name = arguments.get("name")
-        if name and name not in RUN_STATUS:
+        run_status = _workflow_run_status()
+        if name and name not in run_status:
             return error_response(
                 ToolError(error="Unknown playbook", details=f"no run recorded for '{name}'")
             )
-        statuses = {name: RUN_STATUS[name]} if name else dict(RUN_STATUS)
+        statuses = {name: run_status[name]} if name else dict(run_status)
         return _make_result(self.name, {"statuses": statuses})
