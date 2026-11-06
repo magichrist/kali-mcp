@@ -492,9 +492,10 @@ async def monitor_action(request):
 
 # ── Middleware ───────────────────────────────────────────────────
 class TokenAuthMiddleware:
-    def __init__(self, app, token: str):
+    def __init__(self, app, token: str, token_in_query: bool = False):
         self.app = app
         self.token = token
+        self.token_in_query = token_in_query
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http" and self.token:
@@ -503,8 +504,9 @@ class TokenAuthMiddleware:
 
             request = Request(scope, receive)
             auth = request.headers.get("authorization", "")
-            query_token = request.query_params.get("token", "")
-            provided = auth.removeprefix("Bearer ").strip() or query_token
+            provided = auth.removeprefix("Bearer ").strip()
+            if self.token_in_query:
+                provided = provided or request.query_params.get("token", "")
             if provided != self.token:
                 response = JSONResponse({"error": "Unauthorized"}, status_code=401)
                 await response(scope, receive, send)
