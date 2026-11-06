@@ -72,10 +72,28 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Build wheel + sdist
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      # Generate the changelog of everything between the previous tag and
+      # this one (scripts/generate_changelog.py), attached as the release
+      # body; GitHub still appends its own compare-link footer via
+      # `generate_release_notes`.
+      - name: Generate release notes
+        run: python scripts/generate_changelog.py --tag "${{ github.ref_name }}" -o release-notes.md
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: dist/*
           generate_release_notes: true
           prerelease: false
           make_latest: true
