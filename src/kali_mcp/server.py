@@ -22,6 +22,12 @@ from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 from kali_mcp.config import config
 from kali_mcp.db import manager as db_manager
 from kali_mcp.execution import engine, reset_progress_cb, set_progress_cb
+from kali_mcp.identifiers import (
+    generate_assessment_id,
+    generate_job_id,
+    reset_assessment_context,
+    set_assessment_context,
+)
 from kali_mcp.logging_utils import setup_logging
 from kali_mcp.monitor import Monitor
 from kali_mcp.monitor.sessions import session_registry
@@ -29,9 +35,11 @@ from kali_mcp.notifications import emit_log, notify_resource_updated
 from kali_mcp.prompts import register_prompts
 from kali_mcp.registry import registry
 from kali_mcp.resources import register_resources
+from kali_mcp.scope import check_scope
 
 # Import all tools (triggers registration)
 from kali_mcp.tools import ALL_TOOLS
+from kali_mcp.tools.persist import extract_target
 from kali_mcp.utils.vault import ensure_vault_dirs
 
 setup_logging()
@@ -269,6 +277,28 @@ for tool_instance in ALL_TOOLS:
         async def handler(ctx: Context, **kwargs) -> str:
             request_id = uuid.uuid4().hex[:12]
             health.record_request()
+            # ── Scope enforcement (Phase 1 Foundation) ──────────────────
+            # Every tool call passes through the server-side scope check
+            # before it is dispatched to the tool implementation.
+            tool_name = t.name
+            target = extract_target(kwargs)
+            try:
+                check_scope(target, tool_name)
+            except ValueError as exc:
+                health.record_error()
+                emit_log(
+                    ctx,
+                    "warning",
+                    f"Scope violation {tool_name} ({request_id}): {exc}",
+                )
+                return json.dumps(
+                    {"error": str(exc), "scope_violation": True}, indent=2
+                )
+            # ── Assessment / job context ────────────────────────────────
+            # Opaque handles stored on scans / evidence rows for traceability.
+            assessment_id = kwargs.get("assessment_id") or generate_assessment_id()
+            job_id = kwargs.get("job_id") or generate_job_id()
+            ctx_tokens = set_assessment_context(assessment_id, job_id)
             # Track MCP client session for interactive monitoring
             _session = getattr(ctx, "session", None)
             if _session is not None:
@@ -338,6 +368,7 @@ for tool_instance in ALL_TOOLS:
                 emit_log(ctx, "error", f"Failed {t.name} ({request_id})")
                 return json.dumps({"error": "Tool execution failed"}, indent=2)
             finally:
+                reset_assessment_context(ctx_tokens)
                 reset_progress_cb(token)
 
         handler.__name__ = t.name
