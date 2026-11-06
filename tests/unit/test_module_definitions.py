@@ -6,11 +6,10 @@ declare a real registered tool, typed inputs, and declared outputs.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-import yaml
 import pytest
+import yaml
 
 MODULES_DIR = Path(__file__).resolve().parent.parent.parent / "src" / "kali_mcp" / "playbooks" / "modules"
 
