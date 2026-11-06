@@ -8,10 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from kali_mcp.execution import ExecutionEngine
-
 
 _SCOPE_ENV_VARS = (
     "MCP_SCOPE_ALLOWED_TARGETS",
