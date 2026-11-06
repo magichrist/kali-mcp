@@ -81,22 +81,22 @@ class TestVaultWriteReadDelete:
         with self._patch_vault_root(tmp_path):
             ensure_vault_dirs()
             vault_write(
-                "findings/10.0.0.1",
+                "findings/127.0.0.1",
                 "f1",
                 {"tool": "nmap"},
-                target="10.0.0.1",
+                target="127.0.0.1",
                 tool="nmap",
             )
             vault_write(
-                "findings/10.0.0.2",
+                "findings/example.org",
                 "f2",
                 {"tool": "httpx"},
-                target="10.0.0.2",
+                target="example.org",
                 tool="httpx",
             )
             by_tool = vault_query(tool="nmap")
             assert by_tool["count"] == 1
-            by_target = vault_query(target="10.0.0.1")
+            by_target = vault_query(target="127.0.0.1")
             assert by_target["count"] == 1
 
     def test_delete_removes_row_and_mirror(self, tmp_path) -> None:
