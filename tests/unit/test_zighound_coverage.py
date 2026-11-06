@@ -60,14 +60,14 @@ class TestValidate:
 
 class TestBuildCommand:
     def test_scan_minimal(self) -> None:
-        cmd = ZighoundTool().build_command({"command": "scan", "target": "10.0.0.0/24"})
-        assert cmd == ["zighound", "scan", "--target", "10.0.0.0/24"]
+        cmd = ZighoundTool().build_command({"command": "scan", "target": "127.0.0.0/24"})
+        assert cmd == ["zighound", "scan", "--target", "127.0.0.0/24"]
 
     def test_scan_full(self) -> None:
         cmd = ZighoundTool().build_command(
             {
                 "command": "scan",
-                "target": "10.0.0.0/24",
+                "target": "127.0.0.0/24",
                 "ports": "22,80,443",
                 "stealth": True,
                 "jitter": 500,
@@ -77,7 +77,7 @@ class TestBuildCommand:
             "zighound",
             "scan",
             "--target",
-            "10.0.0.0/24",
+            "127.0.0.0/24",
             "--ports",
             "22,80,443",
             "--stealth",
@@ -88,9 +88,9 @@ class TestBuildCommand:
     def test_scan_no_optional_flags(self) -> None:
         # stealth False, jitter 0, ports empty -> none appended
         cmd = ZighoundTool().build_command(
-            {"command": "scan", "target": "10.0.0.0/24", "stealth": False, "jitter": 0, "ports": ""}
+            {"command": "scan", "target": "127.0.0.0/24", "stealth": False, "jitter": 0, "ports": ""}
         )
-        assert cmd == ["zighound", "scan", "--target", "10.0.0.0/24"]
+        assert cmd == ["zighound", "scan", "--target", "127.0.0.0/24"]
 
     def test_c2_listen(self) -> None:
         cmd = ZighoundTool().build_command({"command": "c2", "port": 443, "psk": "secret"})
@@ -136,7 +136,7 @@ class TestBuildCommand:
 
     def test_extra_args_split(self) -> None:
         cmd = ZighoundTool().build_command(
-            {"command": "scan", "target": "10.0.0.0/24", "extra_args": "--foo bar --baz"}
+            {"command": "scan", "target": "127.0.0.0/24", "extra_args": "--foo bar --baz"}
         )
         assert "--foo" in cmd and "bar" in cmd and "--baz" in cmd
 
