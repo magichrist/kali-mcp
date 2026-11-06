@@ -114,13 +114,13 @@ class TestCompilerHappyPath:
 
     def test_tool_step_compiles(self):
         dsl = """id: pb.tools name: "t" steps {
-  scan: tool nmap depends_on [] inputs { target: "10.0.0.1" }
+  scan: tool nmap depends_on [] inputs { target: "127.0.0.1" }
 }"""
         defn = dsl_compile(parse(dsl))
         s = defn.steps[0]
         assert s.type == "tool"
         assert s.tool == "nmap"
-        assert s.args == {"target": "10.0.0.1"}
+        assert s.args == {"target": "127.0.0.1"}
 
     def test_foreach_compiles(self):
         dsl = """id: pb.foreach name: "t" steps {
