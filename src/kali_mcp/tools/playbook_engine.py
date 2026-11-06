@@ -15,8 +15,10 @@ from kali_mcp.models import ExecutionResult
 from kali_mcp.registry import registry
 from kali_mcp.tools.persist import now_iso
 
-# Global run-state registry: {playbook_name: status_dict}
-RUN_STATUS: dict[str, dict[str, Any]] = {}
+# Shared run-state registry with the DAG engine (kali_mcp.workflow.RUN_STATUS).
+# Imported rather than re-defined so that PlaybookStatusTool and the legacy
+# engine observe the same store.
+from kali_mcp.workflow import RUN_STATUS  # noqa: E402  (circular-import safe: workflow does not import this module)
 
 
 class PlaybookEngine:
