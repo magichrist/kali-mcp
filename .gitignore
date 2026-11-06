@@ -12,3 +12,5 @@ artifacts/
 data/
 .venv
 .venv/
+
+docs/
