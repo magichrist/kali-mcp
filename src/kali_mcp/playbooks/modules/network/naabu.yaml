@@ -1,0 +1,20 @@
+id: naabu
+name: "Naabu"
+description: "Port scanning via naabu"
+tool: naabu
+timeout: 600
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target host"
+  ports:
+    type: string
+    description: "Port range"
+    default: "1-1000"
+  scan_type:
+    type: string
+    description: "Scan type (connect / syn)"
+    default: "connect"
+outputs:
+  - open_ports
