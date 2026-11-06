@@ -28,7 +28,12 @@ from kali_mcp.execution import engine as exec_engine
 from kali_mcp.logging_utils import log_execution
 from kali_mcp.models import ExecutionResult
 from kali_mcp.tools.persist import now_iso, persist_run
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition, PlaybookError
+from kali_mcp.workflow.yaml_loader import (
+    PlaybookDefinition,
+    StepDefinition,
+    PlaybookError,
+    load_module,
+)
 from kali_mcp.workflow.scope_gate import ScopeViolationError, gate_step_args
 from kali_mcp.workflow import modules_runtime
 
@@ -76,6 +81,7 @@ class PlaybookEngine:
         name = playbook.name
         steps = playbook.steps
         subst_target = playbook.inputs.get("targets")
+        self._subst_target = subst_target
 
         # Resume: determine which step indices to skip
         skip_indices: set[int] = set()
@@ -203,12 +209,20 @@ class PlaybookEngine:
         # Server-side scope check on every target-looking arg, before ANY
         # step type executes (security architecture: the engine independently
         # enforces policy regardless of UI visibility or author intent).
-        tool_name = step.tool if step.type == "tool" else None
+        tool_name = step.tool
+        args_for_gate = step.args
+        if step.module and not tool_name:
+            mod = load_module(step.module)
+            if mod is not None:
+                tool_name = mod.get("tool")
+                args_for_gate = self._merge_module_args(step, mod)
         try:
-            gate_step_args(step.args, step_id=step.id, tool_name=tool_name)
+            gate_step_args(args_for_gate, step_id=step.id, tool_name=tool_name)
         except ScopeViolationError:
             raise
 
+        if step.module:
+            return await self._run_module_step(step, state)
         if step.type == "tool":
             return await self._run_tool_step(step, state)
         if step.type == "scope_check":
@@ -231,6 +245,63 @@ class PlaybookEngine:
             return {"tool": tool_name, "error": "unknown tool", "step": step.id}
 
         args = dict(step.args)
+        # Apply output_mapping: map prior step outputs into this step's args
+        for out_key, src_ref in step.output_mapping.items():
+            value = self._resolve_ref(src_ref)
+            if value is not None:
+                args[out_key] = value
+
+        return await tool.safe_execute(args)
+
+    def _merge_module_args(self, step: StepDefinition, mod: dict[str, Any]) -> dict[str, Any]:
+        """Merge module-declared input defaults with step args (step args win).
+
+        ``{{target}}`` placeholders in module defaults are substituted using
+        the playbook-level target captured at run time.
+        """
+        args: dict[str, Any] = {}
+        for k, v in (mod.get("inputs") or {}).items():
+            if isinstance(v, str) and self._subst_target:
+                args[k] = v.replace("{{target}}", str(self._subst_target))
+            else:
+                args[k] = v
+        if isinstance(step.args, dict):
+            args.update(step.args)
+        return args
+
+    async def _run_module_step(self, step: StepDefinition, state: dict) -> Any:
+        """Resolve an internal module declaration to a native tool and run it.
+
+        Module definitions (``playbooks/modules/<cat>/<id>.yaml``) declare the
+        native ``tool`` that implements them plus default inputs. The resolved
+        tool is executed through the registry, with step args overriding module
+        defaults and ``output_mapping`` applied as usual.
+        """
+        mod = load_module(step.module) if step.module else None
+        if mod is None:
+            return {
+                "step": step.id,
+                "module": step.module,
+                "error": f"module not found: {step.module}",
+            }
+        tool_name = mod.get("tool")
+        if not tool_name:
+            return {
+                "step": step.id,
+                "module": step.module,
+                "error": f"module {step.module} declares no tool",
+            }
+
+        tool = _get_registry().get(tool_name)
+        if tool is None:
+            return {
+                "tool": tool_name,
+                "module": step.module,
+                "error": "unknown tool",
+                "step": step.id,
+            }
+
+        args = self._merge_module_args(step, mod)
         # Apply output_mapping: map prior step outputs into this step's args
         for out_key, src_ref in step.output_mapping.items():
             value = self._resolve_ref(src_ref)
