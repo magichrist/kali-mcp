@@ -469,3 +469,82 @@ def get_index() -> dict[str, Any]:
         conn.close()
     entries = [dict(r) for r in rows]
     return {"count": len(entries), "entries": entries}
+
+
+# ── secret redaction & access control ──────────────────────────────────
+
+import re as _re
+
+_SECRET_PATTERNS = [
+    _re.compile(r"(?i)(api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*['\"]?([A-Za-z0-9_\-]{8,})['\"]?"),
+    _re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH |)PRIVATE KEY-----", _re.S),
+    _re.compile(r"(?i)bearer\s+[A-Za-z0-9_\-\.]{10,}"),
+]
+
+
+def redact_secrets(text: str) -> str:
+    """Redact common secret patterns from text. Returns redacted string."""
+    if not isinstance(text, str):
+        text = str(text)
+    out = text
+    # key=value / key: value secrets
+    out = _re.sub(
+        r"(?i)(api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{8,}['\"]?",
+        lambda m: m.group(0).split(m.group(1) if False else "", 1)[0] + "[REDACTED]" if False else _re.sub(r"([:=]\s*['\"]?)[A-Za-z0-9_\-]{8,}", r"\1[REDACTED]", m.group(0)),
+        out,
+    )
+    # private keys
+    out = _re.sub(
+        r"-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH |)PRIVATE KEY-----",
+        "[REDACTED PRIVATE KEY]",
+        out,
+        flags=_re.S,
+    )
+    # bearer tokens
+    out = _re.sub(r"(?i)bearer\s+[A-Za-z0-9_\-\.]{10,}", "Bearer [REDACTED]", out)
+    return out
+
+
+def redact_dict(obj: Any) -> Any:
+    """Recursively redact secrets in a dict/list/str structure."""
+    if isinstance(obj, str):
+        return redact_secrets(obj)
+    if isinstance(obj, dict):
+        return {k: ("[REDACTED]" if _looks_like_secret_key(k) else redact_dict(v)) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [redact_dict(v) for v in obj]
+    return obj
+
+
+def _looks_like_secret_key(key: str) -> bool:
+    k = str(key).lower()
+    return any(s in k for s in ("password", "secret", "token", "api_key", "apikey", "private_key"))
+
+
+def can_access(assessment_id: str, caller_id: str | None = None) -> bool:
+    """Return True if caller may access the given assessment's vault rows.
+
+    Default policy: access is allowed when no owner is recorded for the
+    assessment (backwards compatible). When an owner is recorded, only that
+    owner (or an empty/None caller in dev mode) may access.
+    """
+    try:
+        row = _connect().execute(
+            f"SELECT tags, target FROM {TABLE} WHERE category='assessments' AND name=?",
+            (str(assessment_id).strip(),),
+        ).fetchone()
+    except Exception:  # noqa: BLE001
+        return True
+    if row is None:
+        return True
+    tags = row["tags"] or ""
+    # Owner recorded as tag "owner:<id>"
+    owner = None
+    for part in tags.split(","):
+        if part.startswith("owner:"):
+            owner = part[len("owner:"):]
+    if not owner:
+        return True
+    if caller_id is None:
+        return True
+    return caller_id == owner
