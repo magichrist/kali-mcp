@@ -116,10 +116,10 @@ def gate_step_args(
 
 
 __all__ = [
+    "TARGET_ARG_KEYS",
     "ScopeViolationError",
     "assert_target_allowed",
     "extract_targets",
     "gate_step_args",
-    "TARGET_ARG_KEYS",
     "load_scope",
 ]
