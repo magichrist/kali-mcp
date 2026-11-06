@@ -7,4 +7,12 @@ server work without it (spec AC 19).
 
 from __future__ import annotations
 
-__all__ = []
+from kali_mcp.studio.api import mount_studio_routes
+
+
+def StudioAPI(app) -> None:
+    """Mount Studio REST routes on the given Starlette app (router factory)."""
+    mount_studio_routes(app)
+
+
+__all__ = ["StudioAPI", "mount_studio_routes"]
