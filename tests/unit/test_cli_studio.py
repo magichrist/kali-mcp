@@ -91,7 +91,7 @@ class TestWildcardHostResolution:
         monkeypatch.delenv("STUDIO_PORT", raising=False)
         monkeypatch.delenv("MCP_PORT", raising=False)
         monkeypatch.setenv("KALI_MCP_INSECURE", "1")  # silence protection note
-        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "192.168.2.4")
+        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "203.0.113.10")
 
         reached = {}
         monkeypatch.setattr(
@@ -101,14 +101,14 @@ class TestWildcardHostResolution:
         monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
 
         assert cmd_studio(_args()) == 0
-        assert "http://192.168.2.4:8399/studio" in reached
+        assert "http://203.0.113.10:8399/studio" in reached
 
     def test_primary_lan_ip_returned_is_used_in_url(self, monkeypatch) -> None:
         from kali_mcp.cli import _browser_url_for_host
 
-        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "192.168.2.4")
+        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "203.0.113.10")
         url = _browser_url_for_host("0.0.0.0", 8399)
-        assert url == "http://192.168.2.4:8399/studio"
+        assert url == "http://203.0.113.10:8399/studio"
 
     def test_wildcard_bind_falls_back_to_localhost_offline(self, monkeypatch) -> None:
         from kali_mcp.cli import _browser_url_for_host
