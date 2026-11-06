@@ -196,7 +196,7 @@ class TestPlaybookRunTool:
         assessment = {
             "assessment_id": "assessment_def",
             "execution": {"status": "completed"},
-            "assets": {"hosts": [{"ip": "1.2.3.4"}]},
+            "assets": {"hosts": [{"ip": "127.0.0.1"}]},
             "findings": [{"severity": "high"}],
             "correlated_findings": [],
             "asset_graph": {"nodes": []},
@@ -217,7 +217,7 @@ class TestPlaybookRunTool:
         assert result["isError"] is False
         ar = result["assessment_run"]
         assert ar["status"] == "completed"
-        assert ar["assets"] == {"hosts": [{"ip": "1.2.3.4"}]}
+        assert ar["assets"] == {"hosts": [{"ip": "127.0.0.1"}]}
         assert ar["findings"] == [{"severity": "high"}]
         assert ar["correlated_findings"] == []
         assert ar["asset_graph"] == {"nodes": []}
