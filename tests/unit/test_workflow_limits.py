@@ -10,16 +10,16 @@ from __future__ import annotations
 
 import pytest
 
+from kali_mcp.scope import Scope
 from kali_mcp.workflow import dag_executor as de
-from kali_mcp.workflow.dag_executor import PlaybookEngine, MAX_ITERATIONS, run_playbook_async
+from kali_mcp.workflow.dag_executor import MAX_ITERATIONS, PlaybookEngine, run_playbook_async
 from kali_mcp.workflow.scope_gate import (
     ScopeViolationError,
     assert_target_allowed,
     extract_targets,
     gate_step_args,
 )
-from kali_mcp.workflow.yaml_loader import StepDefinition, PlaybookDefinition
-from kali_mcp.scope import Scope
+from kali_mcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
 
 
 def _defn(steps, inputs=None):
