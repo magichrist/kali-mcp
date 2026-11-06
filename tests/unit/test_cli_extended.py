@@ -6,6 +6,8 @@ build_parser edge cases, and main() default/unknown-command handling.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -185,10 +187,16 @@ class TestCmdPurgeExtended:
 
 
 class TestMainExtended:
-    def test_main_no_arguments_defaults_to_start(self) -> None:
-        with patch("kali_mcp.cli.cmd_start", return_value=0) as mock_start:
+    def test_main_no_arguments_prints_help(self) -> None:
+        """Running ``kmcp`` with no command prints help instead of starting the server."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
             assert main([]) == 0
-            mock_start.assert_called_once()
+        output = buf.getvalue()
+        assert "usage:" in output
+        assert "playbook" in output
+        assert "tool" in output
+        assert "execution" in output
 
     def test_main_explicit_start(self) -> None:
         with patch("kali_mcp.cli.cmd_start", return_value=0) as mock_start:
