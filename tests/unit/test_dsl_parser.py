@@ -8,13 +8,6 @@ from kali_mcp.workflow.dsl.parser import (
     DSLParseError,
     Execution,
     FieldRef,
-    InputDecl,
-    InputMapping,
-    Literal,
-    OutputMap,
-    PlaybookAST,
-    StepDecl,
-    TypeExpr,
     parse,
 )
 
@@ -149,12 +142,13 @@ class TestParserHappyPath:
 
     def test_foreach(self):
         dsl = """id: pb.foreach name: "t" steps {
+  dns: module dns.resolve depends_on [] inputs { target: "{{inputs.target}}" }
   iter: module dns.resolve depends_on [dns] foreach: "{{steps.dns.resolved_ips}}" inputs {
-    target: "{{_foreach_item}}"
+    target: "{{steps.dns.resolved_ips}}"
   }
 }"""
         ast = parse(dsl)
-        s = ast.steps[0]
+        s = ast.steps[1]
         assert s.foreach is not None
         assert s.foreach.kind == "steps"
         assert s.foreach.path == ["dns", "resolved_ips"]
