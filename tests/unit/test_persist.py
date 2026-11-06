@@ -22,7 +22,7 @@ from kali_mcp.tools.persist import (
 
 class TestParsers:
     def test_hydra_credentials(self):
-        out = "[22][ssh] host: 10.0.0.1   login: root   password: toor\n"
+        out = "[22][ssh] host: 127.0.0.1   login: root   password: toor\n"
         creds = parse_hydra(out)
         assert len(creds) == 1
         assert creds[0]["service"] == "ssh"
@@ -31,7 +31,7 @@ class TestParsers:
         assert creds[0]["port"] == 22
 
     def test_medusa_credentials(self):
-        out = "[ssh] host: 10.0.0.5 user: admin password: secret: SUCCESS\n"
+        out = "[ssh] host: 127.0.0.1 user: admin password: secret: SUCCESS\n"
         creds = parse_medusa(out)
         assert len(creds) == 1
         assert creds[0]["username"] == "admin"
@@ -51,26 +51,26 @@ class TestParsers:
         assert creds[0]["password"] == "monkey"
 
     def test_gobuster_paths(self):
-        out = "/admin (Status: 200)\nhttp://10.0.0.1/backup (Status: 403)\n"
+        out = "/admin (Status: 200)\nhttp://127.0.0.1/backup (Status: 403)\n"
         findings = parse_gobuster(out)
         assert len(findings) == 2
         assert findings[0]["url"] == "/admin"
         assert findings[1]["url"].endswith("/backup")
 
     def test_dirb_paths(self):
-        out = "+ http://10.0.0.1/cgi-bin/ (CODE:200)\n"
+        out = "+ http://127.0.0.1/cgi-bin/ (CODE:200)\n"
         findings = parse_dirb(out)
         assert len(findings) == 1
         assert findings[0]["type"] == "web_dir"
 
     def test_wfuzz_hits(self):
-        out = "000001:   200  28 L   55 W      5 Ch   'http://10.0.0.1/admin'\n"
+        out = "000001:   200  28 L   55 W      5 Ch   'http://127.0.0.1/admin'\n"
         findings = parse_wfuzz(out)
         assert len(findings) == 1
-        assert findings[0]["url"] == "http://10.0.0.1/admin"
+        assert findings[0]["url"] == "http://127.0.0.1/admin"
 
     def test_masscan_ports(self):
-        out = "Discovered open port 80/tcp on 10.0.0.1\n"
+        out = "Discovered open port 80/tcp on 127.0.0.1\n"
         findings = parse_masscan(out)
         assert findings[0]["port"] == 80
         assert findings[0]["service"] == "tcp"
@@ -105,7 +105,7 @@ class TestAggregateResults:
                                 "tool": tool,
                                 "success": True,
                                 "command": "cmd",
-                                "stdout": "Discovered open port 80/tcp on 10.0.0.1",
+                                "stdout": "Discovered open port 80/tcp on 127.0.0.1",
                                 "stderr": "",
                             }
                         ),
@@ -160,7 +160,7 @@ class TestPersistRun:
 
         summary = persist_run(
             "test_tool",
-            {"target": "10.9.9.9"},
+            {"target": "127.0.0.1"},
             "test_tool --run",
             {
                 "stdout": "out",
