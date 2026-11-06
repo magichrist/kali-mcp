@@ -100,7 +100,7 @@ class TestStudioSchemaCreation:
             assert index in names
 
     def test_ensure_schema_is_idempotent(self, db):
-        seed_tid = db.upsert_target("10.9.9.9", target_type="host")
+        seed_tid = db.upsert_target("127.0.0.1", target_type="host")
         tool_id = db.upsert_tool_definition("idem-tool", "Idem Tool")
 
         for _ in range(3):
@@ -122,11 +122,11 @@ class TestExistingDataPreserved:
     @staticmethod
     def _seed_existing(db):
         """Populate v1 and v2 tables using the pre-Studio helper APIs."""
-        tid = db.upsert_target("10.0.0.1", target_type="host", tags="seeded")
+        tid = db.upsert_target("127.0.0.1", target_type="host", tags="seeded")
         sid = db.add_scan(
             tid,
             "nmap",
-            "nmap -sT 10.0.0.1",
+            "nmap -sT 127.0.0.1",
             "2026-01-01T00:00:00Z",
             "2026-01-01T00:00:05Z",
             5.0,
@@ -153,11 +153,11 @@ class TestExistingDataPreserved:
         cid = db.add_credential(tid, "ssh", "root", password="s3cret",
                                 source_tool="nmap")
         aid = db.upsert_asset(
-            asset_id="asset_10.0.0.1", asset_type="host", name="10.0.0.1",
+            asset_id="asset_127.0.0.1", asset_type="host", name="127.0.0.1",
             target_id=tid,
         )
         evid = db.add_evidence_artifact(
-            "evidence_seed", "nmap", "10.0.0.1", "stdout", "/tmp/out.txt"
+            "evidence_seed", "nmap", "127.0.0.1", "stdout", "/tmp/out.txt"
         )
         return {"targets": tid, "scans": sid, "findings": fid,
                 "credentials": cid, "assets": aid, "evidence_artifacts": evid}
@@ -180,7 +180,7 @@ class TestExistingDataPreserved:
         row = db.conn.execute(
             "SELECT * FROM targets WHERE id = ?", (ids["targets"],)
         ).fetchone()
-        assert row["target"] == "10.0.0.1"
+        assert row["target"] == "127.0.0.1"
         assert row["tags"] == "seeded"
 
         scan = db.conn.execute(
@@ -404,14 +404,14 @@ class TestWorkflowExecutions:
             job_id="job_seed",
             assessment_id="assess_seed",
             profile_id="profile_recon",
-            inputs={"target": "10.0.0.1"},
+            inputs={"target": "127.0.0.1"},
         )
         assert wid > 0
 
         row = db.get_workflow_execution(exec_id)
         assert row["id"] == wid
         assert row["status"] == "running"
-        assert json.loads(row["inputs"]) == {"target": "10.0.0.1"}
+        assert json.loads(row["inputs"]) == {"target": "127.0.0.1"}
         assert row["completed_at"] is None
 
         # Re-calling create with the same execution_id is a no-op.
