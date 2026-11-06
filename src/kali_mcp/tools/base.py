@@ -79,7 +79,13 @@ class BaseTool(abc.ABC):
                 logger.debug("central persistence failed for %s", self.name)
         return result
 
-    def _central_persist(self, arguments: dict[str, Any], result: dict[str, Any]) -> None:
+    def _central_persist(
+        self,
+        arguments: dict[str, Any],
+        result: dict[str, Any],
+        assessment_id: str | None = None,
+        job_id: str | None = None,
+    ) -> None:
         """Extract the ExecutionResult payload and persist scan + vault entry."""
         from kali_mcp.tools.persist import persist_run
 
@@ -97,4 +103,11 @@ class BaseTool(abc.ABC):
             return
 
         command = data.get("command", "") if data else ""
-        persist_run(self.name, arguments, command, data)
+        persist_run(
+            self.name,
+            arguments,
+            command,
+            data,
+            assessment_id=assessment_id,
+            job_id=job_id,
+        )
