@@ -549,8 +549,8 @@ function renderConnections() {
       menu: `<button class="btn mini" data-conn="${esc(c.connection_id)}" data-connact="test">Test</button>
              <button class="btn mini" data-conn="${esc(c.connection_id)}" data-connact="discover">Discover</button>
              <button class="btn mini danger" data-conn="${esc(c.connection_id)}" data-connact="delete">Delete</button>`,
-    })), "No connections yet. Add one to import external MCP tools."));
-
+    }), "No connections yet. Add one to import external MCP tools."));
+  $$("button[data-conn]", el).forEach((btn) => btn.addEventListener("click", async () => {
     const id = btn.dataset.conn;
     const act = btn.dataset.connact;
     if (act === "delete" && !confirm(`Delete connection ${id}?`)) return;
