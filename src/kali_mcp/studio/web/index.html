@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kali-MCP Studio — Visual Workflow Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- App shell -->
+  <div class="app">
+    <!-- Top navigation -->
+    <nav class="top-nav">
+      <div class="nav-brand">
+        <div class="brand-icon">🛡️</div>
+        <div class="brand-text">
+          <div class="brand-name">Kali-MCP Studio</div>
+          <div class="brand-sub">Visual Workflow Editor</div>
+        </div>
+      </div>
+
+      <div class="nav-spacer"></div>
+
+      <div class="nav-section">
+        <a href="#" class="nav-item active" data-section="playbooks">
+          <span class="nav-label">Playbooks</span>
+        </a>
+        <a href="#" class="nav-item" data-section="tools">
+          <span class="nav-label">Tools</span>
+        </a>
+        <a href="#" class="nav-item" data-section="agents">
+          <span class="nav-label">Agents</span>
+        </a>
+        <a href="#" class="nav-item" data-section="executions">
+          <span class="nav-label">Executions</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <button class="icon-btn" id="btn-refresh" title="Refresh">
+          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6a4 4 0 0 0 4 4h12c2.2 0 4-1.8 4-4V4"/><path d="M23 20v-6a4 4 0 0 0-4-4H5c-2.2 0-4 1.8-4 4v12"/></svg>
+        </button>
+        <div class="user-badge">
+          <div class="user-avatar">AD</div>
+          <span class="user-name">Operator</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main editor -->
+    <div class="editor-shell">
+      <!-- Left sidebar: Node Library -->
+      <aside class="sidebar sidebar-left">
+        <div class="sidebar-header">
+          <div class="sidebar-title">Node Library</div>
+          <div class="search-wrap">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="node-search" placeholder="Search nodes…" class="search-input" />
+          </div>
+        </div>
+
+        <div class="library-scroll">
+          <div class="library-category">
+            <div class="cat-header">
+              <span class="cat-icon">🔌</span>
+              <span class="cat-name">Input</span>
+              <span class="cat-count">3</span>
+            </div>
+            <div class="node-list" id="nodes-input"></div>
+          </div>
+
+          <div class="library-category">
+            <div class="cat-header">
+              <span class="cat-icon">⚡</span>
+              <span class="cat-name">Tools</span>
+              <span class="cat-count">—</span>
+            </div>
+            <div class="node-list" id="nodes-tools"></div>
+          </div>
+
+          <div class="library-category">
+            <div class="cat-header">
+              <span class="cat-icon">🔀</span>
+              <span class="cat-name">Control Flow</span>
+              <span class="cat-count">4</span>
+            </div>
+            <div class="node-list" id="nodes-control"></div>
+          </div>
+
+          <div class="library-category">
+            <div class="cat-header">
+              <span class="cat-icon">📊</span>
+              <span class="cat-name">Data</span>
+              <span class="cat-count">4</span>
+            </div>
+            <div class="node-list" id="nodes-data"></div>
+          </div>
+
+          <div class="library-category">
+            <div class="cat-header">
+              <span class="cat-icon">📤</span>
+              <span class="cat-name">Output</span>
+              <span class="cat-count">4</span>
+            </div>
+            <div class="node-list" id="nodes-output"></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center: Canvas -->
+      <main class="canvas-area">
+        <div class="canvas-header">
+          <div class="playbook-bar">
+            <label class="playbook-label">Playbook</label>
+            <select id="playbook-select" class="playbook-select">
+              <option value="">Create new playbook</option>
+            </select>
+            <div class="pb-meta" id="pb-meta">
+              <span class="pb-version">—</span>
+              <span class="pb-sep">•</span>
+              <span class="pb-status status-draft">Draft</span>
+            </div>
+          </div>
+          <div class="canvas-actions">
+            <button class="icon-btn" id="btn-zoom-fit" title="Fit to screen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16l3 3m0 0 3-3m-3 3V3"/></svg>
+            </button>
+            <button class="icon-btn" id="btn-auto-layout" title="Auto layout">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18M3 15h18"/></svg>
+            </button>
+            <div class="divider"></div>
+            <button class="btn btn-ghost" id="btn-undo" title="Undo">↶ Undo</button>
+            <button class="btn btn-ghost" id="btn-redo" title="Redo">↷ Redo</button>
+            <div class="divider"></div>
+            <button class="btn btn-danger" id="btn-clear-canvas" title="Clear canvas">Clear</button>
+          </div>
+        </div>
+
+        <div class="canvas-viewport" id="canvas-viewport">
+          <div class="canvas-grid" id="canvas-grid"></div>
+          <canvas id="editor-canvas" width="2000" height="1400"></canvas>
+          <svg id="canvas-svg" class="canvas-svg" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></svg>
+          <div id="canvas-overlay" class="canvas-overlay"></div>
+        </div>
+
+        <div class="canvas-empty" id="canvas-empty">
+          <div class="empty-icon">🕸️</div>
+          <h3 class="empty-title">Empty canvas</h3>
+          <p class="empty-sub">Drag nodes from the library to start building your workflow.</p>
+        </div>
+      </main>
+
+      <!-- Right sidebar: Node Configuration -->
+      <aside class="sidebar sidebar-right">
+        <div class="sidebar-header">
+          <div class="sidebar-title" id="config-panel-title">Node Configuration</div>
+          <button class="icon-btn" id="btn-delete-selected" title="Delete selected" style="display:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+
+        <div class="config-scroll">
+          <div id="config-empty" class="config-empty">
+            <div class="empty-icon">☁️</div>
+            <div class="empty-title">No node selected</div>
+            <p class="empty-sub">Click a node on the canvas to configure its properties.</p>
+          </div>
+
+          <form id="config-form" class="config-form hidden">
+            <input type="hidden" id="config-node-id" />
+
+            <div class="config-section">
+              <div class="section-header">
+                <span class="section-label">Identity</span>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Node ID</label>
+                <input type="text" id="config-node-id-field" readonly class="form-input" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Type</label>
+                <select id="config-node-type" class="form-select" disabled></select>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Description</label>
+                <input type="text" id="config-description" class="form-input" placeholder="Optional description" />
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="section-header">
+                <span class="section-label">Configuration</span>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Tool / Module</label>
+                <select id="config-tool" class="form-select"></select>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Depends On</label>
+                <div id="config-depends-on" class="chip-list"></div>
+                <span class="field-hint">Select upstream nodes this step depends on.</span>
+              </div>
+              <div class="form-field">
+                <label class="form-label">When Condition</label>
+                <input type="text" id="config-when" class="form-input" placeholder="{{steps.X.field}} &gt; 0" />
+                <span class="field-hint">Structured reference only — no shell execution.</span>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="section-header">
+                <span class="section-label">Execution</span>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <label class="form-label checkbox-label">
+                    <input type="checkbox" id="config-parallel" /> Parallel
+                  </label>
+                </div>
+                <div class="form-field">
+                  <label class="form-label checkbox-label">
+                    <input type="checkbox" id="config-checkpoint" /> Checkpoint
+                  </label>
+                </div>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Retry attempts</label>
+                <input type="number" id="config-retry" class="form-input" min="0" value="0" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">On failure</label>
+                <select id="config-on-failure" class="form-select">
+                  <option value="abort">Abort</option>
+                  <option value="continue">Continue</option>
+                  <option value="skip_dependents">Skip Dependents</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Budget (timeout ms)</label>
+                <input type="number" id="config-budget-timeout" class="form-input" min="0" placeholder="Default" />
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="section-header">
+                <span class="section-label">Input Mappings</label>
+                <button type="button" id="btn-add-arg" class="btn btn-sm">+ Add Mapping</button>
+              </div>
+              <div id="config-args" class="args-list"></div>
+            </div>
+
+            <div class="config-section">
+              <div class="section-header">
+                <span class="section-label">Position</span>
+              </div>
+              <div class="form-row">
+                <div class="form-field">
+                  <label class="form-label">X</label>
+                  <input type="number" id="config-pos-x" class="form-input" />
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Y</label>
+                  <input type="number" id="config-pos-y" class="form-input" />
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Bottom status bar -->
+    <footer class="status-bar">
+      <div class="status-left">
+        <span class="status-pill" id="status-validation">
+          <span class="pill-dot"></span>
+          <span>Validation: not run</span>
+        </span>
+        <span class="status-sep">•</span>
+        <span class="status-pill" id="status-node-count">
+          <span class="pill-dot"></span>
+          <span>Nodes: 0</span>
+        </span>
+        <span class="status-sep">•</span>
+        <span class="status-pill" id="status-canvas">
+          <span class="pill-dot"></span>
+          <span>Canvas: ready</span>
+        </span>
+      </div>
+      <div class="status-right">
+        <button class="btn btn-sm" id="btn-toggle-dsl">View DSL</button>
+        <button class="btn btn-primary" id="btn-save-playbook" disabled>Save Draft</button>
+        <button class="btn btn-success" id="btn-publish-playbook" disabled>Publish</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modals -->
+  <div id="dsl-modal" class="modal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3>DSL / Canonical Definition</h3>
+        <button class="btn-close" id="btn-close-dsl">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="canonical">Canonical JSON</button>
+          <button class="tab-btn" data-tab="dsl">DSL Text</button>
+        </div>
+        <textarea id="dsl-output" class="code-editor" readonly spellcheck="false"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btn-discard-dsl">Discard</button>
+        <button class="btn btn-primary" id="btn-apply-dsl">Apply Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
