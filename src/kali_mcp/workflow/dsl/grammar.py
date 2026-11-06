@@ -209,13 +209,20 @@ def tokenize(text: str) -> list[Token]:
             pos += len(raw)
             continue
 
-        # ── Identifier / keyword ─────────────────────────────────────────
+        # ── Identifier / keyword / bool / null ───────────────────────────
         m = _IDENT_RE.match(text, pos)
         if m:
             word = m.group(0)
+            if word == "true":
+                tokens.append(Token(BOOL, True, line, col))
+            elif word == "false":
+                tokens.append(Token(BOOL, False, line, col))
+            elif word == "null":
+                tokens.append(Token(NULL, None, line, col))
+            else:
+                tokens.append(Token(IDENTIFIER, word, line, col))
             col += len(word)
             pos += len(word)
-            tokens.append(Token(IDENTIFIER, word, line, col - len(word)))
             continue
 
         raise TokenError(
