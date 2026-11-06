@@ -1,0 +1,67 @@
+id: container_assessment
+name: "Container & Image Security Assessment"
+description: "Container and image security — scan images, analyze configuration, check runtime risks, correlate findings, and report."
+version: "2.0.0"
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Container image name/digest or container ID"
+  options:
+    type: object
+    description: "Optional assessment options"
+    properties:
+      docker_host:
+        type: string
+        description: "Docker host URI (e.g. unix:///var/run/docker.sock)"
+execution:
+  max_parallel: 2
+  timeout: 900
+  resume: true
+steps:
+  - id: validate
+    type: scope_check
+    depends_on: []
+    checkpoint: true
+    description: "Validate target against active assessment scope"
+  - id: image_scan
+    module: image_scan
+    depends_on: [validate]
+    inputs:
+      target: "{{target}}"
+      docker_host: "{{options.docker_host}}"
+    checkpoint: true
+    description: "Scan container image for vulnerabilities via trivy/grype"
+  - id: container_config_analysis
+    module: container_config_analysis
+    depends_on: [validate]
+    inputs:
+      target: "{{target}}"
+      docker_host: "{{options.docker_host}}"
+    parallel: true
+    checkpoint: true
+    description: "Analyze Dockerfile and runtime container configuration"
+  - id: runtime_check
+    module: runtime_check
+    depends_on: [container_config_analysis]
+    inputs:
+      target: "{{target}}"
+      docker_host: "{{options.docker_host}}"
+    checkpoint: true
+    description: "Check running containers for escapes and runtime risks"
+  - id: correlate
+    type: finding_correlation
+    depends_on: [image_scan, container_config_analysis, runtime_check]
+    checkpoint: true
+    description: "Deduplicate and correlate findings across modules"
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    description: "Generate the assessment report"
+outputs:
+  - assessment_id
+  - findings
+  - assets
+  - artifacts
+  - next_actions
+  - recommended_next_playbooks
