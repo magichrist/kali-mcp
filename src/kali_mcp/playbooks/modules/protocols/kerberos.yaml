@@ -1,0 +1,23 @@
+id: kerberos
+name: "Kerberos / AD Enumeration"
+description: "Active Directory and Kerberos service enumeration (enum4linux)"
+tool: enum4linux
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: "AD domain controller or Windows host"
+  domain:
+    type: string
+    description: "AD domain name"
+  users:
+    type: string
+    description: "Comma-separated usernames to enumerate"
+    default: ""
+outputs:
+  - domain_info
+  - users
+  - groups
+  - shares
+  - kerberos_services
