@@ -77,4 +77,4 @@ def register() -> None:
     )
 
 
-__all__ = ["register", "_http_probe"]
+__all__ = ["_http_probe", "register"]
