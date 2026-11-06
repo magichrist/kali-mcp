@@ -100,6 +100,74 @@ async def test_json_format(assessment_id, tool):
 
 
 @pytest.mark.asyncio
+async def test_remediation_present_in_json(assessment_id, tool):
+    # Seed one finding carrying a remediation field.
+    aid = f"assessment_{uuid.uuid4().hex[:10]}"
+    vault_write(
+        "assessments",
+        aid,
+        {
+            "assessment_id": aid,
+            "findings": [
+                {
+                    "id": "fnd_rem_001",
+                    "title": "Open SSH port",
+                    "severity": "high",
+                    "confidence": 0.9,
+                    "validation_status": "observed",
+                    "asset_id": "host.example.test",
+                    "source_tools": ["nmap"],
+                    "evidence_refs": [],
+                    "remediation": "Restrict access with a firewall; close unnecessary ports.",
+                }
+            ],
+            "summary": {"assets_discovered": 1, "services_discovered": 1,
+                        "findings": {"critical": 0, "high": 1, "medium": 0, "low": 0}},
+            "target": "host.example.test",
+            "next_actions": [],
+            "assets": [],
+        },
+    )
+    res = await tool.safe_execute({"assessment_id": aid, "format": "json"})
+    report = json.loads(_body(res))
+    finding = report["findings"][0]
+    assert finding.get("remediation"), "expected remediation guidance in JSON report"
+
+
+@pytest.mark.asyncio
+async def test_remediation_present_in_markdown(assessment_id, tool):
+    aid = f"assessment_{uuid.uuid4().hex[:10]}"
+    vault_write(
+        "assessments",
+        aid,
+        {
+            "assessment_id": aid,
+            "findings": [
+                {
+                    "id": "fnd_rem_002",
+                    "title": "Exposed admin endpoint",
+                    "severity": "critical",
+                    "confidence": 0.8,
+                    "validation_status": "observed",
+                    "asset_id": "app.example.test",
+                    "source_tools": ["katana"],
+                    "evidence_refs": [],
+                    "remediation": "Apply authentication to exposed endpoints.",
+                }
+            ],
+            "summary": {"assets_discovered": 1, "services_discovered": 1,
+                        "findings": {"critical": 1, "high": 0, "medium": 0, "low": 0}},
+            "target": "app.example.test",
+            "next_actions": [],
+            "assets": [],
+        },
+    )
+    res = await tool.safe_execute({"assessment_id": aid, "format": "markdown"})
+    body = _body(res)
+    assert "Apply authentication to exposed endpoints." in body
+
+
+@pytest.mark.asyncio
 async def test_markdown_format(assessment_id, tool):
     res = await tool.safe_execute({"assessment_id": assessment_id, "format": "markdown"})
     body = _body(res)
