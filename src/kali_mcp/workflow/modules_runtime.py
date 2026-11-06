@@ -185,6 +185,8 @@ def list_modules() -> list[dict[str, Any]]:
 def clear() -> None:
     """Drop all registrations (test helper)."""
     _REGISTRY.clear()
+    global _BUILTIN_LOADED
+    _BUILTIN_LOADED = False
 
 
 _BUILTIN_LOADED = False
