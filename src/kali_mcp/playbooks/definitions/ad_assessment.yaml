@@ -1,0 +1,95 @@
+id: ad_assessment
+name: "Active Directory Assessment"
+description: "Active Directory assessment — SMB enumeration, Kerberos checks, BloodHound graph collection, and authenticated network enumeration, then correlation and report."
+version: "2.0.0"
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target domain controller or AD domain"
+  options:
+    type: object
+    description: "Optional assessment options"
+    properties:
+      domain:
+        type: string
+        description: "AD domain name"
+      protocol:
+        type: string
+        description: "SMB/Kerberos protocol (smb, ldap, rdp, ...)"
+        default: "smb"
+execution:
+  max_parallel: 3
+  timeout: 900
+  resume: true
+steps:
+  - id: validate
+    type: scope_check
+    depends_on: []
+    checkpoint: true
+    description: "Validate target against active assessment scope"
+  - id: enum
+    type: tool
+    tool: enum4linux
+    depends_on: [validate]
+    args:
+      target: "{{target}}"
+      timeout: 300
+    checkpoint: true
+    description: "Enumerate AD domain via enum4linux"
+  - id: kerberos
+    module: kerberos
+    depends_on: [enum]
+    args:
+      target: "{{target}}"
+      domain: "{{options.domain}}"
+    parallel: true
+    checkpoint: true
+    description: "Kerberos service enumeration via the kerberos module"
+  - id: bloodhound
+    type: tool
+    tool: bloodhound
+    depends_on: [enum]
+    args:
+      domain: "{{options.domain}}"
+      timeout: 300
+    parallel: true
+    checkpoint: true
+    description: "Collect AD graph data via BloodHound"
+  - id: netexec
+    type: tool
+    tool: netexec
+    depends_on: [bloodhound]
+    args:
+      target: "{{target}}"
+      protocol: "{{options.protocol}}"
+      timeout: 300
+    checkpoint: true
+    description: "Authenticated network enumeration via netexec"
+  - id: crackmapexec
+    type: tool
+    tool: crackmapexec
+    depends_on: [bloodhound]
+    args:
+      target: "{{target}}"
+      protocol: "{{options.protocol}}"
+      timeout: 300
+    parallel: true
+    checkpoint: true
+    description: "Authenticated network enumeration via crackmapexec"
+  - id: correlate
+    type: finding_correlation
+    depends_on: [kerberos, bloodhound, netexec, crackmapexec]
+    checkpoint: true
+    description: "Deduplicate and correlate AD findings"
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    description: "Generate the AD assessment report"
+outputs:
+  - assessment_id
+  - findings
+  - assets
+  - artifacts
+  - next_actions
+  - recommended_next_playbooks
