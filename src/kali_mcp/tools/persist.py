@@ -12,6 +12,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from kali_mcp.evidence import store_evidence
+from kali_mcp.identifiers import get_assessment_context
 from kali_mcp.utils.vault import vault_write
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -42,6 +44,8 @@ def persist_run(
     findings: list[dict[str, Any]] | None = None,
     credentials: list[dict[str, Any]] | None = None,
     target_type: str = "host",
+    assessment_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Record a tool run in SQLite and deposit its output in the vault.
 
@@ -50,12 +54,23 @@ def persist_run(
     port, service, url.  `credentials` items carry: service, username,
     password, hash.
 
+    ``assessment_id`` and ``job_id`` are opaque handles stored on the
+    ``scans`` and ``evidence_artifacts`` rows and included in the vault
+    payload. When not supplied they are propagated from the current
+    assessment context (see ``kali_mcp.identifiers``).
+
     All failures are swallowed — persistence must never break tool execution.
     Returns a small summary dict for inclusion in tool responses.
     """
     summary: dict[str, Any] = {"db_recorded": False, "vault_deposited": False}
     try:
         from kali_mcp.db import manager as dbm
+
+        # Fall back to context-propagated assessment / job ids.
+        if assessment_id is None or job_id is None:
+            ctx_assessment_id, ctx_job_id = get_assessment_context()
+            assessment_id = assessment_id or ctx_assessment_id
+            job_id = job_id or ctx_job_id
 
         target = extract_target(arguments)
         command_str = command if isinstance(command, str) else " ".join(command)
@@ -79,11 +94,32 @@ def persist_run(
                     1 if (data or {}).get("success") else 0,
                     len(findings or []),
                     None,
+                    assessment_id=assessment_id,
+                    job_id=job_id,
                 )
+
+                # ── Evidence artifact (raw stdout/stderr) ─────────────────
+                evidence_id = ""
+                evidence = ""
                 if data:
-                    evidence = ((data.get("stdout") or "") + "\n" + (data.get("stderr") or ""))[
-                        :100_000
-                    ]
+                    raw_output = (
+                        (data.get("stdout") or "")
+                        + "\n"
+                        + (data.get("stderr") or "")
+                    ).strip()
+                    if raw_output:
+                        evidence_id = store_evidence(
+                            tool=tool_name,
+                            target=target,
+                            artifact_type="stdout",
+                            content=raw_output,
+                            assessment_id=assessment_id,
+                            job_id=job_id,
+                        )
+                    evidence = raw_output[:100_000]
+
+                # Generic execution finding, now carrying the evidence ref.
+                if data:
                     db.add_finding(
                         target_id,
                         scan_id,
@@ -93,6 +129,7 @@ def persist_run(
                         f"{tool_name} execution",
                         evidence,
                         evidence,
+                        evidence_refs=json.dumps([evidence_id]) if evidence_id else "[]",
                     )
                 for f in findings or []:
                     db.add_finding(
@@ -117,9 +154,42 @@ def persist_run(
                         hash_value=c.get("hash"),
                         source_tool=tool_name,
                     )
+
+                # ── Asset / service graph nodes ───────────────────────────
+                aid = None
+                try:
+                    aid = db.upsert_asset(
+                        asset_id=f"asset_{_sanitize_fs(target)}",
+                        asset_type="host",
+                        name=target,
+                        target_id=target_id,
+                    )
+                except Exception:
+                    aid = None
+                for f in findings or []:
+                    port = f.get("port")
+                    if port is None or aid is None:
+                        continue
+                    try:
+                        svc_id = (
+                            f"svc_{_sanitize_fs(target)}_{int(port)}_"
+                            f"{(f.get('service') or 'tcp')}"
+                        )
+                        db.add_service(
+                            service_id=svc_id,
+                            asset_id=aid,
+                            port=int(port),
+                            protocol=(f.get("service") or "tcp"),
+                            service_name=f.get("service"),
+                            version=f.get("version"),
+                        )
+                    except Exception:
+                        pass
+
                 summary["db_recorded"] = True
                 summary["target_id"] = target_id
                 summary["scan_id"] = scan_id
+                summary["evidence_id"] = evidence_id or None
         except Exception:  # noqa: BLE001, S110
             pass
 
@@ -129,6 +199,8 @@ def persist_run(
                 "tool": tool_name,
                 "target": target,
                 "command": command_str,
+                "assessment_id": assessment_id,
+                "job_id": job_id,
                 "recorded_at": now_iso(),
                 "result": data,
                 "findings": findings or [],
@@ -346,6 +418,8 @@ async def run_tool_with_persistence(
     arguments: dict[str, Any],
     parser: Any = None,
     target_type: str = "host",
+    assessment_id: str | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Run a tool's command through the engine, parse, persist, and wrap output.
 
@@ -393,6 +467,8 @@ async def run_tool_with_persistence(
         findings=findings,
         credentials=credentials,
         target_type=target_type,
+        assessment_id=assessment_id,
+        job_id=job_id,
     )
 
     payload = {
