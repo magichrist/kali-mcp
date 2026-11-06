@@ -21,21 +21,19 @@ from __future__ import annotations
 import asyncio
 import json
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from kali_mcp.execution import engine as exec_engine
-from kali_mcp.logging_utils import log_execution
 from kali_mcp.models import ExecutionResult
-from kali_mcp.tools.persist import now_iso, persist_run
+from kali_mcp.tools.persist import now_iso
+from kali_mcp.workflow import modules_runtime
+from kali_mcp.workflow.scope_gate import ScopeViolationError, gate_step_args
 from kali_mcp.workflow.yaml_loader import (
     PlaybookDefinition,
-    StepDefinition,
     PlaybookError,
+    StepDefinition,
     load_module,
 )
-from kali_mcp.workflow.scope_gate import ScopeViolationError, gate_step_args
-from kali_mcp.workflow import modules_runtime
 
 
 def _get_registry():
@@ -107,50 +105,83 @@ class PlaybookEngine:
             for step in steps:
                 step.args = self._substitute_target(step.args, subst_target)
 
-        # Build execution order respecting dependencies
-        execution_order = self._topological_sort(steps)
+        sem = asyncio.Semaphore(playbook.max_parallel)
+        budget_default = max(30, playbook.timeout // max(1, len(steps)))
 
-        results: list[Any] = []
-        aborted = False
-
-        for idx in execution_order:
+        async def run_one(idx: int) -> tuple[int, Any]:
             step = steps[idx]
             if idx in skip_indices:
-                continue
-            if aborted and step.on_failure == "abort":
-                # Propagate abort: skip remaining steps that depend on failed ones
+                return idx, {"step": step.id, "skipped": True, "reason": "resume skip"}
+            if aborted_flag["value"] and step.on_failure == "abort":
                 if self._depends_on_failed(step, steps, idx):
+                    return idx, {"step": step.id, "skipped": True, "reason": "aborted"}
+            step_budget = int((step.budget or {}).get("timeout", budget_default))
+            async with sem:
+                try:
+                    res = await asyncio.wait_for(
+                        self._run_step(step, steps, state), timeout=step_budget
+                    )
+                    return idx, res
+                except asyncio.TimeoutError:
+                    return idx, {"step": step.id, "error": "timeout", "timed_out": True}
+                except Exception as e:  # noqa: BLE001
+                    return idx, {"step": step.id, "error": str(e)}
+
+        aborted_flag = {"value": False}
+
+        # Compute dependency waves
+        waves = self._compute_waves(steps)
+
+        overall_deadline = asyncio.get_event_loop().time() + playbook.timeout
+
+        for wave in waves:
+            if aborted_flag["value"]:
+                # skip remaining waves' dependent steps handled per-step
+                for idx in wave:
+                    if idx not in state["completed_steps"]:
+                        state["completed_steps"].append(idx)
+                continue
+            # filter skipped
+            todo = [idx for idx in wave if idx not in skip_indices]
+            if not todo:
+                continue
+            # overall timeout check
+            remaining = overall_deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                state["status"] = "failed"
+                aborted_flag["value"] = True
+                break
+
+            wave_results = await asyncio.gather(*[run_one(idx) for idx in todo])
+
+            for idx, step_res in wave_results:
+                step = steps[idx]
+                if isinstance(step_res, list):
+                    results.extend(step_res)
+                else:
+                    results.append(step_res)
+                self._step_results[step.id] = step_res
+                if idx not in state["completed_steps"]:
                     state["completed_steps"].append(idx)
-                    continue
 
-            step_res = await self._run_step(step, steps, state)
+                if step.checkpoint:
+                    self._persist_state(name, state)
 
-            # Normalize result
-            if isinstance(step_res, list):
-                results.extend(step_res)
-            else:
-                results.append(step_res)
+                step_failed = self._is_step_failure(step_res)
+                if step_failed:
+                    if step.on_failure == "abort":
+                        aborted_flag["value"] = True
+                        state["status"] = "failed"
+                    elif step.on_failure == "skip_dependents":
+                        aborted_flag["value"] = True
 
-            self._step_results[step.id] = step_res
-            state["completed_steps"].append(idx)
-
-            # Checkpoint: persist state after this step
-            if step.checkpoint:
-                self._persist_state(name, state)
-
-            # Handle failure
-            step_failed = self._is_step_failure(step_res)
-            if step_failed:
-                if step.on_failure == "abort":
-                    aborted = True
-                    state["status"] = "failed"
-                    break
-                elif step.on_failure == "skip_dependents":
-                    # Mark this step's dependents to be skipped
-                    aborted = True  # local abort propagation via _depends_on_failed
+        # handle skipped indices
+        for idx in skip_indices:
+            if idx not in state["completed_steps"]:
+                state["completed_steps"].append(idx)
 
         all_completed = len(state["completed_steps"]) == len(steps)
-        final_status = "completed" if all_completed and not aborted else ("partial" if state["completed_steps"] else "failed")
+        final_status = "completed" if (all_completed and not aborted_flag["value"]) else ("partial" if state["completed_steps"] else "failed")
         state["status"] = final_status
         state["finished_at"] = now_iso()
 
@@ -515,10 +546,33 @@ class PlaybookEngine:
                 if in_degree[neighbor] == 0:
                     queue.append(neighbor)
 
-        if len(order) != len(steps):
-            raise PlaybookError("Playbook contains a cycle in depends_on")
+    def _compute_waves(self, steps: list[StepDefinition]) -> list[list[int]]:
+        """Group step indices into dependency waves.
 
-        return order
+        Steps in the same wave have no unmet dependencies on each other and
+        may run concurrently. A step appears in the first wave where all of
+        its dependencies have already been scheduled.
+        """
+        id_to_index = {s.id: i for i, s in enumerate(steps)}
+        remaining = set(range(len(steps)))
+        done: set[int] = set()
+        waves: list[list[int]] = []
+        while remaining:
+            wave = [
+                idx for idx in sorted(remaining)
+                if all(
+                    id_to_index.get(dep, -1) in done or dep not in id_to_index
+                    for dep in steps[idx].depends_on
+                )
+            ]
+            if not wave:
+                # cycle — fall back to whatever remains
+                wave = sorted(remaining)
+            for idx in wave:
+                remaining.discard(idx)
+                done.add(idx)
+            waves.append(wave)
+        return waves
 
     def _substitute_target(self, args: dict[str, Any], target: Any) -> dict[str, Any]:
         out: dict[str, Any] = {}
