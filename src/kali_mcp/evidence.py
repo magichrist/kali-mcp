@@ -6,15 +6,11 @@ with metadata tracked in the SQLite evidence_artifacts table.
 
 from __future__ import annotations
 
-import json
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from kali_mcp.config import config
-
 
 EVIDENCE_DIR = Path(config.artifact_dir) / "evidence"
 
