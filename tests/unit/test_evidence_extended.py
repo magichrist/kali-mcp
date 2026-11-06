@@ -25,11 +25,11 @@ def _setup_db(tmp_path, monkeypatch):
     monkeypatch.setattr("kali_mcp.evidence.config", new_cfg)
 
     db = dbm.get_db()
-    target_id = db.upsert_target("10.0.0.1", target_type="host")
+    target_id = db.upsert_target("127.0.0.1", target_type="host")
     db.add_scan(
         target_id,
         "nmap",
-        "nmap 10.0.0.1",
+        "nmap 127.0.0.1",
         "2026-01-01T00:00:00Z",
         "2026-01-01T00:01:00Z",
         60.0,
@@ -48,9 +48,9 @@ class TestStoreEvidenceExtended:
 
         evidence_id = store_evidence(
             tool="nmap",
-            target="10.0.0.1",
+            target="127.0.0.1",
             artifact_type="stdout",
-            content="Nmap scan report for 10.0.0.1\n",
+            content="Nmap scan report for 127.0.0.1\n",
             assessment_id="assess_abc",
             job_id="job_xyz",
         )
@@ -64,17 +64,17 @@ class TestStoreEvidenceExtended:
             )
         )
         assert len(files) == 1
-        assert files[0].read_text() == "Nmap scan report for 10.0.0.1\n"
+        assert files[0].read_text() == "Nmap scan report for 127.0.0.1\n"
 
         # Row recorded in evidence_artifacts.
         row = get_evidence(evidence_id)
         assert row is not None
         assert row["evidence_id"] == evidence_id
         assert row["tool"] == "nmap"
-        assert row["target"] == "10.0.0.1"
+        assert row["target"] == "127.0.0.1"
         assert row["artifact_type"] == "stdout"
         assert row["content_path"] == str(files[0])
-        assert row["content_size"] == len("Nmap scan report for 10.0.0.1\n")
+        assert row["content_size"] == len("Nmap scan report for 127.0.0.1\n")
         assert row["assessment_id"] == "assess_abc"
         assert row["job_id"] == "job_xyz"
         assert "captured_at" in row
@@ -84,7 +84,7 @@ class TestStoreEvidenceExtended:
 
         evidence_id = store_evidence(
             tool="nmap",
-            target="10.0.0.1",
+            target="127.0.0.1",
             artifact_type="stderr",
             content="nmap: error\n",
             assessment_id="assess_abc",
@@ -126,7 +126,7 @@ class TestStoreEvidenceExtended:
         monkeypatch.setattr("kali_mcp.evidence.EVIDENCE_DIR", tmp_path / "evidence")
         evidence_id = store_evidence(
             tool="nmap",
-            target="10.0.0.1",
+            target="127.0.0.1",
             artifact_type="stdout",
             content="hello",
         )
