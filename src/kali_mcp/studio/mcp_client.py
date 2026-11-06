@@ -115,19 +115,22 @@ class ExternalMCPClient:
             if self.transport == "stdio":
                 if self.command is None:
                     raise MCPClientError("stdio requires a command")
-                read, write, cleanup = stdio_client(command=self.command)
+                transport_cm = stdio_client(command=self.command)
             elif self.transport == "sse":
                 if self.url is None:
                     raise MCPClientError("sse requires a url")
-                read, write, cleanup = sse_client(url=self.url, headers=self.headers)
+                transport_cm = sse_client(url=self.url, headers=self.headers)
             else:  # streamable-http
                 if self.url is None:
                     raise MCPClientError("streamable-http requires a url")
-                read, write, cleanup = streamablehttp_client(
+                transport_cm = streamablehttp_client(
                     url=self.url, headers=self.headers
                 )
 
-            self._cleanup = cleanup
+            # The transport factories return async context managers; enter
+            # them explicitly and store for cleanup in disconnect().
+            self._cleanup = transport_cm
+            read, write, self._transport_info = await transport_cm.__aenter__()
             self._session = ClientSession(read, write)
             await self._session.__aenter__()
             await self._session.initialize()
@@ -153,6 +156,7 @@ class ExternalMCPClient:
             except Exception:  # noqa: BLE001
                 logger.debug("cleanup raised, ignoring")
             self._cleanup = None
+        self._transport_info = None
         self._connected = False
 
     # ── discovery ────────────────────────────────────────────────────────
