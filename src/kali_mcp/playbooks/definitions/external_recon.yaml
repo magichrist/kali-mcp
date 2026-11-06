@@ -26,52 +26,42 @@ steps:
     checkpoint: true
     description: "Validate target against active assessment scope"
   - id: discover
-    type: tool
-    tool: subfinder
+    module: subfinder
     depends_on: [validate]
     args:
       domain: "{{target}}"
-      timeout: 300
     checkpoint: true
     description: "Discover subdomains via subfinder"
   - id: resolve
-    type: tool
-    tool: httpx
+    module: httpx
     depends_on: [discover]
     args:
       target: "{{target}}"
-      timeout: 300
     checkpoint: true
     description: "Resolve hosts to live HTTP services"
   - id: ports
-    type: tool
-    tool: nmap
+    module: nmap
     depends_on: [validate]
     args:
       target: "{{target}}"
       ports: "{{options.ports}}"
-      timeout: 600
     parallel: true
     checkpoint: true
     description: "Enumerate open ports via nmap"
   - id: technologies
-    type: tool
-    tool: whatweb
+    module: whatweb
     depends_on: [resolve]
     args:
       target: "{{target}}"
-      timeout: 300
     parallel: true
     checkpoint: true
     description: "Fingerprint technologies on resolved services"
   - id: vulnerability_checks
-    type: tool
-    tool: nuclei
+    module: nuclei
     depends_on: [technologies, resolve]
     args:
       target: "{{target}}"
       templates: "http"
-      timeout: 600
     checkpoint: true
     description: "Scan resolved services with nuclei"
   - id: correlate
