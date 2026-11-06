@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import sys
-from pathlib import Path
 
-from kali_mcp.eval import EvalSuite, LAB_TARGETS
+from kali_mcp.eval import LAB_TARGETS, EvalSuite
 
 
 def build_parser() -> argparse.ArgumentParser:
