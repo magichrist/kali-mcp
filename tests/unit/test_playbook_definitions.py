@@ -8,12 +8,12 @@ contract (no raw tool names leak into the module step entries).
 from __future__ import annotations
 
 import os
-import yaml
 
 import pytest
+import yaml
 
-from kali_mcp.playbooks.engine import PlaybookEngine
 from kali_mcp.playbooks import registry as pb_registry
+from kali_mcp.playbooks.engine import PlaybookEngine
 
 DEFINITIONS_DIR = os.path.join(os.path.dirname(pb_registry.__file__), "definitions")
 
@@ -138,9 +138,13 @@ def test_at_least_one_correlation_and_report(definition):
 )
 def test_black_box_metadata_only(definition):
     """Playbook definitions must not declare raw tool names at the playbook
-    level — tools are the modules' concern (black-box contract)."""
+    level — tools are the modules' concern (black-box contract). Only applies
+    to module-based (black-box) playbooks; YAML playbooks that legitimately
+    use ``type: tool`` steps are exempt.
+    """
     for step in definition["steps"]:
-        assert not step.get("tool"), (
-            f"{definition['id']}: playbook steps must use modules, not tools "
-            f"(offender: {step['id']} -> {step['tool']})"
-        )
+        if step.get("module"):
+            assert not step.get("tool"), (
+                f"{definition['id']}: module-based steps must not also declare tools "
+                f"(offender: {step['id']} -> {step['tool']})"
+            )
