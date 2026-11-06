@@ -39,7 +39,7 @@ async def test_write_then_read_roundtrip(vault_env):
         {
             "category": "handoff",
             "name": "stage2_targets",
-            "content": {"hosts": ["10.0.0.1", "10.0.0.2"]},
+            "content": {"hosts": ["127.0.0.1", "127.0.0.1"]},
             "target": "example.com",
         }
     )
@@ -47,7 +47,7 @@ async def test_write_then_read_roundtrip(vault_env):
     assert _stdout(resp)["status"] == "stored"
 
     resp = await read.execute({"category": "handoff", "name": "stage2_targets"})
-    assert _stdout(resp) == {"hosts": ["10.0.0.1", "10.0.0.2"]}
+    assert _stdout(resp) == {"hosts": ["127.0.0.1", "127.0.0.1"]}
 
 
 async def test_write_accepts_json_string_and_plain_text(vault_env):
@@ -94,7 +94,7 @@ async def test_unstructured_and_array_dumps(vault_env):
     assert _stdout(resp) == [1, "two", {"x": None}, [3, 4]]
 
     # Completely unstructured free text — stored verbatim, wrapped for transport
-    messy = "TODO: check 10.0.0.1:22\nprobably open?? verify w/ nmap"
+    messy = "TODO: check 127.0.0.1:22\nprobably open?? verify w/ nmap"
     await write.execute({"category": "dump_test", "name": "messy", "content": messy})
     resp = await read.execute({"category": "dump_test", "name": "messy"})
     payload = _stdout(resp)
@@ -121,11 +121,11 @@ async def test_query_finds_subagent_data(vault_env):
             "category": "findings",
             "name": "nmap_10_0_0_1",
             "content": {"ports": [22, 80]},
-            "target": "10.0.0.1",
+            "target": "127.0.0.1",
             "tool": "nmap",
         }
     )
-    resp = await query.execute({"target": "10.0.0.1"})
+    resp = await query.execute({"target": "127.0.0.1"})
     payload = _stdout(resp)
     assert payload["count"] == 1
     assert payload["entries"][0]["name"] == "nmap_10_0_0_1"
