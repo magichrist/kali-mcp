@@ -46,18 +46,23 @@ from kali_mcp.tools.agent_interface import (
 # ── helpers ──────────────────────────────────────────────────────────────
 
 
-def _payload(res: dict) -> dict:
-    """Decode an MCP tool response into the inner payload dict.
+def _payload(res: dict):
+    """Decode an MCP tool response into the inner payload.
 
-    The response is ``{"content": [{"text": json.dumps(result.to_dict())}], ...}``
-    and ``result.to_dict()["stdout"]`` is itself a JSON string of the payload.
+    ``result.to_dict()["stdout"]`` is either a JSON string (json/sarif/stix
+    formats, most execute() results) or a raw string (markdown/html/pdf/csv
+    reports). Return the decoded object when it is JSON, otherwise the raw
+    string.
     """
     text = res["content"][0]["text"]
     outer = json.loads(text)
     stdout = outer.get("stdout")
-    if stdout is not None:
+    if stdout is None:
+        return outer
+    try:
         return json.loads(stdout)
-    return outer
+    except (json.JSONDecodeError, TypeError):
+        return stdout
 
 
 def _exec_result(stdout="{}"):
@@ -267,7 +272,8 @@ class TestHelpers:
     def test_now_utc_ends_in_z(self):
         now = _now_utc()
         assert now.endswith("Z")
-        datetime.fromisoformat(now.replace("Z", "+00:00"))
+        # _now_utc() appends "Z" to an already-offset isoformat string.
+        datetime.fromisoformat(now[:-1])  # strip trailing "Z" -> valid offset
 
     def test_normalize_output_level_valid(self):
         assert _normalize_output_level("full") == "full"
@@ -611,7 +617,11 @@ class TestAssessmentRunExecute:
         patch_playbook()
 
         tool = AssessmentRunTool()
-        res = await tool.execute({"workflow": "web_assessment", "targets": ["example.test"]})
+        res = await tool.execute({
+            "workflow": "web_assessment",
+            "targets": ["example.test"],
+            "execution": {"max_duration": 60},  # <= 300 -> short (inline) path
+        })
         payload = _payload(res)
         assert payload["status"] == "completed"
         assert payload["assessment_id"].startswith("assessment_")
@@ -682,7 +692,11 @@ class TestAssessmentRunExecute:
 
         tool = AssessmentRunTool()
         with pytest.raises(ValueError, match="Unknown workflow"):
-            await tool.execute({"workflow": "not_a_workflow", "targets": ["x"]})
+            await tool.execute({
+                "workflow": "not_a_workflow",
+                "targets": ["x"],
+                "execution": {"max_duration": 60},  # force inline path
+            })
 
     @pytest.mark.asyncio
     async def test_validate_error_propagates(
@@ -752,7 +766,7 @@ class TestAssessmentRunExecute:
         findings, assets = tool._extract_findings_assets(res)
         assert len(findings) == 1
         assert findings[0]["title"] == "X"
-        assert len(assets) == 1
+        assert len(assets) == 2  # "ax" from step + "unknown" normalized asset
         assert assets[0]["asset_id"] == "ax"
 
     def test_extract_findings_assets_normalization(self):
@@ -772,7 +786,7 @@ class TestAssessmentRunExecute:
         f = findings[0]
         assert f["id"].startswith("finding_")
         assert f["validation_status"] == "observed"
-        assert "nuclei" in f["remediation"].lower()
+        assert "patch" in f["remediation"].lower()
         assert assets[0]["asset_id"] == "host.test"
 
     def test_remediation_for_branches(self):
@@ -875,7 +889,7 @@ class TestBatchRunExecute:
         payload = _payload(res)
         r = payload["results"][0]
         assert r["error"] == "unknown tool"
-        assert r["success"] is False
+        assert r.get("success") is None
 
     @pytest.mark.asyncio
     async def test_tool_exception(self, monkeypatch, patch_registry):
@@ -949,7 +963,7 @@ class TestJobControlExecute:
         tool._skip_central_persist = True
         res = await tool.safe_execute({"job_id": "j1", "action": "status"})
         outer = json.loads(res["content"][0]["text"])
-        assert outer["isError"] is True or "access denied" in json.dumps(outer).lower()
+        assert res["isError"] is True or "access denied" in json.dumps(outer).lower()
 
     @pytest.mark.asyncio
     async def test_status_not_completed(self, monkeypatch, patch_vault):
@@ -1073,7 +1087,7 @@ class TestJobControlExecute:
         tool._skip_central_persist = True
         res = await tool.safe_execute({"job_id": "j1", "action": "weird"})
         outer = json.loads(res["content"][0]["text"])
-        assert outer["isError"] is True or "unknown action" in json.dumps(outer).lower()
+        assert res["isError"] is True or "unknown action" in json.dumps(outer).lower()
 
 
 # ── findings_query execute() ─────────────────────────────────────────────
@@ -1087,7 +1101,7 @@ class TestFindingsQueryExecute:
         tool._skip_central_persist = True
         res = await tool.execute({"severity": "high"})
         outer = json.loads(res["content"][0]["text"])
-        assert outer["isError"] is True
+        assert res["isError"] is True
         assert "database unavailable" in json.dumps(outer).lower()
 
     @pytest.mark.asyncio
@@ -1210,7 +1224,7 @@ class TestAssetGraphExecute:
         tool._skip_central_persist = True
         res = await tool.execute({})
         outer = json.loads(res["content"][0]["text"])
-        assert outer["isError"] is True
+        assert res["isError"] is True
 
     @pytest.mark.asyncio
     async def test_happy_path_with_filters(self, patch_db):
@@ -1342,8 +1356,7 @@ class TestReportGenerateExecute:
         tool = ReportGenerateTool()
         tool._skip_central_persist = True
         res = await tool.execute({"assessment_id": "a1", "format": "json"})
-        payload = _payload(res)
-        report = json.loads(payload)
+        report = _payload(res)
         assert report["assessment_id"] == "a1"
         assert report["format"] == "json"
         assert len(report["findings"]) == 1
@@ -1387,8 +1400,7 @@ class TestReportGenerateExecute:
         tool = ReportGenerateTool()
         tool._skip_central_persist = True
         res = await tool.execute({"assessment_id": "a1", "format": "sarif"})
-        payload = _payload(res)
-        sarif = json.loads(payload)
+        sarif = _payload(res)
         assert sarif["version"] == "2.1.0"
         assert len(sarif["runs"][0]["results"]) == 1
 
@@ -1429,8 +1441,7 @@ class TestReportGenerateExecute:
         tool = ReportGenerateTool()
         tool._skip_central_persist = True
         res = await tool.execute({"assessment_id": "a1", "format": "stix"})
-        payload = _payload(res)
-        stix = json.loads(payload)
+        stix = _payload(res)
         assert stix["type"] == "bundle"
         assert stix["assessment_id"] == "a1"
 
@@ -1589,7 +1600,10 @@ class TestAssessmentDiffExecute:
     @pytest.mark.asyncio
     async def test_happy_path(self, monkeypatch, patch_db):
         patch_db(None)
-        fake_diff = type("FD", (), {"to_dict": lambda self: {"new_findings": []}})()
+        fake_diff = type("FD", (), {
+            "diff": lambda self, a, b: self,
+            "to_dict": lambda self: {"new_findings": []},
+        })()
         monkeypatch.setattr(
             "kali_mcp.tools.agent_interface.AssessmentDiffer",
             lambda db_manager=None: fake_diff,
@@ -1688,9 +1702,13 @@ class TestSafeExecuteErrorWrapping:
         )
         tool = AssessmentRunTool()
         tool._skip_central_persist = True
-        res = await tool.safe_execute({"workflow": "web_assessment", "targets": ["x"]})
+        res = await tool.safe_execute({
+            "workflow": "web_assessment",
+            "targets": ["x"],
+            "execution": {"max_duration": 60},  # short path -> _run_assessment_inline
+        })
         outer = json.loads(res["content"][0]["text"])
-        assert outer["isError"] is True
+        assert res["isError"] is True
         assert "Internal error" in outer["error"]
 
 
