@@ -63,6 +63,16 @@ from kali_mcp.tools.wpscan import WpscanTool
 from kali_mcp.tools.zap import ZapTool
 from kali_mcp.tools.zighound import ZighoundTool
 from kali_mcp.tools.zizmor import ZizmorTool
+from kali_mcp.tools.agent_interface import (
+    AssessmentRunTool, BatchRunTool, JobControlTool,
+    FindingsQueryTool, EvidenceGetTool, AssetGraphTool,
+    ToolCatalogTool, ReportGenerateTool,
+    FindingTransitionTool, AssessmentDiffTool, CoverageSummaryTool,
+)
+from kali_mcp.tools.playbook_blackbox import (
+    PlaybookRunTool, PlaybookCatalogTool, PlaybookResultTool,
+)
+from kali_mcp.tools.template_tools import TemplateListTool, TemplateRunTool
 
 # Ordered list of tool instances (full inventory)
 ALL_TOOLS = [
@@ -122,4 +132,20 @@ ALL_TOOLS = [
     VaultListTool(),
     VaultDeleteTool(),
     VaultStatsTool(),
+    FindingTransitionTool(),
+    AssessmentDiffTool(),
+    CoverageSummaryTool(),
+    AssessmentRunTool(),
+    BatchRunTool(),
+    JobControlTool(),
+    FindingsQueryTool(),
+    EvidenceGetTool(),
+    AssetGraphTool(),
+    ToolCatalogTool(),
+    ReportGenerateTool(),
+    PlaybookRunTool(),
+    PlaybookCatalogTool(),
+    PlaybookResultTool(),
+    TemplateListTool(),
+    TemplateRunTool(),
 ]
