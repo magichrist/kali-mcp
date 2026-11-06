@@ -7,9 +7,9 @@ Conditions are validated to ensure they reference structured outputs only.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import yaml
