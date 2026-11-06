@@ -372,6 +372,43 @@ def _normalize_frontend_url(url: str) -> str:
     return url
 
 
+def _primary_lan_ip() -> str:
+    """Best-effort primary LAN IPv4 address (e.g. 192.168.2.4).
+
+    Opens a UDP socket toward a public address — nothing is actually sent;
+    this only makes the OS pick the route/interface a real connection would
+    use, so getsockname() reports that interface's address. Works on macOS,
+    Linux, and Windows without any external network traffic. Falls back to
+    ``127.0.0.1`` when no route is available (fully offline hosts).
+    """
+    import socket
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        ip = sock.getsockname()[0]
+        # Loopback as a result means the socket pinned to 127.0.0.1 — treat
+        # that as "no usable LAN IP".
+        return "" if ip.startswith("127.") else ip
+    except OSError:
+        return ""
+    finally:
+        sock.close()
+
+
+def _browser_url_for_host(host: str, port: int) -> str:
+    """Build the Studio URL a human should open in their browser.
+
+    Bind-wildcard hosts (``0.0.0.0`` / ``::``) are not openable from other
+    machines — map them to the machine's primary LAN IP so the same URL
+    works locally and across the network. Any explicit host (``127.0.0.1``,
+    a named host, a LAN IP) is kept as-is.
+    """
+    if host in ("0.0.0.0", "::", ""):
+        host = _primary_lan_ip() or "127.0.0.1"
+    return f"http://{host}:{port}/studio"
+
+
 def cmd_studio(args: argparse.Namespace) -> int:
     """Open the Playbook Studio web UI in a browser.
 
