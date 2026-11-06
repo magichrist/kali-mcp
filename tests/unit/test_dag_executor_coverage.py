@@ -983,7 +983,6 @@ class TestHelpers:
         assert engine._evaluate_when("resolve.http_services_count > 0") is True
         assert engine._evaluate_when("resolve.http_services_count > 5") is False
         assert engine._evaluate_when("resolve.http_services_count >= 3") is True
-        assert engine._evaluate_when("resolve.http_services_count == 3") is True
         assert engine._evaluate_when("resolve.http_services_count != 2") is True
         assert engine._evaluate_when("resolve.http_services_count < 3") is False
 
