@@ -54,7 +54,8 @@ Commas between declarations are optional (newlines also separate).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any
 
 from kali_mcp.workflow.dsl.grammar import (
@@ -67,18 +68,18 @@ from kali_mcp.workflow.dsl.grammar import (
     FIELD_REF,
     FLOAT,
     GE,
+    GT,
     IDENTIFIER,
     INTEGER,
-    LE,
-    LT,
     LBRACE,
     LBRACKET,
+    LE,
+    LT,
     NE,
     NULL,
     RBRACE,
     RBRACKET,
     STRING,
-    GT,
     Token,
     tokenize,
 )
@@ -103,7 +104,7 @@ class TypeExpr:
     kind: str  # string, integer, float, boolean, domain, ip, cidr, url,
                # port, port_range, secret, scope_reference, enum, array, object
     values: list[str] | None = None      # enum values
-    element: "TypeExpr | None" = None    # array element type
+    element: TypeExpr | None = None    # array element type
 
 
 @dataclass
@@ -296,9 +297,7 @@ class _Parser:
             self._next()
             self._expect(COLON)
             vtok = self._next()
-            if vtok.type == STRING:
-                version = str(vtok.value)
-            elif vtok.type == IDENTIFIER:
+            if vtok.type == STRING or vtok.type == IDENTIFIER:
                 version = str(vtok.value)
             else:
                 raise DSLParseError(
@@ -387,7 +386,9 @@ class _Parser:
         word = str(tok.value)
 
         if word == "enum":
-            self._expect(COLON)
+            # Grammar allows optional colon: enum {..} or enum: {..}
+            if self._at(COLON):
+                self._next()
             self._expect(LBRACE)
             values: list[str] = []
             while not self._at(RBRACE, EOF):
@@ -465,11 +466,46 @@ class _Parser:
         self._expect_keyword("steps")
         self._expect(LBRACE)
         steps: list[StepDecl] = []
+        seen_ids: set[str] = set()
         while not self._at(RBRACE, EOF):
-            steps.append(self._parse_step_decl())
+            id_tok = self._peek()
+            step = self._parse_step_decl()
+            if step.id in seen_ids:
+                raise DSLParseError(
+                    f"duplicate step id: {step.id}",
+                    id_tok.line,
+                    id_tok.col,
+                )
+            seen_ids.add(step.id)
+            steps.append(step)
             self._accept_comma_or_newline()
         self._expect(RBRACE)
+        self._detect_cycles(steps)
         return steps
+
+    def _detect_cycles(self, steps: list[StepDecl]) -> None:
+        """Raise DSLParseError if the dependency graph contains a cycle."""
+        adj: dict[str, list[str]] = {s.id: list(s.depends_on) for s in steps}
+        WHITE, GRAY, BLACK = 0, 1, 2
+        color = {s.id: WHITE for s in steps}
+
+        def dfs(node: str, path: list[str]) -> None:
+            color[node] = GRAY
+            path.append(node)
+            for dep in adj.get(node, []):
+                if dep not in color:
+                    continue
+                if color[dep] == GRAY:
+                    cycle = " → ".join(path[path.index(dep) :] + [dep])
+                    raise DSLParseError(f"dependency cycle: {cycle}", 0, 0)
+                if color[dep] == WHITE:
+                    dfs(dep, path)
+            path.pop()
+            color[node] = BLACK
+
+        for sid in adj:
+            if color[sid] == WHITE:
+                dfs(sid, [])
 
     def _parse_step_decl(self) -> StepDecl:
         id_tok = self._expect(IDENTIFIER)
@@ -481,7 +517,8 @@ class _Parser:
 
         if self._at_keyword("module"):
             self._next()
-            self._expect(COLON)
+            if self._at(COLON):
+                self._next()  # optional colon: module: ref or module ref
             ref_tok = self._next()
             if ref_tok.type != IDENTIFIER:
                 raise DSLParseError(
@@ -505,7 +542,8 @@ class _Parser:
                 ref = f"{ref}.{part_tok.value}"
         elif self._at_keyword("tool"):
             self._next()
-            self._expect(COLON)
+            if self._at(COLON):
+                self._next()  # optional colon: tool: ref or tool ref
             ref_tok = self._next()
             if ref_tok.type != IDENTIFIER:
                 raise DSLParseError(
@@ -535,7 +573,8 @@ class _Parser:
         while True:
             if self._at_keyword("depends_on"):
                 self._next()
-                self._expect(COLON)
+                if self._at(COLON):
+                    self._next()
                 self._expect(LBRACKET)
                 while not self._at(RBRACKET, EOF):
                     dep_tok = self._expect(IDENTIFIER)
@@ -544,25 +583,30 @@ class _Parser:
                 self._expect(RBRACKET)
             elif self._at_keyword("when"):
                 self._next()
-                self._expect(COLON)
+                if self._at(COLON):
+                    self._next()
                 when = self._parse_condition()
             elif self._at_keyword("parallel"):
                 self._next()
-                self._expect(COLON)
+                if self._at(COLON):
+                    self._next()
                 vtok = self._expect(BOOL)
                 parallel = bool(vtok.value)
             elif self._at_keyword("foreach"):
                 self._next()
-                self._expect(COLON)
+                if self._at(COLON):
+                    self._next()
                 foreach = self._parse_field_ref()
             elif self._at_keyword("retry"):
                 self._next()
-                self._expect(COLON)
+                if self._at(COLON):
+                    self._next()
                 vtok = self._expect(INTEGER)
                 retry = int(vtok.value)
             elif self._at_keyword("on_failure"):
                 self._next()
-                self._expect(COLON)
+                if self._at(COLON):
+                    self._next()
                 vtok = self._next()
                 if vtok.type != IDENTIFIER or str(vtok.value) not in {
                     "continue",
@@ -578,12 +622,14 @@ class _Parser:
                 on_failure = str(vtok.value)
             elif self._at_keyword("checkpoint"):
                 self._next()
-                self._expect(COLON)
+                if self._at(COLON):
+                    self._next()
                 vtok = self._expect(BOOL)
                 checkpoint = bool(vtok.value)
             elif self._at_keyword("budget"):
                 self._next()
-                self._expect(COLON)
+                if self._at(COLON):
+                    self._next()
                 self._expect(LBRACE)
                 # Budget contents are opaque to the DSL — store as raw key/value
                 while not self._at(RBRACE, EOF):
@@ -596,9 +642,10 @@ class _Parser:
             else:
                 break
 
-        # inputs: { mapping... }
+        # inputs: { mapping... }  (colon optional)
         self._expect_keyword("inputs")
-        self._expect(COLON)
+        if self._at(COLON):
+            self._next()
         self._expect(LBRACE)
         mappings: list[InputMapping] = []
         while not self._at(RBRACE, EOF):
@@ -623,7 +670,11 @@ class _Parser:
 
     def _parse_condition(self) -> str:
         """Parse a when condition and return its raw string."""
-        # field_ref OPERATOR literal
+        tok = self._next()
+        if tok.type == STRING:
+            # Entire condition is a quoted string: "{{steps.X.Y}} > 0"
+            return str(tok.value)
+        # Unquoted: field_ref OPERATOR literal
         field = self._parse_field_ref()
         op_tok = self._next()
         if op_tok.type not in {GT, LT, GE, LE, EQ, NE}:
@@ -698,8 +749,15 @@ class _Parser:
         self._expect(COLON)
         # value is either a field_ref or a literal
         tok = self._peek()
-        if tok.type in {FIELD_REF, STRING}:
+        if tok.type == FIELD_REF:
             value: FieldRef | Literal = self._parse_field_ref()
+        elif tok.type == STRING:
+            raw = str(tok.value)
+            if raw.startswith("{{") and raw.endswith("}}"):
+                value = self._parse_field_ref()
+            else:
+                lit = self._parse_literal()
+                value = Literal(kind=lit.kind, value=lit.value)
         else:
             lit = self._parse_literal()
             value = Literal(kind=lit.kind, value=lit.value)
@@ -722,6 +780,9 @@ class _Parser:
     def _parse_literal(self) -> Literal:
         tok = self._next()
         if tok.type == STRING:
+            return Literal(kind="string", value=str(tok.value))
+        if tok.type == IDENTIFIER:
+            # Bare word (e.g. `default: safe`) → string literal
             return Literal(kind="string", value=str(tok.value))
         if tok.type == INTEGER:
             return Literal(kind="integer", value=int(tok.value))
@@ -746,14 +807,14 @@ def parse(text: str) -> PlaybookAST:
 
 __all__ = [
     "DSLParseError",
-    "PlaybookAST",
-    "InputDecl",
-    "TypeExpr",
     "Execution",
     "FieldRef",
-    "Literal",
+    "InputDecl",
     "InputMapping",
+    "Literal",
     "OutputMap",
+    "PlaybookAST",
     "StepDecl",
+    "TypeExpr",
     "parse",
 ]
