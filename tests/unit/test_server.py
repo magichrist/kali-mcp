@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import threading
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -159,7 +160,7 @@ class TestTokenAuthMiddleware:
 
     @pytest.mark.asyncio
     async def test_allows_request_with_query_token(self) -> None:
-        mw = TokenAuthMiddleware(app=AsyncMock(), token="query-token")
+        mw = TokenAuthMiddleware(app=AsyncMock(), token="query-token", token_in_query=True)
         scope = {
             "type": "http",
             "headers": [],
@@ -262,6 +263,28 @@ class TestMainEntry:
     """Tests for the server main() function."""
 
     def test_main_invokes_uvicorn(self) -> None:
-        with patch("uvicorn.run") as mock_uvicorn_run, patch("kali_mcp.server.signal"):
-            main()
-            mock_uvicorn_run.assert_called_once()
+        from kali_mcp.config import Config
+
+        fake_config = Config.__new__(Config)
+        # minimal: set insecure True via env won't work; patch server.config instead
+        import kali_mcp.server as srv
+
+        orig = srv.config
+        srv.config = Config.__wrapped__ if hasattr(Config, "__wrapped__") else orig
+        # Easiest: monkeypatch the insecure attribute via a simple object
+        class _C:
+            transport = "sse"
+            allowed_origins = "*"
+            host = "127.0.0.1"
+            port = 8399
+            insecure = True
+            api_token = ""
+            token_in_query = False
+
+        srv.config = _C()
+        try:
+            with patch("uvicorn.run") as mock_uvicorn_run, patch("kali_mcp.server.signal"):
+                main()
+                mock_uvicorn_run.assert_called_once()
+        finally:
+            srv.config = orig
