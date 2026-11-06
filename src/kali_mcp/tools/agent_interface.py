@@ -46,7 +46,7 @@ from kali_mcp.intelligence import (
 from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
 from kali_mcp.responses import error_response, success_response
 from kali_mcp.tools.base import BaseTool
-from kali_mcp.utils.vault import vault_query, vault_read, vault_write
+from kali_mcp.utils.vault import can_access, vault_query, vault_read, vault_write
 from kali_mcp.workflow import PlaybookDefinition, run_playbook_async
 
 # Tool layer classification (used by tool_catalog and Agent vs Expert mode)
@@ -958,8 +958,14 @@ class JobControlTool(BaseTool):
             return success_response(result)
 
         if action == "status":
+            aid = job_entry.get("name", job_id)
+            if not can_access(aid):
+                return error_response(ToolError(
+                    error="access denied",
+                    details=f"assessment {aid} access denied",
+                ))
             try:
-                content = vault_read("assessments", job_entry.get("name", job_id))
+                content = vault_read("assessments", aid)
                 data = json.loads(content) if content else {}
             except Exception:
                 data = {}
@@ -984,7 +990,13 @@ class JobControlTool(BaseTool):
             deadline = _asyncio.get_event_loop().time() + timeout
             while _asyncio.get_event_loop().time() < deadline:
                 try:
-                    content = vault_read("assessments", job_entry.get("name", job_id))
+                    aid = job_entry.get("name", job_id)
+                    if not can_access(aid):
+                        return error_response(ToolError(
+                            error="access denied",
+                            details=f"assessment {aid} access denied",
+                        ))
+                    content = vault_read("assessments", aid)
                     data = json.loads(content) if content else {}
                     if data.get("status") in ("completed", "failed"):
                         payload = {"job_id": job_id, "status": data.get("status")}
@@ -1558,8 +1570,14 @@ class ReportGenerateTool(BaseTool):
 
         # Use the most recent entry
         entry = entries[0]
+        aid = entry.get("name", assessment_id)
+        if not can_access(aid):
+            return error_response(ToolError(
+                error="access denied",
+                details=f"assessment {aid} access denied",
+            ))
         try:
-            content = vault_read("assessments", entry.get("name", assessment_id))
+            content = vault_read("assessments", aid)
             data = json.loads(content) if content else {}
         except Exception:
             data = {}
