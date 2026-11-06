@@ -133,7 +133,7 @@ class TestParserHappyPath:
 
     def test_tool_step(self):
         dsl = """id: pb.tools name: "t" steps {
-  scan: tool nmap depends_on [] inputs { target: "10.0.0.1" }
+  scan: tool nmap depends_on [] inputs { target: "127.0.0.1" }
 }"""
         ast = parse(dsl)
         s = ast.steps[0]
