@@ -1,0 +1,24 @@
+id: privilege_check
+name: Linux Privilege Check
+description: Check sudo access SUID binaries and Linux capabilities
+tool: generic_command
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: Target host IP or localhost
+  ssh_key:
+    type: string
+    description: Optional SSH private key
+  sudo_password:
+    type: string
+    description: Optional sudo password
+  command:
+    type: string
+    description: Privilege check command default checks sudo SUID capabilities
+    default: echo SUDO; sudo -l || true; echo SUID; find / -perm /4000 -type f 2>/dev/null | head -50; echo CAPABILITIES; getcap -r / 2>/dev/null | head -50 || true
+outputs:
+  - sudo_access
+  - suid_binaries
+  - capabilities
