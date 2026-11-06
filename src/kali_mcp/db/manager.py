@@ -1158,6 +1158,18 @@ class DBManager:
         )
         self.conn.commit()
 
+    def list_tool_permission_rows(
+        self, profile_id: str, granted_only: bool = False
+    ) -> list[dict]:
+        """List tool permission rows for one profile, optionally granted only."""
+        cur = self.conn.cursor()
+        sql = "SELECT tool_id, granted, granted_at FROM agent_tool_permissions WHERE profile_id = ?"
+        if granted_only:
+            sql += " AND granted = 1"
+        rows = cur.execute(sql + " ORDER BY tool_id", (profile_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+
     def can_agent_call_tool(self, profile_id: str, tool_id: str) -> bool:
         """Return True only when the profile has an explicit grant for the tool.
 
@@ -1230,6 +1242,21 @@ class DBManager:
             (profile_id, playbook_id),
         ).fetchone()
         return bool(row and row["granted"])
+
+    def list_playbook_assignments(self, profile_id: str) -> list[dict]:
+        """List playbook assignments (granted or revoked) for one profile."""
+        cur = self.conn.cursor()
+        rows = cur.execute(
+            """
+            SELECT playbook_id, granted, granted_at
+            FROM agent_playbook_assignments
+            WHERE profile_id = ?
+            ORDER BY playbook_id
+            """,
+            (profile_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
 
     # ── studio: playbooks & versions ─────────────────────────────────────
 
