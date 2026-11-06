@@ -8,6 +8,8 @@ Usage:
     kmcp start [--host HOST] [--port PORT]   # start the MCP server (alias: s)
     kmcp monitor [URL]                        # launch the monitor TUI (alias: m)
     kmcp purge SCOPE [--confirm]              # purge data: db | vault | all (alias: p)
+    kmcp studio [--no-browser]                # open the Studio UI in a browser,
+                                              # starting the server if needed (alias: st)
 
     kmcp playbook list [--status STATUS]                 # list playbooks
     kmcp playbook create --id ID --name NAME             # create a draft playbook
@@ -38,7 +40,10 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
+import time
+import webbrowser
 from pathlib import Path
 
 try:
@@ -140,6 +145,69 @@ def _confirm(prompt: str) -> bool:
     return response in ("y", "yes")
 
 
+def _normalize_frontend_url(url: str) -> str:
+    """Ensure a URL points at the Playbook Studio frontend."""
+    url = (url or "").strip()
+    if not url:
+        return url
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        path = (parsed.path or "").rstrip("/")
+        if path in ("", "/"):
+            url = url.rstrip("/") + "/studio"
+    except Exception:  # noqa: BLE001
+        if not url.rstrip("/").endswith("/studio"):
+            url = url.rstrip("/") + "/studio"
+    return url
+
+
+def _open_frontend(args: argparse.Namespace) -> int:
+    """Open the Playbook Studio frontend in the default browser."""
+    _load_env()
+
+    url = getattr(args, "url", None)
+    if url:
+        url = str(url).strip()
+    else:
+        host = getattr(args, "host", None) or os.getenv("MCP_HOST", "127.0.0.1")
+        port = (
+            getattr(args, "port", None)
+            or os.getenv("STUDIO_PORT", "")
+            or os.getenv("MCP_PORT", "")
+            or "8399"
+        )
+        if host in ("0.0.0.0", "::", "", None):
+            host = "127.0.0.1"
+        url = f"http://{host}:{port}/studio"
+
+    no_browser = bool(getattr(args, "no_browser", False) or getattr(args, "no_open", False))
+    if not no_browser:
+        try:
+            webbrowser.open(url)
+        except Exception:  # noqa: BLE001
+            pass
+
+    print(f"Frontend: {url}")
+    return 0
+
+
+# Aliases for the frontend command (all delegate to _open_frontend).
+cmd_studio = _open_frontend
+cmd_frontend = _open_frontend
+cmd_web = _open_frontend
+cmd_ui = _open_frontend
+cmd_browser = _open_frontend
+cmd_open = _open_frontend
+cmd_gui = _open_frontend
+cmd_dashboard = _open_frontend
+cmd_webui = _open_frontend
+cmd_open_frontend = _open_frontend
+cmd_start_frontend = _open_frontend
+cmd_frontend_browser = _open_frontend
+
+
 def cmd_purge(args: argparse.Namespace) -> int:
     """Purge stored data (SQLite DB and/or vault)."""
     _load_env()
@@ -182,6 +250,108 @@ def cmd_purge(args: argparse.Namespace) -> int:
             print(f"  {path}")
     else:
         print("nothing to remove")
+    return 0
+
+
+# ── Studio (browser) commands ────────────────────────────────────────────
+
+
+def _server_reachable(url: str, timeout: float = 1.5) -> bool:
+    """Return True if the MCP server responds at ``url`` (any status < 500)."""
+    import httpx
+
+    try:
+        resp = httpx.get(url, timeout=timeout, follow_redirects=True)
+        return resp.status_code < 500
+    except httpx.HTTPError:
+        return False
+
+
+def _wait_for_server(url: str, proc: subprocess.Popen, timeout: float = 25.0) -> bool:
+    """Poll until the server answers, the child process dies, or timeout."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _server_reachable(url, timeout=1.0):
+            return True
+        if proc.poll() is not None:
+            return False
+        time.sleep(0.25)
+    return False
+
+
+def cmd_studio(args: argparse.Namespace) -> int:
+    """Open the Playbook Studio web UI in a browser.
+
+    If the MCP server is already running at the target host:port, the
+    browser is opened straight away. Otherwise the server is started in
+    the foreground (as a child process) and the browser is opened once
+    it is ready. The server keeps running until Ctrl+C.
+    """
+    _load_env()
+
+    url_arg = (getattr(args, "url", None) or "").strip()
+    if url_arg:
+        url = _normalize_frontend_url(url_arg)
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or int(os.getenv("MCP_PORT", "8399"))
+    else:
+        host = getattr(args, "host", None) or os.getenv("MCP_HOST", "127.0.0.1")
+        port = int(getattr(args, "port", None) or os.getenv("MCP_PORT", "8399"))
+        url = f"http://{host}:{port}/studio"
+
+    started_child = False
+    child: subprocess.Popen | None = None
+    if _server_reachable(url):
+        print(f"server already running at http://{host}:{port}")
+    else:
+        child = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "kali_mcp",
+                "start",
+                "--host",
+                str(host),
+                "--port",
+                str(port),
+            ]
+        )
+        started_child = True
+        print(f"starting MCP server at http://{host}:{port} ...")
+        if not _wait_for_server(url, child):
+            if child.poll() is not None:
+                print(
+                    f"error: server exited with code {child.returncode} before it became ready",
+                    file=sys.stderr,
+                )
+                return child.returncode or 1
+            print(
+                f"error: server did not become ready at {url} — is MCP_API_TOKEN set?",
+                file=sys.stderr,
+            )
+            child.terminate()
+            return 1
+
+    print(f"Playbook Studio: {url}")
+    if not getattr(args, "no_browser", False):
+        try:
+            webbrowser.open(url)
+        except Exception:  # noqa: BLE001 -- browser may be unavailable on headless hosts
+            print("could not open a browser — open the URL manually", file=sys.stderr)
+
+    if started_child:
+        try:
+            child.wait()
+        except KeyboardInterrupt:
+            child.terminate()
+            try:
+                child.wait(timeout=10)
+            except subprocess.TimeoutExpired:  # pragma: no cover
+                child.kill()
+            print("\nserver stopped")
     return 0
 
 
@@ -671,6 +841,32 @@ def build_parser() -> argparse.ArgumentParser:
     e_cancel = exec_sub.add_parser("cancel", help="Cancel a running execution")
     e_cancel.add_argument("id", help="Execution ID")
     e_cancel.set_defaults(func=cmd_execution_cancel)
+
+    # ── frontend / studio (open in browser) ───────────────────────
+    _frontend_commands = [
+        ("studio", ["st"], "Open the Playbook Studio UI in a browser (starts the server if needed)"),
+        ("frontend", ["fe", "front-end"], "Open the Playbook Studio frontend in the browser"),
+        ("web", ["w"], "Open the Playbook Studio frontend in the browser"),
+        ("ui", [], "Open the Playbook Studio frontend in the browser"),
+        ("browser", [], "Open the Playbook Studio frontend in the browser"),
+        ("open", [], "Open the Playbook Studio frontend in the browser"),
+        ("gui", [], "Open the Playbook Studio frontend in the browser"),
+        ("dashboard", ["dash"], "Open the Playbook Studio frontend in the browser"),
+        ("webui", ["web-ui", "web_ui"], "Open the Playbook Studio frontend in the browser"),
+        ("open-frontend", ["open_frontend", "openfrontend"], "Open the Playbook Studio frontend in the browser"),
+        ("start-frontend", ["start_frontend", "startfrontend"], "Open the Playbook Studio frontend in the browser"),
+        ("frontend-browser", ["frontend_browser", "frontendbrowser"], "Open the Playbook Studio frontend in the browser"),
+    ]
+    for _name, _aliases, _help in _frontend_commands:
+        _norm = _name.replace("-", "_")
+        _func = globals().get(f"cmd_{_norm}", cmd_frontend)
+        _p = sub.add_parser(_name, aliases=_aliases, help=_help)
+        _p.add_argument("url", nargs="?", default=None, help="Base URL of the MCP server or frontend URL")
+        _p.add_argument("--url", dest="url", default=None, help="Base URL of the MCP server or frontend URL")
+        _p.add_argument("--host", default=None, help="Listen host (default: MCP_HOST or 127.0.0.1)")
+        _p.add_argument("--port", default=None, help="Listen port (default: MCP_PORT or 8399)")
+        _p.add_argument("--no-browser", "--no-open", dest="no_browser", action="store_true", help="Do not open the browser")
+        _p.set_defaults(func=_func)
 
     return parser
 
