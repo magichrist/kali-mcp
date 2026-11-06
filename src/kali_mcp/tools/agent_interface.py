@@ -36,6 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from kali_mcp.agent_context import agent_context
 from kali_mcp.db import manager as dbm
 from kali_mcp.execution import engine
 from kali_mcp.identifiers import get_assessment_context
@@ -1424,7 +1425,26 @@ class ToolCatalogTool(BaseTool):
         mode = arguments.get("mode", "agent")
         search = arguments.get("search", "").lower()
 
-        allowed = AGENT_MODE_TOOLS if mode == "agent" else EXPERT_MODE_TOOLS
+        allowed = set(AGENT_MODE_TOOLS if mode == "agent" else EXPERT_MODE_TOOLS)
+
+        # Profile-aware filtering (Phase 6): when a request resolves to an
+        # agent profile, the catalog only lists tools the profile may call —
+        # deny-by-default, also enforced server-side on every call.
+        profile_id = agent_context.get_current_profile()
+        if profile_id:
+            from kali_mcp.db import manager as db_manager
+
+            try:
+                db = db_manager.get_db()
+                rows = (
+                    db.list_tool_permission_rows(profile_id, granted_only=True)
+                    if db is not None
+                    else []
+                )
+            except Exception:  # noqa: BLE001 — DB issues cannot widen the catalog
+                rows = []
+            granted_names = {row["tool_id"] for row in rows}
+            allowed &= granted_names
 
         from kali_mcp.registry import registry
         tools = registry.list_all()
