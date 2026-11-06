@@ -12,7 +12,7 @@ import pytest
 
 from kali_mcp.tools import ALL_TOOLS
 
-EXPECTED_TOOL_COUNT = 56
+EXPECTED_TOOL_COUNT = 72
 
 VALID_ARGS = {
     "generic_command": {"command": "echo hello"},
@@ -92,6 +92,7 @@ VALID_ARGS = {
             "name": "test",
             "steps": [
                 {
+                    "id": "step1",
                     "parallel": False,
                     "tools": [{"tool": "generic_command", "args": {"command": "echo hi"}}],
                 }
@@ -110,6 +111,57 @@ VALID_ARGS = {
     "vault_list": {},
     "vault_delete": {"category": "notes", "name": "schema_test"},
     "vault_stats": {},
+    # ── v2.0 Agent Interface Layer ──
+    "assessment_run": {
+        "workflow": "web_assessment",
+        "targets": ["example.com"],
+        "profile": "safe_active",
+        "execution": {"max_parallel": 2, "max_duration": 300, "resume": False},
+        "output": {"detail": "summary", "include_raw": False},
+    },
+    "batch_run": {
+        "operations": [
+            {"tool": "nmap", "target_ref": "127.0.0.1", "args": {"target": "127.0.0.1"}}
+        ],
+        "max_parallel": 2,
+        "continue_on_error": True,
+    },
+    "job_control": {"job_id": "job_test123", "action": "status"},
+    "findings_query": {"severity": "high", "limit": 10, "offset": 0},
+    "evidence_get": {"evidence_id": "evidence_test123"},
+    "asset_graph": {"target": "example.com", "limit": 10},
+    "tool_catalog": {"mode": "agent", "layer": "intelligence"},
+    "report_generate": {"assessment_id": "assessment_test123", "format": "json"},
+    "finding_transition": {
+        "finding_id": "finding_test123",
+        "new_state": "validated",
+        "source": "analyst",
+        "reason": "Verified manually",
+    },
+    "assessment_diff": {
+        "assessment_id_a": "assessment_test_a",
+        "assessment_id_b": "assessment_test_b",
+    },
+    "coverage_summary": {"assessment_id": "assessment_test123"},
+    "assessment_run": {
+        "workflow": "web_assessment",
+        "targets": ["example.com"],
+    },
+    "batch_run": {"operations": [{"tool": "nmap", "args": {"target": "127.0.0.1"}}]},
+    "job_control": {"job_id": "job_test123", "action": "status"},
+    "findings_query": {"severity": "high"},
+    "evidence_get": {"evidence_id": "evidence_test123"},
+    "asset_graph": {"target": "example.com"},
+    "tool_catalog": {"mode": "agent"},
+    "report_generate": {"assessment_id": "assessment_test123"},
+    "playbook_run": {"playbook": "api_recon", "target": "example.com"},
+    "playbook_catalog": {},
+    "playbook_result": {"job_id": "job_test123"},
+    "template_list": {},
+    "template_run": {
+        "template_id": "quick_web_scan",
+        "params": {"target": "example.com"},
+    },
 }
 
 INVALID_ARGS = {
@@ -169,6 +221,22 @@ INVALID_ARGS = {
     "vault_list": None,
     "vault_delete": {},
     "vault_stats": None,
+    "finding_transition": {"finding_id": "", "new_state": "invalid_state"},
+    "assessment_diff": {},
+    "coverage_summary": {},
+    "assessment_run": {"targets": ["example.com"]},
+    "batch_run": {"operations": []},
+    "job_control": {},
+    "evidence_get": {},
+    "report_generate": {"format": "xml"},
+    "playbook_run": {"playbook": "no_such_playbook", "target": "example.com"},
+    "playbook_result": {},
+    "template_run": {"template_id": "no_such_template"},
+    "playbook_catalog": None,
+    "template_list": None,
+    "findings_query": None,
+    "asset_graph": None,
+    "tool_catalog": None,
 }
 
 ALL_TOOL_NAMES = [t.name for t in ALL_TOOLS]
