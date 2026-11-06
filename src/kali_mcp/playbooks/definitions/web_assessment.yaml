@@ -26,62 +26,50 @@ steps:
     checkpoint: true
     description: "Validate target against active assessment scope"
   - id: discover
-    type: tool
-    tool: subfinder
+    module: subfinder
     depends_on: [validate]
     args:
       domain: "{{target}}"
-      timeout: 300
     checkpoint: true
     description: "Discover subdomains via subfinder"
   - id: resolve
-    type: tool
-    tool: httpx
+    module: httpx
     depends_on: [discover]
     args:
       target: "{{target}}"
-      timeout: 300
     checkpoint: true
     description: "Resolve hosts to live HTTP services"
   - id: map
-    type: tool
-    tool: katana
+    module: katana
     depends_on: [resolve]
     when: "resolve.http_services_count > 0"
     args:
       target: "{{target}}"
-      timeout: 300
     checkpoint: true
     description: "Crawl the application with katana"
   - id: params
-    type: tool
-    tool: arjun
+    module: arjun
     depends_on: [map]
     args:
       target: "{{target}}"
-      timeout: 300
     parallel: true
     checkpoint: true
     description: "Discover hidden request parameters via arjun"
   - id: dirs
-    type: tool
-    tool: ffuf
+    module: ffuf
     depends_on: [map]
     args:
       target: "{{target}}"
       wordlist: "{{options.wordlist}}"
-      timeout: 300
     parallel: true
     checkpoint: true
     description: "Brute-force directories and paths via ffuf"
   - id: vulnerability_checks
-    type: tool
-    tool: nuclei
+    module: nuclei
     depends_on: [params, dirs]
     args:
       target: "{{target}}"
       templates: "http"
-      timeout: 600
     checkpoint: true
     description: "Scan web endpoints with nuclei"
   - id: correlate
