@@ -577,6 +577,25 @@ class PlaybookEngine:
 
 
 async def run_playbook(playbook: PlaybookDefinition, resume: bool = False) -> ExecutionResult:
-    """Async wrapper to run a playbook via the DAG engine."""
+    """Async wrapper to run a playbook via the DAG engine.
+
+    Safe to call from within a running event loop (e.g. an async MCP tool
+    handler) because it directly awaits the engine instead of calling
+    :func:`asyncio.run`. Kept for backward compatibility; new callers should
+    prefer :func:`run_playbook_async`.
+    """
+    eng = PlaybookEngine()
+    return await eng.run(playbook, resume=resume)
+
+
+async def run_playbook_async(
+    playbook: PlaybookDefinition, resume: bool = False
+) -> ExecutionResult:
+    """Async-native entry point: directly awaits the engine's ``run()``.
+
+    Use this from async MCP tool handlers running inside an active event
+    loop. It never calls :func:`asyncio.run`, so it cannot raise
+    ``RuntimeError: asyncio.run() cannot be called from a running event loop``.
+    """
     eng = PlaybookEngine()
     return await eng.run(playbook, resume=resume)
