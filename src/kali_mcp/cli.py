@@ -422,13 +422,8 @@ def cmd_studio(args: argparse.Namespace) -> int:
     url_arg = (getattr(args, "url", None) or "").strip()
     if url_arg:
         url = _normalize_frontend_url(url_arg)
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        browser_host = parsed.hostname or "127.0.0.1"
-        browser_port = parsed.port or int(os.getenv("STUDIO_PORT", "") or os.getenv("MCP_PORT", "8399"))
     else:
-        browser_host = getattr(args, "host", None) or os.getenv("MCP_HOST", "127.0.0.1")
+        host_arg = getattr(args, "host", None) or os.getenv("MCP_HOST", "127.0.0.1")
         browser_port = (
             getattr(args, "port", None)
             or os.getenv("STUDIO_PORT", "")
@@ -436,12 +431,10 @@ def cmd_studio(args: argparse.Namespace) -> int:
             or "8399"
         )
         browser_port = int(browser_port)
-        url = f"http://{browser_host}:{browser_port}/studio"
-
-    # Map wildcard bind hosts to localhost for the browser URL.
-    reach_host = "127.0.0.1" if browser_host in ("0.0.0.0", "::", "") else browser_host
-    if not url_arg:
-        url = f"http://{reach_host}:{browser_port}/studio"
+        # The server binds MCP_HOST, but a 0.0.0.0 bind is not openable as a
+        # browser URL. Resolve it to the LAN IP so the same link works from
+        # this machine and from anywhere on the network.
+        url = _browser_url_for_host(host_arg, browser_port)
 
     started_child = False
     child: subprocess.Popen | None = None
@@ -484,6 +477,13 @@ def cmd_studio(args: argparse.Namespace) -> int:
             webbrowser.open(url)
         except Exception:  # noqa: BLE001 -- browser may be unavailable on headless hosts
             print("could not open a browser — open the URL manually", file=sys.stderr)
+    if os.getenv("KALI_MCP_INSECURE", "") != "1":
+        api_token = os.getenv("MCP_API_TOKEN", "")
+        if api_token:
+            print(
+                "note: the Studio UI is open, but API/MCP calls still require"
+                " the MCP_API_TOKEN (header or KALI_MCP_TOKEN_IN_QUERY)"
+            )
 
     if started_child:
         try:
