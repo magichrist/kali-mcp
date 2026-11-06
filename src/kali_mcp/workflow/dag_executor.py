@@ -129,6 +129,9 @@ class PlaybookEngine:
 
         aborted_flag = {"value": False}
 
+        # Results collected in wave order; used for the ExecutionResult payload.
+        results: list[Any] = []
+
         # Compute dependency waves
         waves = self._compute_waves(steps)
 
@@ -681,10 +684,24 @@ class PlaybookEngine:
                 return True
         return False
 
-    def _persist_state(self, name: str, state: dict) -> None:
-        """Persist playbook run state (best-effort)."""
+    def _persist_state(self, name: str, state: dict, run_id: str | None = None) -> None:
+        """Persist playbook run state (best-effort) to RUN_STATUS and SQLite."""
         try:
             RUN_STATUS[name] = dict(state)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from kali_mcp.db import manager as dbm
+
+            db = dbm.get_db()
+            if db is not None:
+                db.save_workflow_run(
+                    run_id or name,
+                    name,
+                    state.get("status", "running"),
+                    state.get("completed_steps", []),
+                    state,
+                )
         except Exception:  # noqa: BLE001
             pass
 
