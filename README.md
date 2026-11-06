@@ -8,9 +8,9 @@
   <a href="https://pypi.org/project/kmcp/"><img src="https://img.shields.io/badge/pypi-kmcp-a6d189" alt="kmcp on PyPI"></a>
 </p>
 
-The Kali MCP Server is a production-grade Model Context Protocol (MCP) server that exposes Kali Linux penetration-testing tools (nmap, sqlmap, nuclei, hydra, metasploit, and 50 more) to AI agents. Every tool call is validated, every execution is sandboxed with timeouts, and every result can be shared between agents through a built-in inter-agent vault.
-
 > ⚠️ **Security warning:** This server executes real offensive security tooling. Expose it only on a **trusted local network** and never on the public internet or in untrusted environments. Anyone who can reach the endpoint can run Kali tools against targets you may not own. Always set `MCP_API_TOKEN` when exposing beyond localhost, and ensure you have explicit authorization for every target you scan.
+
+The Kali MCP Server is a production-grade Model Context Protocol (MCP) server that exposes Kali Linux penetration-testing tools (nmap, sqlmap, nuclei, hydra, metasploit, and 50 more) to AI agents. Every tool call is validated, every execution is sandboxed with timeouts, and every result can be shared between agents through a built-in inter-agent vault.
 
 ## $\textsf{\color{#89b4fa}{✧}}$ At a glance
 
