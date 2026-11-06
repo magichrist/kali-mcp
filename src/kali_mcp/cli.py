@@ -3,6 +3,8 @@ and Playbook Studio management.
 
 Usage:
 
+    kmcp                                  # show help
+    kmcp --help                           # show help
     kmcp start [--host HOST] [--port PORT]   # start the MCP server (alias: s)
     kmcp monitor [URL]                        # launch the monitor TUI (alias: m)
     kmcp purge SCOPE [--confirm]              # purge data: db | vault | all (alias: p)
@@ -676,9 +678,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
-    if not argv:
-        argv = ["start"]
     parser = build_parser()
+    if not argv:
+        # No command given: print help and exit (like git/docker/kubectl),
+        # instead of silently starting the server.
+        parser.print_help(sys.stdout)
+        return 0
     args = parser.parse_args(argv)
     return args.func(args)
 
