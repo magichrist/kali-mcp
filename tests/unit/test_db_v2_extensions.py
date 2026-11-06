@@ -22,11 +22,11 @@ def db(tmp_path):
 
 def _add_target_scan_finding(db):
     """Seed one target, scan, and finding with v2 columns populated."""
-    tid = db.upsert_target("10.0.0.1", target_type="host")
+    tid = db.upsert_target("127.0.0.1", target_type="host")
     sid = db.add_scan(
         tid,
         "nmap",
-        "nmap -sT 10.0.0.1",
+        "nmap -sT 127.0.0.1",
         "2026-01-01T00:00:00Z",
         "2026-01-01T00:00:05Z",
         5.0,
@@ -58,11 +58,11 @@ def _add_target_scan_finding(db):
 
 class TestUpsertAsset:
     def test_insert_then_update_is_idempotent(self, db):
-        tid = db.upsert_target("10.0.0.1", target_type="host")
+        tid = db.upsert_target("127.0.0.1", target_type="host")
         aid1 = db.upsert_asset(
-            asset_id="asset_10.0.0.1",
+            asset_id="asset_127.0.0.1",
             asset_type="host",
-            name="10.0.0.1",
+            name="127.0.0.1",
             target_id=tid,
             scope="in-scope",
             tags="web",
@@ -70,16 +70,16 @@ class TestUpsertAsset:
         assert aid1 > 0
         row = db.conn.execute(
             "SELECT tags, scope FROM assets WHERE asset_id = ?",
-            ("asset_10.0.0.1",),
+            ("asset_127.0.0.1",),
         ).fetchone()
         assert row["tags"] == "web"
         assert row["scope"] == "in-scope"
 
         # Same asset_id -> same row, fields updated.
         aid2 = db.upsert_asset(
-            asset_id="asset_10.0.0.1",
+            asset_id="asset_127.0.0.1",
             asset_type="host",
-            name="10.0.0.1",
+            name="127.0.0.1",
             target_id=tid,
             tags="web,dmz",
             scope="out-of-scope",
@@ -94,7 +94,7 @@ class TestUpsertAsset:
 
     def test_minimal_fields(self, db):
         aid = db.upsert_asset(
-            asset_id="asset_min", asset_type="ip", name="1.2.3.4"
+            asset_id="asset_min", asset_type="ip", name="127.0.0.1"
         )
         assert aid > 0
         row = db.conn.execute(
@@ -102,22 +102,22 @@ class TestUpsertAsset:
             (aid,),
         ).fetchone()
         assert row["asset_type"] == "ip"
-        assert row["name"] == "1.2.3.4"
+        assert row["name"] == "127.0.0.1"
         assert row["first_seen"] is not None
         assert row["last_seen"] is not None
 
 
 class TestAddService:
     def test_insert_and_update(self, db):
-        tid = db.upsert_target("10.0.0.1", target_type="host")
+        tid = db.upsert_target("127.0.0.1", target_type="host")
         aid = db.upsert_asset(
-            asset_id="asset_10.0.0.1",
+            asset_id="asset_127.0.0.1",
             asset_type="host",
-            name="10.0.0.1",
+            name="127.0.0.1",
             target_id=tid,
         )
         sid1 = db.add_service(
-            service_id="svc_10.0.0.1_22_tcp",
+            service_id="svc_127.0.0.1_22_tcp",
             asset_id=aid,
             port=22,
             protocol="tcp",
@@ -133,7 +133,7 @@ class TestAddService:
 
         # Same service_id -> same row, version updated.
         sid2 = db.add_service(
-            service_id="svc_10.0.0.1_22_tcp",
+            service_id="svc_127.0.0.1_22_tcp",
             asset_id=aid,
             port=22,
             protocol="tcp",
@@ -149,15 +149,15 @@ class TestAddService:
 
 class TestAddTechnology:
     def test_insert_and_update(self, db):
-        tid = db.upsert_target("10.0.0.1", target_type="host")
+        tid = db.upsert_target("127.0.0.1", target_type="host")
         aid = db.upsert_asset(
-            asset_id="asset_10.0.0.1",
+            asset_id="asset_127.0.0.1",
             asset_type="host",
-            name="10.0.0.1",
+            name="127.0.0.1",
             target_id=tid,
         )
         sid = db.add_service(
-            service_id="svc_10.0.0.1_80_tcp",
+            service_id="svc_127.0.0.1_80_tcp",
             asset_id=aid,
             port=80,
             protocol="tcp",
@@ -208,7 +208,7 @@ class TestAddTechnology:
 class TestAddAssetRelationship:
     def test_insert_and_update(self, db):
         aid_ip = db.upsert_asset(
-            asset_id="asset_ip_10.0.0.1", asset_type="ip", name="10.0.0.1"
+            asset_id="asset_ip_127.0.0.1", asset_type="ip", name="127.0.0.1"
         )
         aid_domain = db.upsert_asset(
             asset_id="asset_dom_example",
@@ -251,9 +251,9 @@ class TestAddAssetRelationship:
 
 class TestAddEvidenceArtifact:
     def test_insert_row(self, db):
-        tid = db.upsert_target("10.0.0.1", target_type="host")
+        tid = db.upsert_target("127.0.0.1", target_type="host")
         sid = db.add_scan(
-            tid, "nmap", "nmap 10.0.0.1",
+            tid, "nmap", "nmap 127.0.0.1",
             "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
             60.0, 1, 0, None,
             assessment_id="assess_abc", job_id="job_xyz",
@@ -261,7 +261,7 @@ class TestAddEvidenceArtifact:
         aid = db.add_evidence_artifact(
             evidence_id="evidence_abc123def456",
             tool="nmap",
-            target="10.0.0.1",
+            target="127.0.0.1",
             artifact_type="stdout",
             content_path="/artifacts/evidence/evidence_abc123def456_stdout.txt",
             content_size=123,
@@ -275,7 +275,7 @@ class TestAddEvidenceArtifact:
         ).fetchone()
         assert row is not None
         assert row["tool"] == "nmap"
-        assert row["target"] == "10.0.0.1"
+        assert row["target"] == "127.0.0.1"
         assert row["artifact_type"] == "stdout"
         assert row["content_size"] == 123
         assert row["assessment_id"] == "assess_abc"
@@ -345,10 +345,10 @@ class TestGetAssetGraph:
 
     def test_filtered_by_target_ip(self, db):
         db.upsert_asset(
-            asset_id="asset_a", asset_type="ip", name="10.0.0.1",
-            ip_address="10.0.0.1",
+            asset_id="asset_a", asset_type="ip", name="127.0.0.1",
+            ip_address="127.0.0.1",
         )
-        graph = db.get_asset_graph(target="10.0.0.1")
+        graph = db.get_asset_graph(target="127.0.0.1")
         assert len(graph["assets"]) == 1
 
     def test_filtered_by_target_domain(self, db):
@@ -376,24 +376,24 @@ class TestQueryFindings:
 
     def test_filter_by_target(self, db):
         tid, sid, fid = _add_target_scan_finding(db)
-        tid2 = db.upsert_target("10.0.0.2", target_type="host")
+        tid2 = db.upsert_target("otherhost.example", target_type="host")
         sid2 = db.add_scan(
-            tid2, "nmap", "nmap 10.0.0.2",
+            tid2, "nmap", "nmap otherhost.example",
             "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
             5.0, 1, 0, None,
         )
         db.add_finding(
             tid2, sid2, "nmap", "open_port", "high", "Other", "d", "e",
         )
-        result = db.query_findings(target="10.0.0.1")
+        result = db.query_findings(target="127.0.0.1")
         assert result["count"] == 1
         assert result["findings"][0]["id"] == fid
 
     def test_filter_by_severity(self, db):
         tid, sid, fid = _add_target_scan_finding(db)
-        tid2 = db.upsert_target("10.0.0.2", target_type="host")
+        tid2 = db.upsert_target("127.0.0.1", target_type="host")
         sid2 = db.add_scan(
-            tid2, "nmap", "nmap 10.0.0.2",
+            tid2, "nmap", "nmap 127.0.0.1",
             "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
             5.0, 1, 0, None,
         )
@@ -406,9 +406,9 @@ class TestQueryFindings:
 
     def test_filter_by_validation_status(self, db):
         tid, sid, fid = _add_target_scan_finding(db)
-        tid2 = db.upsert_target("10.0.0.2", target_type="host")
+        tid2 = db.upsert_target("127.0.0.1", target_type="host")
         sid2 = db.add_scan(
-            tid2, "nmap", "nmap 10.0.0.2",
+            tid2, "nmap", "nmap 127.0.0.1",
             "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
             5.0, 1, 0, None,
         )
@@ -422,9 +422,9 @@ class TestQueryFindings:
 
     def test_filter_by_tool(self, db):
         tid, sid, fid = _add_target_scan_finding(db)
-        tid2 = db.upsert_target("10.0.0.2", target_type="host")
+        tid2 = db.upsert_target("127.0.0.1", target_type="host")
         sid2 = db.add_scan(
-            tid2, "masscan", "masscan 10.0.0.2",
+            tid2, "masscan", "masscan 127.0.0.1",
             "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
             5.0, 1, 0, None,
         )
@@ -462,9 +462,9 @@ class TestQueryFindings:
 
 class TestGetEvidence:
     def test_get_evidence_row(self, db):
-        tid = db.upsert_target("10.0.0.1", target_type="host")
+        tid = db.upsert_target("127.0.0.1", target_type="host")
         sid = db.add_scan(
-            tid, "nmap", "nmap 10.0.0.1",
+            tid, "nmap", "nmap 127.0.0.1",
             "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
             60.0, 1, 0, None,
             assessment_id="assess_abc", job_id="job_xyz",
@@ -472,7 +472,7 @@ class TestGetEvidence:
         aid = db.add_evidence_artifact(
             evidence_id="evidence_row123",
             tool="nmap",
-            target="10.0.0.1",
+            target="127.0.0.1",
             artifact_type="stdout",
             content_path="/tmp/evidence_row123_stdout.txt",
             content_size=42,
