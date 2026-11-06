@@ -33,6 +33,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from kali_mcp.db import manager as dbm
@@ -361,18 +362,6 @@ class AssessmentRunTool(BaseTool):
         assessment_id = ctx_assessment_id or _new_id("assessment")
         job_id = ctx_job_id
 
-        # Prefer a server-set assessment context when present (Task 3.1)
-        try:
-            from kali_mcp.identifiers import get_assessment_context
-
-            ctx_aid, ctx_job = get_assessment_context()
-            if ctx_aid:
-                assessment_id = ctx_aid
-            if ctx_job:
-                job_id = ctx_job
-        except Exception:  # noqa: BLE001
-            pass
-
         # Persist assessment start to DB
         db = dbm.get_db()
         target_ids: list[int] = []
@@ -496,12 +485,12 @@ class AssessmentRunTool(BaseTool):
         from kali_mcp.workflow import load_playbook
 
         definitions_dir = (
-            Path(__file__).resolve().parent.parent.parent / "playbooks" / "definitions"
+            Path(__file__).resolve().parent.parent / "playbooks" / "definitions"
         )
         filename = self._WORKFLOW_PLAYBOOKS.get(workflow)
         if not filename:
             raise ValueError(f"Unknown workflow: {workflow}")
-        return load_playbook(definitions_dir / filename)
+        return load_playbook(str(definitions_dir / filename))
 
     def _extract_findings_assets(
         self, res: ExecutionResult
@@ -1026,7 +1015,7 @@ class JobControlTool(BaseTool):
 
         if action == "cancel":
             # Cancel via engine if active
-            killed = engine.kill_job(job_id)
+            killed = await engine.kill_job(job_id)
             payload = {"job_id": job_id, "status": "cancelled" if killed else "not_found_or_already_done"}
             result = ExecutionResult(
                 tool=self.name, command=self.name,
