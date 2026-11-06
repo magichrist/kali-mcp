@@ -471,6 +471,104 @@ def get_index() -> dict[str, Any]:
     return {"count": len(entries), "entries": entries}
 
 
+# ── encryption at rest (PBKDF2 + AES-256-GCM, stdlib fallback) ────────
+
+import hashlib as _hashlib
+import hmac as _hmac
+import os as _os
+
+
+def derive_key(passphrase: str, salt: bytes | None = None) -> tuple[bytes, bytes]:
+    """Derive a 32-byte key via PBKDF2-HMAC-SHA256. Returns (key, salt)."""
+    if salt is None:
+        salt = _os.urandom(16)
+    key = _hashlib.pbkdf2_hmac("sha256", passphrase.encode("utf-8"), salt, 100_000, dklen=32)
+    return key, salt
+
+
+def _aes_available() -> bool:
+    try:
+        import cryptography  # noqa: F401
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # noqa: F401
+
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def encrypt_value(plaintext: str, passphrase: str) -> str:
+    """Encrypt a string. Uses AES-256-GCM if cryptography is available,
+    otherwise a stdlib HMAC-authenticated XOR stream (best-effort fallback)."""
+    import base64
+
+    key, salt = derive_key(passphrase)
+    if _aes_available():
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        aesgcm = AESGCM(key)
+        nonce = _os.urandom(12)
+        ct = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), None)
+        blob = salt + nonce + ct
+    else:
+        # stdlib fallback: XOR with keystream + HMAC tag
+        nonce = _os.urandom(12)
+        ks = _hashlib.sha256(key + nonce).digest()
+        data = plaintext.encode("utf-8")
+        ct = bytes(b ^ ks[i % len(ks)] for i, b in enumerate(data))
+        tag = _hmac.new(key, nonce + ct, _hashlib.sha256).digest()
+        blob = salt + nonce + tag + ct
+    return base64.b64encode(blob).decode("ascii")
+
+
+def decrypt_value(ciphertext: str, passphrase: str) -> str:
+    """Decrypt a string produced by :func:`encrypt_value`."""
+    import base64
+
+    blob = base64.b64decode(ciphertext.encode("ascii"))
+    salt, rest = blob[:16], blob[16:]
+    key, _ = derive_key(passphrase, salt)
+    if _aes_available():
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        nonce, ct = rest[:12], rest[12:]
+        aesgcm = AESGCM(key)
+        pt = aesgcm.decrypt(nonce, ct, None)
+        return pt.decode("utf-8")
+    # stdlib fallback
+    nonce, tag, ct = rest[:12], rest[12:44], rest[44:]
+    calc = _hmac.new(key, nonce + ct, _hashlib.sha256).digest()
+    if not _hmac.compare_digest(calc, tag):
+        raise ValueError("decryption failed: bad tag")
+    ks = _hashlib.sha256(key + nonce).digest()
+    pt = bytes(b ^ ks[i % len(ks)] for i, b in enumerate(ct))
+    return pt.decode("utf-8")
+
+
+# aliases
+vault_encrypt = encrypt_value
+vault_decrypt = decrypt_value
+
+
+def write_secret_ref(name: str, value: str) -> str:
+    """Store a secret reference (returns a vault handle, not the value)."""
+    ref = f"secret:{name}"
+    vault_write("secrets", name, {"ref": ref, "redacted": True}, tags="secret")
+    return ref
+
+
+def resolve_secret_ref(ref: str) -> str | None:
+    """Resolve a secret reference handle to its stored value (best-effort)."""
+    if not ref.startswith("secret:"):
+        return None
+    name = ref[len("secret:"):]
+    try:
+        raw = vault_read("secrets", name)
+        data = json.loads(raw) if isinstance(raw, str) else raw
+        return data.get("value")
+    except Exception:  # noqa: BLE001
+        return None
+
+
 # ── secret redaction & access control ──────────────────────────────────
 
 import re as _re
