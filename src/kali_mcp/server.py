@@ -536,13 +536,22 @@ def main() -> None:
         allow_headers=["*"],
     )
 
-    api_token = os.getenv("MCP_API_TOKEN", "")
+    api_token = os.getenv("MCP_API_TOKEN", "") or config.api_token
+    if not api_token and not config.insecure:
+        raise SystemExit(
+            "MCP_API_TOKEN is required. Set MCP_API_TOKEN in .env, or set "
+            "KALI_MCP_INSECURE=1 to run without authentication (dev only)."
+        )
     if api_token:
-        app.add_middleware(TokenAuthMiddleware, token=api_token)
+        app.add_middleware(
+            TokenAuthMiddleware,
+            token=api_token,
+            token_in_query=config.token_in_query,
+        )
         logger.info("API token authentication enabled")
     else:
         logger.warning(
-            "No MCP_API_TOKEN set — server is open. Set MCP_API_TOKEN in .env for production."
+            "No MCP_API_TOKEN set and KALI_MCP_INSECURE=1 — server is open."
         )
 
     # Graceful shutdown
