@@ -39,8 +39,8 @@ class TestExtractTargets:
         assert extract_targets(args) == ["example.com"]
 
     def test_list_values_flattened(self):
-        args = {"targets": ["10.0.0.1", "10.0.0.2", "{{steps.x.items}}"]}
-        assert extract_targets(args) == ["10.0.0.1", "10.0.0.2"]
+        args = {"targets": ["127.0.0.1", "blocked.example.com", "{{steps.x.items}}"]}
+        assert extract_targets(args) == ["127.0.0.1", "blocked.example.com"]
 
     def test_unresolved_templates_skipped(self):
         args = {"host": "{{steps.dns.resolved_hosts}}"}
@@ -61,9 +61,9 @@ class TestScopeGate:
         gate_step_args({"target": "anything.com"}, step_id="s1")
 
     def test_excluded_target_raises(self, monkeypatch):
-        scope = Scope(allowed_targets=(), excluded_targets=("10.0.0.*",))
+        scope = Scope(allowed_targets=(), excluded_targets=("*.external.com",))
         with pytest.raises(ScopeViolationError, match="excluded"):
-            gate_step_args({"target": "10.0.0.5"}, step_id="s2", scope=scope)
+            gate_step_args({"target": "node.external.com"}, step_id="s2", scope=scope)
 
     def test_outside_allowed_target_raises(self, monkeypatch):
         scope = Scope(allowed_targets=("*.example.com",))
@@ -86,9 +86,9 @@ class TestScopeGate:
 
     def test_per_item_list_check(self):
         scope = Scope(allowed_targets=("*.example.com",))
-        with pytest.raises(ScopeViolationError, match="10.0.0.1"):
+        with pytest.raises(ScopeViolationError, match="external.host"):
             gate_step_args(
-                {"targets": ["www.example.com", "10.0.0.1"]},
+                {"targets": ["www.example.com", "external.host"]},
                 step_id="s6",
                 scope=scope,
             )
