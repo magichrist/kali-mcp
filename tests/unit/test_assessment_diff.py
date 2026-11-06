@@ -27,7 +27,7 @@ def db_both() -> MockDB:
                 {"id": "f1", "title": "SSL Expired", "severity": "high",
                  "confidence": 0.7, "asset_id": "example.com", "validation_status": "observed"},
                 {"id": "f2", "title": "Open SSH", "severity": "medium",
-                 "confidence": 0.5, "asset_id": "10.0.0.1", "validation_status": "observed"},
+                 "confidence": 0.5, "asset_id": "127.0.0.1", "validation_status": "observed"},
             ]
         },
         "assess_b": {
