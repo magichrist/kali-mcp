@@ -1,327 +1,133 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kali-MCP Studio — Visual Workflow Editor</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kali-MCP · Playbook Studio</title>
+<link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- App shell -->
-  <div class="app">
-    <!-- Top navigation -->
-    <nav class="top-nav">
-      <div class="nav-brand">
-        <div class="brand-icon">🛡️</div>
-        <div class="brand-text">
-          <div class="brand-name">Kali-MCP Studio</div>
-          <div class="brand-sub">Visual Workflow Editor</div>
-        </div>
-      </div>
-
-      <div class="nav-spacer"></div>
-
-      <div class="nav-section">
-        <a href="#" class="nav-item active" data-section="playbooks">
-          <span class="nav-label">Playbooks</span>
-        </a>
-        <a href="#" class="nav-item" data-section="tools">
-          <span class="nav-label">Tools</span>
-        </a>
-        <a href="#" class="nav-item" data-section="agents">
-          <span class="nav-label">Agents</span>
-        </a>
-        <a href="#" class="nav-item" data-section="executions">
-          <span class="nav-label">Executions</span>
-        </a>
-      </div>
-
-      <div class="nav-section">
-        <button class="icon-btn" id="btn-refresh" title="Refresh">
-          <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6a4 4 0 0 0 4 4h12c2.2 0 4-1.8 4-4V4"/><path d="M23 20v-6a4 4 0 0 0-4-4H5c-2.2 0-4 1.8-4 4v12"/></svg>
-        </button>
-        <div class="user-badge">
-          <div class="user-avatar">AD</div>
-          <span class="user-name">Operator</span>
-        </div>
-      </div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brandmark">K</div><div><div class="brandname">KALI-MCP</div><div class="brandmeta">Security workspace</div></div></div>
+    <div class="workspace"><label>Workspace</label><button class="workspace-select" id="workspaceBtn">Red Team Lab <span>⌄</span></button></div>
+    <div class="nav-label">Workspace</div>
+    <nav class="nav">
+      <button class="nav-item" data-page="Overview"><span class="nav-icon">◫</span>Overview</button>
+      <button class="nav-item active" data-page="Playbook Studio"><span class="nav-icon">⌘</span>Playbook Studio<span class="nav-count">12</span></button>
+      <button class="nav-item" data-page="Executions"><span class="nav-icon">◷</span>Executions<span class="nav-count">3</span></button>
+      <button class="nav-item" data-page="Tool Registry"><span class="nav-icon">▦</span>Tool Registry<span class="nav-count">48</span></button>
+      <button class="nav-item" data-page="MCP Connections"><span class="nav-icon">⌁</span>MCP Connections<span class="nav-count">4</span></button>
+      <button class="nav-item" data-page="Agents"><span class="nav-icon">◉</span>Agents<span class="nav-count">5</span></button>
+      <button class="nav-item" data-page="Findings"><span class="nav-icon">⚑</span>Findings</button>
     </nav>
-
-    <!-- Main editor -->
-    <div class="editor-shell">
-      <!-- Left sidebar: Node Library -->
-      <aside class="sidebar sidebar-left">
-        <div class="sidebar-header">
-          <div class="sidebar-title">Node Library</div>
-          <div class="search-wrap">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="node-search" placeholder="Search nodes…" class="search-input" />
+    <div class="nav-label">Manage</div>
+    <nav class="nav"><button class="nav-item" data-page="Scopes"><span class="nav-icon">◎</span>Scopes &amp; policies</button><button class="nav-item" data-page="Settings"><span class="nav-icon">⚙</span>Settings</button></nav>
+    <div class="side-bottom"><div class="user"><div class="avatar">RT</div><div><strong>Red Team Operator</strong><small>Administrator</small></div><span style="margin-left:auto;color:#718196">···</span></div></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div class="crumb"><span>Workspace</span><span class="slash">/</span><span>Playbook Studio</span><span class="slash">/</span><b id="crumbTitle">Domain Recon</b></div><div class="top-actions"><button class="icon-btn" title="Notifications">♧</button><button class="icon-btn" title="Help">?</button><button class="btn ghost" id="shareBtn">↗ &nbsp;Export</button><button class="btn primary" id="saveBtn">Save draft</button></div></header>
+    <section class="content">
+      <div class="pagehead"><div class="page-top"><div><div class="eyebrow">PLAYBOOK STUDIO <span style="color:#536477">/ BUILDER</span></div><h1>Domain Reconnaissance</h1><div class="subtitle">Map a domain's external attack surface, identify exposed services and collect evidence.</div></div><div class="head-right"><span class="status" id="draftStatus">● &nbsp;Draft</span><span class="version">Version 0.8.2</span><button class="btn" id="validateBtn">✓ &nbsp;Validate</button><button class="btn primary" id="runBtn">▶ &nbsp;Test run</button></div></div><div class="meta-row"><span><i class="dot"></i> 8 workflow steps</span><span>◈ &nbsp;6 tools referenced</span><span>◷ &nbsp;Typical run 2–6 min</span><span>♧ &nbsp;Updated 4 min ago</span><span>◉ &nbsp;Assigned to 2 agents</span></div></div>
+      <nav class="tabs"><button class="tab active" data-view="builder">Visual builder</button><button class="tab" data-view="dsl">DSL editor <span class="count">YAML</span></button><button class="tab" data-view="inputs">Inputs &amp; outputs</button><button class="tab" data-view="runs">Test runs <span class="count">3</span></button></nav>
+      <div class="builder" id="builderView">
+        <section class="workarea">
+          <div class="canvas-toolbar"><div class="mode-switch"><button class="active" id="visualMode">Visual</button><button id="compactMode">Compact</button></div><div class="canvas-tools"><button class="btn ghost" id="autoLayout">⌗ &nbsp;Auto layout</button><button class="btn ghost" id="addNodeBtn">＋ &nbsp;Add step</button><button class="btn ghost" id="fitBtn">Fit canvas</button></div></div>
+          <div class="canvas-area" id="canvasArea"><div class="canvas-inner" id="canvasInner">
+            <div class="canvas-label">EXECUTION GRAPH <span style="color:#526378">· DAG</span></div><div class="canvas-hint">Drag nodes to rearrange · Select a node to configure</div>
+            <svg class="edges" id="edges" viewBox="0 0 1480 850" aria-hidden="true">
+              <path class="edge" d="M230 249 C265 249 265 249 300 249"/><path class="edge" d="M490 249 C525 249 525 249 560 249"/><path class="edge" d="M750 249 C785 249 785 249 820 249"/>
+              <path class="edge" d="M915 304 C915 365 655 365 655 425"/><path class="edge" d="M915 304 L915 425"/><path class="edge" d="M915 304 C915 365 1175 365 1175 425"/>
+              <path class="edge" d="M655 536 C655 615 875 615 875 665"/><path class="edge" d="M915 536 L915 665"/><path class="edge" d="M1175 536 C1175 615 955 615 955 665"/>
+              <text class="edge-label" x="735" y="355">service type</text><text class="edge-label" x="930" y="385">HTTP / HTTPS</text><text class="edge-label" x="1080" y="355">SSH</text>
+            </svg>
+            <article class="node node-start selected" data-node="target"><span class="port right"></span><div class="node-top"><div class="node-icon">◎</div><div><div class="node-title">Target input</div><div class="node-kind">INPUT · VALIDATION</div></div><i class="node-status"></i></div><div class="node-body">Accept domain and verify assessment scope before execution.</div><div class="node-foot"><span>operator + agent</span><span class="chip">required</span></div></article>
+            <article class="node node-dns" data-node="dns"><span class="port left"></span><span class="port right"></span><div class="node-top"><div class="node-icon dns">⌁</div><div><div class="node-title">DNS resolution</div><div class="node-kind">DNSX · DISCOVERY</div></div><i class="node-status"></i></div><div class="node-body">Resolve records, nameservers, MX and discovered hostnames.</div><div class="node-foot"><span>dnsx</span><span class="chip">timeout 30s</span></div></article>
+            <article class="node node-port" data-node="ports"><span class="port left"></span><span class="port right"></span><div class="node-top"><div class="node-icon scan">⌕</div><div><div class="node-title">Port discovery</div><div class="node-kind">RUSTSCAN · NETWORK</div></div><i class="node-status"></i></div><div class="node-body">Identify reachable TCP ports on in-scope resolved IPs.</div><div class="node-foot"><span>rustscan</span><span class="chip">top 1,000</span></div></article>
+            <article class="node node-service" data-node="services"><span class="port left"></span><div class="node-top"><div class="node-icon scan">▤</div><div><div class="node-title">Service detection</div><div class="node-kind">NMAP · FINGERPRINT</div></div><i class="node-status"></i></div><div class="node-body">Identify service, version and protocol for open ports.</div><div class="node-foot"><span>nmap</span><span class="chip">-sV</span></div></article>
+            <article class="node node-tls" data-node="tls"><span class="port left"></span><span class="port right"></span><div class="node-top"><div class="node-icon tls">◇</div><div><div class="node-title">TLS inspection</div><div class="node-kind">TLSX · CERTIFICATE</div></div><i class="node-status"></i></div><div class="node-body">Inspect certificates, protocol versions, ciphers and expiry.</div><div class="node-foot"><span>tlsx</span><span class="chip">conditional</span></div></article>
+            <article class="node node-http" data-node="http"><span class="port left"></span><span class="port right"></span><div class="node-top"><div class="node-icon web">▣</div><div><div class="node-title">HTTP reconnaissance</div><div class="node-kind">HTTPX · WEB</div></div><i class="node-status"></i></div><div class="node-body">Probe web endpoints, titles, technologies and status codes.</div><div class="node-foot"><span>httpx + nuclei</span><span class="chip">conditional</span></div></article>
+            <article class="node node-ssh" data-node="ssh"><span class="port left"></span><div class="node-top"><div class="node-icon ssh">⌑</div><div><div class="node-title">SSH inspection</div><div class="node-kind">SSH-AUDIT · PROTOCOL</div></div><i class="node-status"></i></div><div class="node-body">Collect banner and algorithm posture; no authentication attempts.</div><div class="node-foot"><span>ssh-audit</span><span class="chip">conditional</span></div></article>
+            <article class="node node-report" data-node="report"><span class="port left"></span><div class="node-top"><div class="node-icon out">✓</div><div><div class="node-title">Normalize &amp; aggregate</div><div class="node-kind">INTERNAL MODULE · OUTPUT</div></div><i class="node-status"></i></div><div class="node-body">Deduplicate assets, correlate evidence and produce assessment summary.</div><div class="node-foot"><span>aggregator</span><span class="chip">output</span></div></article>
+            <button class="add-node" id="canvasAdd">＋ Add step</button>
+            <div class="canvas-legend"><span><i class="legend-dot" style="background:#8bd6a8"></i>Input / output</span><span><i class="legend-dot" style="background:#d8ae68"></i>Network</span><span><i class="legend-dot" style="background:#aabaff"></i>Web</span><span><i class="legend-dot" style="background:#c4a5ff"></i>Protocol</span></div>
+            <div class="zoom"><button id="zoomOut">−</button><button id="zoomValue">100%</button><button id="zoomIn">＋</button></div>
+          </div></div>
+        </section>
+        <aside class="inspector" id="inspector">
+          <div class="inspector-head"><strong>Step configuration</strong><span id="stepNumber">STEP 01 / 08</span></div>
+          <div id="inspectorContent">
+            <div class="inspect-section"><div class="section-title">Selected step <span style="color:var(--green)">● Enabled</span></div><div class="field"><label>Step name</label><input id="nodeName" value="Target input" /></div><div class="field"><label>Description</label><textarea id="nodeDescription">Accept domain and verify assessment scope before execution.</textarea></div><div class="kv"><span>Node ID</span><strong id="nodeId">input.target</strong></div><div class="kv"><span>Node type</span><strong id="nodeType">Input</strong></div></div>
+            <div class="inspect-section"><div class="section-title">Input mapping <button class="btn ghost" style="height:23px;padding:0 6px" id="addMapping">＋ Map</button></div><div class="field"><label>target</label><input value="{{ inputs.target }}" /></div><div class="hint">Values are typed references. They are never interpolated into shell commands.</div></div>
+            <div class="inspect-section"><div class="section-title">Execution policy</div><div class="kv"><span>Timeout</span><strong>30 seconds</strong></div><div class="kv"><span>Retries</span><strong>1</strong></div><div class="kv"><span>On failure</span><strong>Stop &amp; report</strong></div><div class="toggle-row">Continue if step is skipped <button class="toggle" aria-label="Continue if skipped"></button></div></div>
+            <div class="inspect-section"><div class="section-title">Permissions</div><div class="input-pill"><span class="token">scope: required</span><span class="token">agent input</span><span class="token">operator override: no</span></div></div>
           </div>
-        </div>
-
-        <div class="library-scroll">
-          <div class="library-category">
-            <div class="cat-header">
-              <span class="cat-icon">🔌</span>
-              <span class="cat-name">Input</span>
-              <span class="cat-count">3</span>
-            </div>
-            <div class="node-list" id="nodes-input"></div>
-          </div>
-
-          <div class="library-category">
-            <div class="cat-header">
-              <span class="cat-icon">⚡</span>
-              <span class="cat-name">Tools</span>
-              <span class="cat-count">—</span>
-            </div>
-            <div class="node-list" id="nodes-tools"></div>
-          </div>
-
-          <div class="library-category">
-            <div class="cat-header">
-              <span class="cat-icon">🔀</span>
-              <span class="cat-name">Control Flow</span>
-              <span class="cat-count">4</span>
-            </div>
-            <div class="node-list" id="nodes-control"></div>
-          </div>
-
-          <div class="library-category">
-            <div class="cat-header">
-              <span class="cat-icon">📊</span>
-              <span class="cat-name">Data</span>
-              <span class="cat-count">4</span>
-            </div>
-            <div class="node-list" id="nodes-data"></div>
-          </div>
-
-          <div class="library-category">
-            <div class="cat-header">
-              <span class="cat-icon">📤</span>
-              <span class="cat-name">Output</span>
-              <span class="cat-count">4</span>
-            </div>
-            <div class="node-list" id="nodes-output"></div>
-          </div>
-        </div>
-      </aside>
-
-      <!-- Center: Canvas -->
-      <main class="canvas-area">
-        <div class="canvas-header">
-          <div class="playbook-bar">
-            <label class="playbook-label">Playbook</label>
-            <select id="playbook-select" class="playbook-select">
-              <option value="">Create new playbook</option>
-            </select>
-            <div class="pb-meta" id="pb-meta">
-              <span class="pb-version">—</span>
-              <span class="pb-sep">•</span>
-              <span class="pb-status status-draft">Draft</span>
-            </div>
-          </div>
-          <div class="canvas-actions">
-            <button class="icon-btn" id="btn-zoom-fit" title="Fit to screen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16l3 3m0 0 3-3m-3 3V3"/></svg>
-            </button>
-            <button class="icon-btn" id="btn-auto-layout" title="Auto layout">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18M3 15h18"/></svg>
-            </button>
-            <div class="divider"></div>
-            <button class="btn btn-ghost" id="btn-undo" title="Undo">↶ Undo</button>
-            <button class="btn btn-ghost" id="btn-redo" title="Redo">↷ Redo</button>
-            <div class="divider"></div>
-            <button class="btn btn-danger" id="btn-clear-canvas" title="Clear canvas">Clear</button>
-          </div>
-        </div>
-
-        <div class="canvas-viewport" id="canvas-viewport">
-          <div class="canvas-grid" id="canvas-grid"></div>
-          <canvas id="editor-canvas" width="2000" height="1400"></canvas>
-          <svg id="canvas-svg" class="canvas-svg" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></svg>
-          <div id="canvas-overlay" class="canvas-overlay"></div>
-        </div>
-
-        <div class="canvas-empty" id="canvas-empty">
-          <div class="empty-icon">🕸️</div>
-          <h3 class="empty-title">Empty canvas</h3>
-          <p class="empty-sub">Drag nodes from the library to start building your workflow.</p>
-        </div>
-      </main>
-
-      <!-- Right sidebar: Node Configuration -->
-      <aside class="sidebar sidebar-right">
-        <div class="sidebar-header">
-          <div class="sidebar-title" id="config-panel-title">Node Configuration</div>
-          <button class="icon-btn" id="btn-delete-selected" title="Delete selected" style="display:none">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
-
-        <div class="config-scroll">
-          <div id="config-empty" class="config-empty">
-            <div class="empty-icon">☁️</div>
-            <div class="empty-title">No node selected</div>
-            <p class="empty-sub">Click a node on the canvas to configure its properties.</p>
-          </div>
-
-          <form id="config-form" class="config-form hidden">
-            <input type="hidden" id="config-node-id" />
-
-            <div class="config-section">
-              <div class="section-header">
-                <span class="section-label">Identity</span>
-              </div>
-              <div class="form-field">
-                <label class="form-label">Node ID</label>
-                <input type="text" id="config-node-id-field" readonly class="form-input" />
-              </div>
-              <div class="form-field">
-                <label class="form-label">Type</label>
-                <select id="config-node-type" class="form-select" disabled></select>
-              </div>
-              <div class="form-field">
-                <label class="form-label">Description</label>
-                <input type="text" id="config-description" class="form-input" placeholder="Optional description" />
-              </div>
-            </div>
-
-            <div class="config-section">
-              <div class="section-header">
-                <span class="section-label">Configuration</span>
-              </div>
-              <div class="form-field">
-                <label class="form-label">Tool / Module</label>
-                <select id="config-tool" class="form-select"></select>
-              </div>
-              <div class="form-field">
-                <label class="form-label">Depends On</label>
-                <div id="config-depends-on" class="chip-list"></div>
-                <span class="field-hint">Select upstream nodes this step depends on.</span>
-              </div>
-              <div class="form-field">
-                <label class="form-label">When Condition</label>
-                <input type="text" id="config-when" class="form-input" placeholder="{{steps.X.field}} &gt; 0" />
-                <span class="field-hint">Structured reference only — no shell execution.</span>
-              </div>
-            </div>
-
-            <div class="config-section">
-              <div class="section-header">
-                <span class="section-label">Execution</span>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <label class="form-label checkbox-label">
-                    <input type="checkbox" id="config-parallel" /> Parallel
-                  </label>
-                </div>
-                <div class="form-field">
-                  <label class="form-label checkbox-label">
-                    <input type="checkbox" id="config-checkpoint" /> Checkpoint
-                  </label>
-                </div>
-              </div>
-              <div class="form-field">
-                <label class="form-label">Retry attempts</label>
-                <input type="number" id="config-retry" class="form-input" min="0" value="0" />
-              </div>
-              <div class="form-field">
-                <label class="form-label">On failure</label>
-                <select id="config-on-failure" class="form-select">
-                  <option value="abort">Abort</option>
-                  <option value="continue">Continue</option>
-                  <option value="skip_dependents">Skip Dependents</option>
-                </select>
-              </div>
-              <div class="form-field">
-                <label class="form-label">Budget (timeout ms)</label>
-                <input type="number" id="config-budget-timeout" class="form-input" min="0" placeholder="Default" />
-              </div>
-            </div>
-
-            <div class="config-section">
-              <div class="section-header">
-                <span class="section-label">Input Mappings</label>
-                <button type="button" id="btn-add-arg" class="btn btn-sm">+ Add Mapping</button>
-              </div>
-              <div id="config-args" class="args-list"></div>
-            </div>
-
-            <div class="config-section">
-              <div class="section-header">
-                <span class="section-label">Position</span>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <label class="form-label">X</label>
-                  <input type="number" id="config-pos-x" class="form-input" />
-                </div>
-                <div class="form-field">
-                  <label class="form-label">Y</label>
-                  <input type="number" id="config-pos-y" class="form-input" />
-                </div>
-              </div>
-            </div>
-          </form>
-        </div>
-      </aside>
-    </div>
-
-    <!-- Bottom status bar -->
-    <footer class="status-bar">
-      <div class="status-left">
-        <span class="status-pill" id="status-validation">
-          <span class="pill-dot"></span>
-          <span>Validation: not run</span>
-        </span>
-        <span class="status-sep">•</span>
-        <span class="status-pill" id="status-node-count">
-          <span class="pill-dot"></span>
-          <span>Nodes: 0</span>
-        </span>
-        <span class="status-sep">•</span>
-        <span class="status-pill" id="status-canvas">
-          <span class="pill-dot"></span>
-          <span>Canvas: ready</span>
-        </span>
+          <div class="inspect-actions"><button class="btn ghost" id="duplicateBtn">▣ &nbsp;Duplicate</button><button class="btn danger" id="deleteBtn">Delete step</button></div>
+        </aside>
       </div>
-      <div class="status-right">
-        <button class="btn btn-sm" id="btn-toggle-dsl">View DSL</button>
-        <button class="btn btn-primary" id="btn-save-playbook" disabled>Save Draft</button>
-        <button class="btn btn-success" id="btn-publish-playbook" disabled>Publish</button>
-      </div>
-    </footer>
-  </div>
+      <section class="dsl-view" id="dslView"><div class="dsl-grid"><div class="code-panel"><div class="panel-head"><span>domain-recon.yaml</span><span style="color:#7d91a6">Workflow DSL · YAML</span></div><textarea class="code-area" id="dslCode" spellcheck="false">playbook:
+  id: domain_recon
+  name: Domain Reconnaissance
+  version: 0.8.2
+  description: Map the external attack surface of an authorized domain.
 
-  <!-- Modals -->
-  <div id="dsl-modal" class="modal">
-    <div class="modal-backdrop"></div>
-    <div class="modal-panel">
-      <div class="modal-header">
-        <h3>DSL / Canonical Definition</h3>
-        <button class="btn-close" id="btn-close-dsl">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="tab-bar">
-          <button class="tab-btn active" data-tab="canonical">Canonical JSON</button>
-          <button class="tab-btn" data-tab="dsl">DSL Text</button>
-        </div>
-        <textarea id="dsl-output" class="code-editor" readonly spellcheck="false"></textarea>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline" id="btn-discard-dsl">Discard</button>
-        <button class="btn btn-primary" id="btn-apply-dsl">Apply Changes</button>
-      </div>
-    </div>
-  </div>
+inputs:
+  target:
+    type: domain
+    source: agent
+    required: true
+  scope_id:
+    type: scope_ref
+    source: operator
+    required: true
 
-  <div id="toast-container" class="toast-container"></div>
+steps:
+  - id: dns
+    uses: dnsx.resolve
+    with:
+      target: ${{ inputs.target }}
+      scope: ${{ inputs.scope_id }}
 
-  <script type="module" src="app.js"></script>
+  - id: ports
+    uses: rustscan.discover
+    needs: [dns]
+    with:
+      targets: ${{ steps.dns.resolved_ips }}
+      top_ports: 1000
+
+  - id: services
+    uses: nmap.service_detect
+    needs: [ports]
+    with:
+      targets: ${{ steps.ports.hosts }}
+      ports: ${{ steps.ports.open_ports }}
+
+  - id: tls
+    uses: tlsx.inspect
+    needs: [services]
+    when: steps.services.protocols contains "tls"
+
+  - id: http
+    uses: httpx.probe
+    needs: [services]
+    when: steps.services.protocols contains "http"
+
+  - id: ssh
+    uses: ssh_audit.inspect
+    needs: [services]
+    when: steps.services.protocols contains "ssh"
+
+  - id: aggregate
+    uses: internal.aggregate_findings
+    needs: [tls, http, ssh]
+    output: assessment_result</textarea></div><div class="info-panel"><h3>Workflow DSL</h3><p>The DSL is a readable representation of the same canonical workflow graph used by the visual builder. Editing either view should update the other.</p><h3 style="margin-top:20px">Core rules</h3><p><code>needs</code> defines dependencies. <code>with</code> maps typed inputs and outputs. <code>when</code> controls conditional branches.</p><p>Do not allow arbitrary shell or Python execution in the DSL. Compile to a validated workflow graph and structured tool arguments.</p><h3 style="margin-top:20px">Validation</h3><p id="dslValidation">✓ Syntax preview available<br>✓ Inputs are declared<br>✓ No dependency cycles detected</p><button class="btn" style="margin-top:12px;width:100%;justify-content:center" id="syncDsl">↻ &nbsp;Sync with visual graph</button></div></div></section>
+      <section class="inputs-view" id="inputsView"><div class="input-layout"><div class="input-card"><h3>Playbook inputs</h3><p>Inputs define what the agent or operator must provide when starting an execution.</p><div class="input-row"><div><strong>target</strong><small>Domain to assess</small></div><span class="token">domain</span><span class="token">Agent</span></div><div class="input-row"><div><strong>scope_id</strong><small>Authorized scope reference</small></div><span class="token">scope_ref</span><span class="token">Operator</span></div><div class="input-row"><div><strong>profile</strong><small>Discovery intensity</small></div><span class="token">enum</span><span class="token">Agent</span></div><button class="btn ghost" style="margin-top:14px" id="newInput">＋ Add input</button></div><div class="input-card"><h3>Declared outputs</h3><p>Normalized results that the parent agent receives after the playbook finishes.</p><div class="input-row"><div><strong>assets</strong><small>Discovered hosts and services</small></div><span class="token">array&lt;asset&gt;</span><span class="token">Output</span></div><div class="input-row"><div><strong>findings</strong><small>Correlated security findings</small></div><span class="token">array&lt;finding&gt;</span><span class="token">Output</span></div><div class="input-row"><div><strong>evidence</strong><small>Artifact references and provenance</small></div><span class="token">array&lt;ref&gt;</span><span class="token">Output</span></div></div><div class="input-card"><h3>Agent access</h3><p>Direct tool access is disabled. Authorized agents can invoke this playbook only.</p><div class="kv"><span>Allowed agents</span><strong>Recon Agent, Planner</strong></div><div class="kv"><span>Scope required</span><strong>Yes</strong></div><div class="kv"><span>Approval gate</span><strong>Before execution</strong></div></div><div class="input-card"><h3>Result contract</h3><p>Return concise structured output by default. Store large raw logs and artifacts separately and reference them by ID.</p><div class="kv"><span>Response profile</span><strong>Summary + normalized data</strong></div><div class="kv"><span>Maximum inline output</span><strong>64 KB</strong></div></div></div></section>
+      <section class="runs-view" id="runsView"><div class="table-panel"><div class="panel-head"><span>Recent test executions</span><button class="btn ghost" id="refreshRuns">↻ &nbsp;Refresh</button></div><div class="table-head"><span>Execution</span><span>Target</span><span>Started</span><span>Duration</span><span>Status</span></div><div class="table-row"><strong>run_01J9A7Q</strong><span>example.org</span><span>Today, 14:22</span><span>2m 41s</span><span class="run-state">Completed</span></div><div class="table-row"><strong>run_01J99K2</strong><span>staging.example.org</span><span>Today, 11:04</span><span>1m 12s</span><span class="run-state">Completed</span></div><div class="table-row"><strong>run_01J98DX</strong><span>demo.internal</span><span>Yesterday</span><span>—</span><span class="run-state failed">Scope blocked</span></div></div><div class="input-card" style="margin-top:15px;max-width:700px"><h3>Execution model</h3><p>Each run pins an immutable playbook version. Step input/output, status, timing and artifact references are persisted independently from the MCP connection.</p></div></section>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<div class="modal-backdrop" id="addModal"><div class="modal"><h3>Add workflow step</h3><p>Choose a registered tool, internal module or control-flow node. Implementation tools stay hidden from the agent.</p><div class="palette"><button data-add="tool"><strong>⌕ &nbsp;Security tool</strong><small>Nmap, DNSX, HTTPX, Nuclei…</small></button><button data-add="module"><strong>▦ &nbsp;Internal module</strong><small>Normalize, correlate, transform…</small></button><button data-add="condition"><strong>◇ &nbsp;Condition</strong><small>Branch based on typed outputs</small></button><button data-add="loop"><strong>↻ &nbsp;For each</strong><small>Bounded iteration over a collection</small></button><button data-add="approval"><strong>♧ &nbsp;Approval gate</strong><small>Require operator approval</small></button><button data-add="output"><strong>✓ &nbsp;Output</strong><small>Publish structured results</small></button></div><div class="modal-actions"><button class="btn ghost" id="closeModal">Cancel</button></div></div></div>
+<script type="module" src="app.js"></script>
 </body>
 </html>
