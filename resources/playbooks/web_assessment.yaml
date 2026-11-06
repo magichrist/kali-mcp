@@ -1,0 +1,68 @@
+name: web_assessment
+version: "2.0"
+
+inputs:
+  target:
+    type: string
+    required: true
+
+execution:
+  max_parallel: 4
+  timeout: 2400
+  resume: true
+
+steps:
+  - id: validate
+    type: scope_check
+    args:
+      target: "{{target}}"
+
+  - id: crawl
+    tool: katana
+    depends_on: [validate]
+    args:
+      target: "{{target}}"
+
+  - id: params
+    tool: arjun
+    depends_on: [crawl]
+    args:
+      target: "{{target}}"
+
+  - id: ffuf
+    tool: ffuf
+    depends_on: [crawl]
+    args:
+      target: "{{target}}"
+      wordlist: "/usr/share/wordlists/dirb/common.txt"
+    parallel: true
+
+  - id: nuclei
+    tool: nuclei
+    depends_on: [crawl, params, ffuf]
+    args:
+      target: "{{target}}"
+
+  - id: sqlmap
+    tool: sqlmap
+    depends_on: [params]
+    args:
+      target: "{{target}}"
+    parallel: true
+
+  - id: commix
+    tool: commix
+    depends_on: [params]
+    args:
+      target: "{{target}}"
+    parallel: true
+
+  - id: correlate
+    type: finding_correlation
+    depends_on: [nuclei, sqlmap, commix]
+    args: {}
+
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    args: {}
