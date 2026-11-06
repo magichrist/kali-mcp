@@ -14,7 +14,11 @@ from typing import Any
 
 from kali_mcp.evidence import store_evidence
 from kali_mcp.identifiers import get_assessment_context
-from kali_mcp.utils.vault import vault_write
+from kali_mcp.utils.vault import (
+    vault_write,
+    write_secret_ref,
+    redact_dict,
+)
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
