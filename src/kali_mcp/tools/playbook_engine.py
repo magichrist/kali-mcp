@@ -18,7 +18,7 @@ from kali_mcp.tools.persist import now_iso
 # Shared run-state registry with the DAG engine (kali_mcp.workflow.RUN_STATUS).
 # Imported rather than re-defined so that PlaybookStatusTool and the legacy
 # engine observe the same store.
-from kali_mcp.workflow import RUN_STATUS  # noqa: E402  (circular-import safe: workflow does not import this module)
+from kali_mcp.workflow import RUN_STATUS
 
 
 class PlaybookEngine:
