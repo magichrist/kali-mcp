@@ -106,8 +106,8 @@ class TestSqliteStorage:
         assert count == 1 and total == 1
 
     def test_metadata_columns_stored(self, vault_env):
-        vault.vault_write("handoff", "meta", {"x": 1}, target="10.0.0.1", tool="nmap", tags="recon")
-        entry = vault.vault_query(target="10.0.0.1")["entries"][0]
+        vault.vault_write("handoff", "meta", {"x": 1}, target="127.0.0.1", tool="nmap", tags="recon")
+        entry = vault.vault_query(target="127.0.0.1")["entries"][0]
         assert entry["tool"] == "nmap"
         assert entry["tags"] == "recon"
 
@@ -132,9 +132,9 @@ class TestQueryApi:
         assert res["count"] == 1
 
     def test_combined_filters(self, vault_env):
-        vault.vault_write("findings", "m1", {"a": 1}, target="10.0.0.1", tool="nmap")
-        vault.vault_write("findings", "m2", {"a": 2}, target="10.0.0.2", tool="nmap")
-        res = vault.vault_query(target="10.0.0.1", tool="nmap")
+        vault.vault_write("findings", "m1", {"a": 1}, target="127.0.0.1", tool="nmap")
+        vault.vault_write("findings", "m2", {"a": 2}, target="example.org", tool="nmap")
+        res = vault.vault_query(target="127.0.0.1", tool="nmap")
         assert res["count"] == 1
         assert res["entries"][0]["name"] == "m1"
 
