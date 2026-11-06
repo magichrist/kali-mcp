@@ -171,6 +171,14 @@ async def lifespan(app):
     try:
         if getattr(config, "db_enabled", True):
             _db = db_manager.get_db()
+            if _db is not None:
+                try:
+                    from kali_mcp.studio.service_tools import sync_registry_to_db
+
+                    synced = sync_registry_to_db(_db)
+                    logger.info("Synced %d tools to tool_definitions", len(synced))
+                except Exception:  # noqa: BLE001
+                    logger.exception("Tool registry sync failed")
             logger.info("Database initialized (path=%s)", str(config.db_path))
     except Exception:
         logger.exception("Database initialization failed")
@@ -570,7 +578,39 @@ def main() -> None:
     app.routes.insert(0, Route("/monitor/stream", monitor_stream, methods=["GET"]))
     app.routes.insert(0, Route("/monitor/action", monitor_action, methods=["POST"]))
 
-    uvicorn.run(app, host=config.host, port=config.port)
+    # ── Studio REST routes (Playbook Studio Phase 4) ────────────────
+    if getattr(config, "studio_enabled", True):
+        from kali_mcp.studio.api import mount_studio_routes
+
+        mount_studio_routes(app)
+        logger.info("Studio REST routes mounted")
+
+    # ── Studio static web (Phase 5) ────────────────────────────────
+    web_dir = os.path.join(os.path.dirname(__file__), "studio", "web")
+    if os.path.isdir(web_dir):
+        from starlette.staticfiles import StaticFiles
+
+        app.mount("/studio", StaticFiles(directory=web_dir, html=True), name="studio")
+        logger.info("Studio web assets mounted at /studio")
+
+    # ── Start the HTTP server ──────────────────────────────────────
+    # Production entry point: bind to host:port and serve forever.
+    # main() previously built the app and returned, so kmcp start / python
+    # -m kali_mcp.server did nothing. uvicorn.run blocks here until shutdown.
+    logger.info(
+        "Starting kali-mcp server on %s:%s (transport=%s, debug=%s)",
+        config.host,
+        config.port,
+        config.transport,
+        config.debug,
+    )
+    uvicorn.run(
+        app,
+        host=config.host,
+        port=config.port,
+        log_level="debug" if config.debug else "info",
+        access_log=config.debug,
+    )
 
 
 if __name__ == "__main__":
