@@ -13,9 +13,9 @@ from kali_mcp.scope import Scope, check_scope, is_operation_allowed, is_target_a
 
 class TestExactMatch:
     def test_exact_ip_match(self):
-        scope = Scope(allowed_targets=["10.0.0.1"])
-        assert is_target_allowed("10.0.0.1", scope) is True
-        assert is_target_allowed("10.0.0.2", scope) is False
+        scope = Scope(allowed_targets=["127.0.0.1"])
+        assert is_target_allowed("127.0.0.1", scope) is True
+        assert is_target_allowed("blocked.example.com", scope) is False
 
     def test_exact_domain_match(self):
         scope = Scope(allowed_targets=["example.com"])
@@ -30,33 +30,33 @@ class TestExactMatch:
 class TestExcludedTargets:
     def test_excluded_denies_even_when_allowed(self):
         scope = Scope(
-            allowed_targets=["10.0.0.*"], excluded_targets=["10.0.0.1"]
+            allowed_targets=["*.example.com"], excluded_targets=["node.example.com"]
         )
-        assert is_target_allowed("10.0.0.5", scope) is True
-        assert is_target_allowed("10.0.0.1", scope) is False
+        assert is_target_allowed("api.example.com", scope) is True
+        assert is_target_allowed("node.example.com", scope) is False
 
     def test_excluded_without_allowed_list(self):
-        scope = Scope(excluded_targets=["10.0.0.1"])
-        assert is_target_allowed("10.0.0.2", scope) is True
-        assert is_target_allowed("10.0.0.1", scope) is False
+        scope = Scope(excluded_targets=["127.0.0.1"])
+        assert is_target_allowed("example.com", scope) is True
+        assert is_target_allowed("127.0.0.1", scope) is False
 
     def test_excluded_glob_pattern(self):
-        scope = Scope(excluded_targets=["10.0.0.*"])
-        assert is_target_allowed("10.0.1.1", scope) is True
-        assert is_target_allowed("10.0.0.99", scope) is False
+        scope = Scope(excluded_targets=["*.example.com"])
+        assert is_target_allowed("api.other.org", scope) is True
+        assert is_target_allowed("node.example.com", scope) is False
 
 
 class TestExpirationFailClosed:
     def test_expired_scope_denies_all_targets(self):
         scope = Scope(expiration="2000-01-01T00:00:00Z")
         assert scope.is_expired() is True
-        assert is_target_allowed("10.0.0.1", scope) is False
+        assert is_target_allowed("127.0.0.1", scope) is False
         assert is_target_allowed("example.com", scope) is False
 
     def test_expired_scope_check_scope_raises(self):
         scope = Scope(expiration="2000-01-01T00:00:00Z")
         with pytest.raises(ValueError, match="has expired"):
-            check_scope("10.0.0.1", "nmap", scope)
+            check_scope("127.0.0.1", "nmap", scope)
 
     def test_none_expiration_not_expired(self):
         scope = Scope(expiration=None)
