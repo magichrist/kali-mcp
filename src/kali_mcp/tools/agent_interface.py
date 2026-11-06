@@ -29,31 +29,25 @@ Agent mode (default) exposes a compact subset; Expert mode exposes everything.
 from __future__ import annotations
 
 import asyncio
-import glob
 import json
 import os
 import uuid
-import yaml
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
-from kali_mcp.config import config
 from kali_mcp.db import manager as dbm
 from kali_mcp.execution import engine
 from kali_mcp.identifiers import get_assessment_context
 from kali_mcp.intelligence import (
-    FindingCorrelator,
-    AssetRelationshipBuilder,
-    VerificationStates,
-    CoverageTracker,
     AssessmentDiffer,
-    DiffResult,
+    CoverageTracker,
+    VerificationStates,
 )
 from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
 from kali_mcp.responses import error_response, success_response
 from kali_mcp.tools.base import BaseTool
-from kali_mcp.utils.vault import vault_write, vault_query, vault_read, vault_stats
+from kali_mcp.utils.vault import vault_query, vault_read, vault_write
+from kali_mcp.workflow import PlaybookDefinition, run_playbook_async
 
 # Tool layer classification (used by tool_catalog and Agent vs Expert mode)
 TOOL_LAYERS: dict[str, str] = {
@@ -241,6 +235,19 @@ class AssessmentRunTool(BaseTool):
             "Does not: expose raw scanner output unless output.detail=full or via evidence_get.\n"
         )
 
+    # Workflow name -> YAML playbook definition file. These are executed
+    # through the DAG engine by assessment_run (replacing the old hardcoded
+    # if/elif chain).
+    _WORKFLOW_PLAYBOOKS: dict[str, str] = {
+        "web_assessment": "web_assessment.yaml",
+        "network_assessment": "network_assessment.yaml",
+        "external_recon": "external_recon.yaml",
+        "ad_assessment": "ad_assessment.yaml",
+        "api_assessment": "api_assessment.yaml",
+        "vulnerability_validation": "vulnerability_validation.yaml",
+        "custom_assessment": "custom_recon.yaml",
+    }
+
     @property
     def default_timeout(self) -> int:
         return 3600
@@ -294,6 +301,16 @@ class AssessmentRunTool(BaseTool):
                 },
             },
             "required": ["workflow", "targets"],
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "assessment_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "summary": {"type": "object"},
+                    "findings": {"type": "array"},
+                    "next_actions": {"type": "array"},
+                },
+            },
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
@@ -447,65 +464,155 @@ class AssessmentRunTool(BaseTool):
         include_raw: bool,
         assessment_id: str,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """Run the assessment inline and return (findings, assets, next_actions)."""
-        from kali_mcp.tools.persist import persist_run
+        """Run the assessment inline through the DAG engine / YAML playbook.
 
+        Every workflow is backed by a YAML playbook definition under
+        ``src/kali_mcp/playbooks/definitions/`` and executed by the DAG engine,
+        replacing the previous hardcoded if/elif chain.
+        """
         findings: list[dict[str, Any]] = []
         assets: list[dict[str, Any]] = []
         next_actions: list[str] = []
 
-        # Map workflow to execution strategy
-        if workflow == "web_assessment":
-            findings, assets, next_actions = await self._web_assessment(
-                targets, max_parallel, detail, include_raw, assessment_id,
-            )
-        elif workflow == "network_assessment":
-            findings, assets, next_actions = await self._network_assessment(
-                targets, max_parallel, detail, include_raw, assessment_id,
-            )
-        elif workflow == "external_recon":
-            findings, assets, next_actions = await self._external_recon(
-                targets, max_parallel, detail, include_raw, assessment_id,
-            )
-        elif workflow == "ad_assessment":
-            findings, assets, next_actions = await self._ad_assessment(
-                targets, max_parallel, detail, include_raw, assessment_id,
-            )
-        elif workflow == "api_assessment":
-            findings, assets, next_actions = await self._api_assessment(
-                targets, max_parallel, detail, include_raw, assessment_id,
-            )
-        elif workflow == "vulnerability_validation":
-            findings, assets, next_actions = await self._vulnerability_validation(
-                targets, max_parallel, detail, include_raw, assessment_id,
-            )
-        elif workflow == "custom_assessment":
-            findings, assets, next_actions = await self._custom_assessment(
-                arguments={}, max_parallel=max_parallel, detail=detail,
-                include_raw=include_raw, assessment_id=assessment_id,
-            )
-        else:
-            # Unknown workflow: fall back to generic_command on first target
-            res = await engine.execute(
-                command=["echo", f"Unknown workflow: {workflow}"],
-                tool="assessment_run",
-                timeout=30,
-            )
-            findings = [{
-                "id": _new_id("finding"),
-                "title": f"Unknown workflow: {workflow}",
-                "severity": "informational",
-                "confidence": 1.0,
-                "validation_status": "observed",
-                "asset_id": targets[0] if targets else "unknown",
-                "source_tools": ["assessment_run"],
-                "evidence_refs": [],
-            }]
-            next_actions = ["Specify a valid workflow: web_assessment, network_assessment, "
-                           "external_recon, ad_assessment, api_assessment, "
-                           "vulnerability_validation, custom_assessment"]
+        for target in targets:
+            pb = self._load_workflow_playbook(workflow)
+            # Wire the target into the playbook so {{target}} substitution works
+            # in step args and module defaults.
+            pb.inputs["target"] = target
+            pb.inputs["targets"] = target
+            pb.execution["max_parallel"] = max_parallel
+            pb.execution["timeout"] = max_duration
 
+            res = await run_playbook_async(pb, resume=resume)
+            step_findings, step_assets = self._extract_findings_assets(res)
+            findings.extend(step_findings)
+            assets.extend(step_assets)
+
+        next_actions = self._default_next_actions(workflow)
         return findings, assets, next_actions
+
+    def _load_workflow_playbook(self, workflow: str) -> PlaybookDefinition:
+        """Load the YAML playbook definition backing a workflow name."""
+        from kali_mcp.workflow import load_playbook
+
+        definitions_dir = (
+            Path(__file__).resolve().parent.parent.parent / "playbooks" / "definitions"
+        )
+        filename = self._WORKFLOW_PLAYBOOKS.get(workflow)
+        if not filename:
+            raise ValueError(f"Unknown workflow: {workflow}")
+        return load_playbook(definitions_dir / filename)
+
+    def _extract_findings_assets(
+        self, res: ExecutionResult
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Extract normalized findings and assets from a DAG execution result.
+
+        The report step (``assessment_report``) carries the correlated findings
+        under ``step_results["report"]["report"]["findings"]``; the correlation
+        step carries them under ``correlated_findings``. Falls back to any
+        ``findings`` / ``assets`` keys present in prior step results.
+        """
+        findings: list[dict[str, Any]] = []
+        assets: list[dict[str, Any]] = []
+        step_results: dict[str, Any] = {}
+        try:
+            step_results = json.loads(res.stdout).get("step_results", {}) or {}
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            step_results = getattr(res, "step_results", None) or {}
+
+        # Prefer the final report step's findings.
+        report = step_results.get("report", {}) if isinstance(step_results, dict) else {}
+        if isinstance(report, dict):
+            report_payload = report.get("report", {})
+            if isinstance(report_payload, dict) and report_payload.get("findings"):
+                findings.extend(report_payload["findings"])
+            if isinstance(report_payload, dict) and report_payload.get("assets"):
+                assets.extend(report_payload["assets"])
+
+        # Fallback: correlated findings from the correlation step.
+        if not findings:
+            correlate = (
+                step_results.get("correlate", {}) if isinstance(step_results, dict) else {}
+            )
+            if isinstance(correlate, dict) and correlate.get("correlated_findings"):
+                findings.extend(correlate["correlated_findings"])
+
+        # Last resort: any findings/assets keys across step results.
+        if not findings and not assets:
+            for sr in step_results.values():
+                if not isinstance(sr, dict):
+                    continue
+                for key in ("findings", "correlated_findings"):
+                    val = sr.get(key)
+                    if isinstance(val, list):
+                        findings.extend(val)
+                if isinstance(sr.get("assets"), list):
+                    assets.extend(sr["assets"])
+
+        # Normalize findings into the agent-interface shape.
+        normalized_findings: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for f in findings:
+            if not isinstance(f, dict):
+                continue
+            fid = f.get("id") or f.get("finding_id") or _new_id("finding")
+            if fid in seen:
+                continue
+            seen.add(fid)
+            asset_id = f.get("asset_id") or f.get("target") or "unknown"
+            normalized_findings.append(
+                {
+                    "id": fid,
+                    "title": f.get("title", "Untitled finding"),
+                    "severity": f.get("severity", "informational"),
+                    "confidence": f.get("confidence", 0.5),
+                    "validation_status": f.get("validation_status", "observed"),
+                    "asset_id": asset_id,
+                    "source_tools": list(f.get("source_tools") or []),
+                    "evidence_refs": list(f.get("evidence_refs") or []),
+                    "description": f.get("description", ""),
+                    "remediation": f.get("remediation") or self._remediation_for(f),
+                }
+            )
+            if asset_id and asset_id not in {a.get("asset_id") for a in assets}:
+                assets.append(
+                    {
+                        "asset_id": asset_id,
+                        "name": f.get("asset_name", asset_id),
+                        "type": f.get("asset_type", "host"),
+                        "services": [],
+                        "severity_max": f.get("severity", "informational"),
+                    }
+                )
+        return normalized_findings, assets
+
+    def _default_next_actions(self, workflow: str) -> list[str]:
+        return [
+            "Review high/critical severity findings",
+            "Retrieve evidence via evidence_get for confirmed findings",
+            f"Consider {workflow} follow-up or vulnerability_validation to verify observations",
+        ]
+
+    def _remediation_for(self, finding: dict[str, Any]) -> str:
+        """Static remediation guidance keyed by finding source tool / title."""
+        tools = finding.get("source_tools") or []
+        title = str(finding.get("title", "")).lower()
+        if "nmap" in tools or "open port" in title:
+            return "Restrict access with a firewall; close unnecessary ports and disable unused services."
+        if "katana" in tools or "endpoint" in title:
+            return "Apply authentication and authorization to exposed endpoints; restrict to internal networks where possible."
+        if "arjun" in tools or "parameter" in title:
+            return "Validate and sanitize all request parameters; use allow-lists for expected inputs."
+        if "nuclei" in tools or "vuln" in title:
+            return "Apply vendor patches or mitigations indicated by the matched template; verify with a re-scan."
+        if "subfinder" in tools or "httpx" in tools or "subdomain" in title:
+            return "Inventory and monitor external assets; retire unused subdomains and services."
+        if "enum4linux" in tools or "kerberos" in tools or "bloodhound" in tools:
+            return "Restrict Kerberos/SMB access, enforce least privilege, and review AD object permissions."
+        if "port" in title:
+            return "Restrict access with a firewall; close unnecessary ports."
+        return "Review the finding and apply the vendor-recommended mitigation."
 
     def _write_assessment_vault_summary(
         self,
@@ -540,268 +647,7 @@ class AssessmentRunTool(BaseTool):
         except Exception:  # noqa: BLE001 — vault persistence must never fail a run
             pass
 
-    # ── workflow implementations ───────────────────────────────────────
-
-    async def _web_assessment(
-        self, targets: list[str], max_parallel: int, detail: str,
-        include_raw: bool, assessment_id: str,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """Web assessment: subfinder → httpx → katana → nuclei (parallel where safe)."""
-        from kali_mcp.registry import registry
-
-        findings: list[dict[str, Any]] = []
-        assets: list[dict[str, Any]] = []
-        next_actions: list[str] = []
-
-        for target in targets:
-            # Step 1: subfinder (DNS/subdomain discovery)
-            subfinder = registry.get("subfinder")
-            if subfinder:
-                res = await subfinder.safe_execute({"target": target, "timeout": 300})
-                subfinder_data = self._parse_tool_result(res, target, "subfinder", assessment_id)
-                findings.extend(subfinder_data["findings"])
-                assets.extend(subfinder_data["assets"])
-
-            # Step 2: httpx (HTTP service discovery) — depends on subfinder
-            httpx = registry.get("httpx")
-            if httpx:
-                res = await httpx.safe_execute({"target": target, "timeout": 300})
-                httpx_data = self._parse_tool_result(res, target, "httpx", assessment_id)
-                findings.extend(httpx_data["findings"])
-                assets.extend(httpx_data["assets"])
-
-            # Step 3: katana (web crawling) — only if HTTP services found
-            if httpx_data.get("http_services", 0) > 0:
-                katana = registry.get("katana")
-                if katana:
-                    res = await katana.safe_execute(
-                        {"target": target, "timeout": 300, "max_parallel": max_parallel}
-                    )
-                    katana_data = self._parse_tool_result(res, target, "katana", assessment_id)
-                    findings.extend(katana_data["findings"])
-                    assets.extend(katana_data["assets"])
-
-            # Step 4: nuclei (vulnerability checks) — parallel with katana results
-            nuclei = registry.get("nuclei")
-            if nuclei:
-                res = await nuclei.safe_execute({"target": target, "timeout": 600})
-                nuclei_data = self._parse_tool_result(res, target, "nuclei", assessment_id)
-                findings.extend(nuclei_data["findings"])
-                assets.extend(nuclei_data["assets"])
-
-        next_actions = [
-            "Review high/critical severity findings",
-            "Retrieve evidence via evidence_get for confirmed findings",
-            "Consider vulnerability_validation to verify observations",
-        ]
-        return findings, assets, next_actions
-
-    async def _network_assessment(
-        self, targets: list[str], max_parallel: int, detail: str,
-        include_raw: bool, assessment_id: str,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """Network assessment: nmap → masscan → service enumeration."""
-        from kali_mcp.registry import registry
-
-        findings: list[dict[str, Any]] = []
-        assets: list[dict[str, Any]] = []
-        next_actions: list[str] = []
-
-        for target in targets:
-            nmap = registry.get("nmap")
-            if nmap:
-                res = await nmap.safe_execute({"target": target, "timeout": 600})
-                nmap_data = self._parse_tool_result(res, target, "nmap", assessment_id)
-                findings.extend(nmap_data["findings"])
-                assets.extend(nmap_data["assets"])
-
-        next_actions = [
-            "Review open ports and service versions",
-            "Run web_assessment against discovered HTTP services",
-            "Validate findings with vulnerability_validation",
-        ]
-        return findings, assets, next_actions
-
-    async def _external_recon(
-        self, targets: list[str], max_parallel: int, detail: str,
-        include_raw: bool, assessment_id: str,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """External recon: subfinder → amass → httpx → whatweb."""
-        from kali_mcp.registry import registry
-
-        findings: list[dict[str, Any]] = []
-        assets: list[dict[str, Any]] = []
-        next_actions: list[str] = []
-
-        for target in targets:
-            subfinder = registry.get("subfinder")
-            if subfinder:
-                res = await subfinder.safe_execute({"target": target, "timeout": 300})
-                d = self._parse_tool_result(res, target, "subfinder", assessment_id)
-                findings.extend(d["findings"]); assets.extend(d["assets"])
-
-            amass = registry.get("amass")
-            if amass:
-                res = await amass.safe_execute({"target": target, "timeout": 300})
-                d = self._parse_tool_result(res, target, "amass", assessment_id)
-                findings.extend(d["findings"]); assets.extend(d["assets"])
-
-            httpx = registry.get("httpx")
-            if httpx:
-                res = await httpx.safe_execute({"target": target, "timeout": 300})
-                d = self._parse_tool_result(res, target, "httpx", assessment_id)
-                findings.extend(d["findings"]); assets.extend(d["assets"])
-
-        next_actions = [
-            "Review discovered external assets",
-            "Run network_assessment against discovered IPs",
-            "Run web_assessment against discovered HTTP services",
-        ]
-        return findings, assets, next_actions
-
-    async def _ad_assessment(
-        self, targets: list[str], max_parallel: int, detail: str,
-        include_raw: bool, assessment_id: str,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """AD assessment: enum4linux → bloodhound → netexec+crackmapexec."""
-        from kali_mcp.registry import registry
-
-        findings: list[dict[str, Any]] = []
-        assets: list[dict[str, Any]] = []
-        next_actions: list[str] = []
-
-        for target in targets:
-            enum4linux = registry.get("enum4linux")
-            if enum4linux:
-                res = await enum4linux.safe_execute({"target": target, "timeout": 300})
-                d = self._parse_tool_result(res, target, "enum4linux", assessment_id)
-                findings.extend(d["findings"]); assets.extend(d["assets"])
-
-        next_actions = [
-            "Review AD enumeration findings",
-            "Validate credentials before any exploitation",
-            "Run vulnerability_validation on confirmed issues",
-        ]
-        return findings, assets, next_actions
-
-    async def _api_assessment(
-        self, targets: list[str], max_parallel: int, detail: str,
-        include_raw: bool, assessment_id: str,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """API assessment: katana → arjun → nuclei."""
-        from kali_mcp.registry import registry
-
-        findings: list[dict[str, Any]] = []
-        assets: list[dict[str, Any]] = []
-        next_actions: list[str] = []
-
-        for target in targets:
-            katana = registry.get("katana")
-            if katana:
-                res = await katana.safe_execute({"target": target, "timeout": 300})
-                d = self._parse_tool_result(res, target, "katana", assessment_id)
-                findings.extend(d["findings"]); assets.extend(d["assets"])
-
-        next_actions = [
-            "Review discovered API endpoints",
-            "Test parameters with arjun/ffuf",
-            "Run nuclei against API endpoints",
-        ]
-        return findings, assets, next_actions
-
-    async def _vulnerability_validation(
-        self, targets: list[str], max_parallel: int, detail: str,
-        include_raw: bool, assessment_id: str,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """Validate previously discovered findings."""
-        findings: list[dict[str, Any]] = []
-        assets: list[dict[str, Any]] = []
-        next_actions: list[str] = [
-            "Re-check observations with nuclei verification templates",
-            "Update validation_status to validated or false_positive",
-        ]
-        return findings, assets, next_actions
-
-    async def _custom_assessment(
-        self, arguments: dict[str, Any], max_parallel: int, detail: str,
-        include_raw: bool, assessment_id: str,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-        """User-defined custom assessment (placeholder for Phase 2 DAG engine)."""
-        findings: list[dict[str, Any]] = []
-        assets: list[dict[str, Any]] = []
-        next_actions: list[str] = [
-            "Define custom DAG playbook via YAML definition",
-            "Execute via playbook_engine or assessment_run with workflow=custom_assessment",
-        ]
-        return findings, assets, next_actions
-
-    # ── result parsing ─────────────────────────────────────────────────
-
-    def _parse_tool_result(
-        self, res: dict[str, Any], target: str, tool_name: str,
-        assessment_id: str,
-    ) -> dict[str, Any]:
-        """Parse a tool result into normalized findings and assets."""
-        findings: list[dict[str, Any]] = []
-        assets: list[dict[str, Any]] = []
-        http_services = 0
-
-        try:
-            text = res.get("content", [{}])[0].get("text", "{}") if isinstance(res, dict) else str(res)
-            data = json.loads(text)
-        except (json.JSONDecodeError, IndexError, AttributeError, TypeError):
-            data = {}
-
-        stdout = data.get("stdout", "") if isinstance(data, dict) else ""
-        success = data.get("success", False) if isinstance(data, dict) else False
-
-        # Record evidence artifact
-        evidence_id = _new_id("evidence")
-        db = dbm.get_db()
-        if db is not None and stdout:
-            try:
-                safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in target)
-                path = f"artifacts/evidence/{evidence_id}_{tool_name}_{safe_name}.txt"
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "w", encoding="utf-8") as fh:
-                    fh.write(stdout)
-                db.add_evidence_artifact(
-                    evidence_id=evidence_id, tool=tool_name, target=target,
-                    artifact_type="stdout", content_path=path,
-                    content_size=len(stdout.encode("utf-8")),
-                    assessment_id=assessment_id,
-                )
-            except Exception:
-                pass
-
-        # Build a normalized finding from the execution
-        if stdout.strip():
-            severity = "high" if not success and "error" in stdout.lower() else "informational"
-            findings.append({
-                "id": _new_id("finding"),
-                "title": f"{tool_name} execution against {target}",
-                "severity": severity,
-                "confidence": 0.7,
-                "validation_status": "observed",
-                "asset_id": target,
-                "source_tools": [tool_name],
-                "evidence_refs": [evidence_id],
-            })
-
-            # Extract asset
-            assets.append({
-                "asset_id": target,
-                "name": target,
-                "type": "host",
-                "services": [],
-                "severity_max": severity,
-            })
-
-        # Count HTTP services for conditional execution
-        if tool_name == "httpx" and stdout.strip():
-            http_services = stdout.count("http") + stdout.count("https")
-
-        return {"findings": findings, "assets": assets, "http_services": http_services}
+    # ── workflows are playbook-driven (see _run_assessment_inline) ────────────
 
     # ── background execution for long assessments ──────────────────────
 
@@ -1666,6 +1512,14 @@ class ReportGenerateTool(BaseTool):
                                 "default": False},
             },
             "required": ["assessment_id"],
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "assessment_id": {"type": "string"},
+                    "format": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+            },
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
@@ -1745,6 +1599,26 @@ class ReportGenerateTool(BaseTool):
 
     # ── report format helpers ──────────────────────────────────────────
 
+    @staticmethod
+    def _remediation_for(finding: dict[str, Any]) -> str:
+        """Static remediation guidance map keyed on finding characteristics."""
+        title = str(finding.get("title", "")).lower()
+        severity = str(finding.get("severity", "")).lower()
+        guidance = {
+            "admin": "Restrict admin interface behind authentication and IP allow-list; disable default credentials.",
+            "tls": "Renew the TLS certificate before expiry; enforce TLS 1.2+ and strong cipher suites.",
+            "ssh": "Disable password authentication; restrict SSH to key-based auth and a non-default port if policy requires.",
+            "sql": "Use parameterized queries and prepared statements; validate and sanitize all inputs.",
+            "xss": "Apply output encoding and a strict Content-Security-Policy; validate inputs server-side.",
+            "default": "Review the finding, apply least-privilege and patch the affected component; re-scan to confirm remediation.",
+        }
+        for key, text in guidance.items():
+            if key in title:
+                return text
+        if severity in ("critical", "high"):
+            return guidance["default"]
+        return "Monitor and address during the next maintenance window."
+
     def _base_report(
         self,
         assessment_id: str,
@@ -1766,12 +1640,16 @@ class ReportGenerateTool(BaseTool):
                 "source_tools": list(f.get("source_tools") or f.get("source_modules") or []),
                 "evidence_refs": list(f.get("evidence_refs") or []),
                 "description": f.get("description", ""),
+                "remediation": self._remediation_for(f),
             })
         return {
             "assessment_id": assessment_id,
             "generated_at": utc_now_iso(),
             "summary": summary,
             "findings": normalized_findings,
+            "remediation": {
+                nf["id"]: nf["remediation"] for nf in normalized_findings
+            },
             "next_actions": list(data.get("next_actions") or []),
             "artifacts": list(data.get("artifacts") or []),
             "recommended_next_playbooks": list(data.get("recommended_next_playbooks") or []),
@@ -1842,7 +1720,7 @@ class ReportGenerateTool(BaseTool):
             "",
             f"Assessment ID: {assessment_id}",
             f"Generated: {base.get('generated_at')}",
-            f"Format: pdf (placeholder - install reportlab for real PDF rendering)",
+            "Format: pdf (placeholder - install reportlab for real PDF rendering)",
             "",
             "--- Summary ---",
             f"Assets discovered: {summary.get('assets_discovered', 0)}",
@@ -2325,6 +2203,14 @@ class CoverageSummaryTool:
                 },
             },
             "required": ["assessment_id"],
+            "outputSchema": {
+                "type": "object",
+                "properties": {
+                    "assessment_id": {"type": "string"},
+                    "format": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+            },
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
@@ -2392,9 +2278,18 @@ class CoverageSummaryTool:
 
 
 __all__ = [
-    "AssessmentRunTool", "BatchRunTool", "JobControlTool",
-    "FindingsQueryTool", "EvidenceGetTool", "AssetGraphTool",
-    "FindingTransitionTool", "AssessmentDiffTool", "CoverageSummaryTool",
-    "ToolCatalogTool", "ReportGenerateTool",
-    "AGENT_MODE_TOOLS", "EXPERT_MODE_TOOLS", "TOOL_LAYERS",
+    "AGENT_MODE_TOOLS",
+    "EXPERT_MODE_TOOLS",
+    "TOOL_LAYERS",
+    "AssessmentDiffTool",
+    "AssessmentRunTool",
+    "AssetGraphTool",
+    "BatchRunTool",
+    "CoverageSummaryTool",
+    "EvidenceGetTool",
+    "FindingTransitionTool",
+    "FindingsQueryTool",
+    "JobControlTool",
+    "ReportGenerateTool",
+    "ToolCatalogTool",
 ]
