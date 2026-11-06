@@ -22,7 +22,7 @@ class TestDBManagerEdgeCases:
     def test_add_credential(self, tmp_path) -> None:
         db = DBManager(tmp_path / "test.sqlite")
         db.ensure_schema()
-        tid = db.upsert_target("10.0.0.1", target_type="host")
+        tid = db.upsert_target("127.0.0.1", target_type="host")
         cid = db.add_credential(
             target_id=tid,
             service="ssh",
@@ -42,8 +42,8 @@ class TestDBManagerEdgeCases:
     def test_upsert_target_updates_existing(self, tmp_path) -> None:
         db = DBManager(tmp_path / "test.sqlite")
         db.ensure_schema()
-        tid1 = db.upsert_target("10.0.0.1", target_type="host", tags="web")
-        tid2 = db.upsert_target("10.0.0.1", target_type="host", tags="updated")
+        tid1 = db.upsert_target("127.0.0.1", target_type="host", tags="web")
+        tid2 = db.upsert_target("127.0.0.1", target_type="host", tags="updated")
         assert tid1 == tid2  # same target → same id
         row = db.conn.execute("SELECT tags FROM targets WHERE id = ?", (tid1,)).fetchone()
         assert row["tags"] == "updated"
