@@ -1,0 +1,21 @@
+id: api_dir_enum
+name: "API Directory Enumeration"
+description: "Enumerate API directories and paths via ffuf"
+tool: ffuf
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target URL or base API endpoint"
+  wordlist:
+    type: string
+    description: "Wordlist path for directory/file brute-forcing"
+    default: "/usr/share/wordlists/dirb/common.txt"
+  extensions:
+    type: string
+    description: "File extensions to probe (e.g. php,json,bak)"
+    default: "php,json,bak,txt"
+outputs:
+  - directories
+  - endpoints
