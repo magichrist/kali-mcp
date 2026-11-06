@@ -20,7 +20,7 @@ def db(tmp_path):
 
 class TestCredentials:
     def test_add_and_query_credential(self, db):
-        tid = db.upsert_target("10.0.0.1")
+        tid = db.upsert_target("127.0.0.1")
         cid = db.add_credential(
             tid,
             service="ssh",
@@ -38,7 +38,7 @@ class TestCredentials:
         assert row["captured_at"]
 
     def test_credential_hash_only(self, db):
-        tid = db.upsert_target("10.0.0.2")
+        tid = db.upsert_target("127.0.0.1")
         db.add_credential(
             tid,
             service="ntlm",
