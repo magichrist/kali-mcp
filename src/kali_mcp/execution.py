@@ -19,6 +19,7 @@ import time
 import uuid
 
 from kali_mcp.config import config
+from kali_mcp.isolation import StepLimits, spawn_isolated
 from kali_mcp.logging_utils import log_execution
 from kali_mcp.models import ExecutionResult, utc_now_iso
 from kali_mcp.scope import check_scope, load_scope
@@ -208,8 +209,11 @@ class ExecutionEngine:
                     existing = exec_env.get("PATH", "")
                     exec_env["PATH"] = f"{existing}:{system_path}" if existing else system_path
 
-                    try:
-                        if use_shell:
+                    if use_shell:
+                        # ── Shell mode (generic_command) ──
+                        # Keep existing behavior: /bin/bash -c supports pipes,
+                        # redirects, and shell builtins.
+                        try:
                             proc = await asyncio.create_subprocess_exec(
                                 "/bin/bash",
                                 "-c",
@@ -220,30 +224,10 @@ class ExecutionEngine:
                                 env=exec_env,
                                 start_new_session=True,
                             )
-                        else:
-                            proc = await asyncio.create_subprocess_exec(
-                                *command,
-                                stdout=asyncio.subprocess.PIPE,
-                                stderr=asyncio.subprocess.PIPE,
-                                cwd=cwd,
-                                env=exec_env,
-                                start_new_session=True,
-                            )
-                        self._procs[req_id] = proc
-                    except FileNotFoundError:
-                        elapsed = time.monotonic() - start_monotonic
-                        if use_shell:
+                        except FileNotFoundError:
+                            elapsed = time.monotonic() - start_monotonic
                             binary = "/bin/bash"
                             hint = "install it with 'apt install bash'"
-                        else:
-                            binary = command[0] if command else "unknown"
-                            hint = f"install it with 'apt install {binary}' or check PATH"
-                            logger.warning(
-                                "request=%s tool=%s binary not found: %s",
-                                req_id,
-                                tool,
-                                binary,
-                            )
                             result = ExecutionResult(
                                 tool=tool,
                                 command=command_str,
@@ -258,107 +242,43 @@ class ExecutionEngine:
                             )
                             log_execution(result)
                             return result
-
-                    heartbeat_task = None
-                    if progress_cb is not None:
-
-                        async def _heartbeat():
-                            try:
-                                interval = max(min(effective_timeout / 20.0, 5.0), 0.25)
-                                for step in range(1, 20):
-                                    await asyncio.sleep(interval)
-                                    await _call_progress(progress_cb, min(step * 5, 95), 100)
-                            except Exception:  # noqa: BLE001, S110
-                                pass
-
-                        heartbeat_task = asyncio.create_task(_heartbeat())
-
-                    try:
-                        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                            proc.communicate(),
+                        self._procs[req_id] = proc
+                    else:
+                        # ── Non-shell mode (nmap, katana, enum4linux, …) ──
+                        # Use the isolation guard: per-step rlimits (Linux) +
+                        # wall-clock timeout + process-tree kill on expiry.
+                        limits = StepLimits(
                             timeout=effective_timeout,
+                            cwd=cwd,
+                            env=exec_env,
                         )
-                    except (TimeoutError, asyncio.TimeoutError):
-                        logger.warning(
-                            "request=%s tool=%s timed out after %ds, killing process",
-                            req_id,
-                            tool,
-                            effective_timeout,
-                        )
-                        # Kill the entire process tree — the subprocess runs in
-                        # its own session, so this cannot hit the server itself
-                        from kali_mcp.utils.process import kill_process_tree
-
-                        await kill_process_tree(proc)
-                        stdout_bytes, stderr_bytes = b"", b""
-
-                        elapsed = time.monotonic() - start_monotonic
-                        result = ExecutionResult(
-                            tool=tool,
-                            command=command_str,
-                            stdout="",
-                            stderr=f"Timed out after {effective_timeout}s",
-                            exit_code=-1,
-                            success=False,
-                            timed_out=True,
-                            duration=round(elapsed, 3),
-                            start_time=start_time,
-                            end_time=utc_now_iso(),
-                        )
-                        log_execution(result)
-                        logger.info(
-                            "request=%s tool=%s TIMED OUT duration=%.3fs",
-                            req_id,
-                            tool,
-                            result.duration,
-                        )
-                        return result
-                    finally:
-                        if heartbeat_task is not None:
-                            heartbeat_task.cancel()
-                            try:
-                                await heartbeat_task
-                            except (asyncio.CancelledError, Exception):  # noqa: S110, BLE001
-                                pass
-                        if progress_cb is not None:
-                            try:
-                                await _call_progress(progress_cb, 100, 100)
-                            except Exception:  # noqa: BLE001, S110
-                                pass
-
-                    elapsed = time.monotonic() - start_monotonic
-                    stdout_str = stdout_bytes.decode("utf-8", errors="replace")[:MAX_OUTPUT]
-                    stderr_str = stderr_bytes.decode("utf-8", errors="replace")[:MAX_OUTPUT]
-
-                    result = ExecutionResult(
-                        tool=tool,
-                        command=command_str,
-                        stdout=stdout_str,
-                        stderr=stderr_str,
-                        exit_code=proc.returncode or 0,
-                        success=(proc.returncode == 0),
-                        timed_out=False,
-                        duration=round(elapsed, 3),
-                        start_time=start_time,
-                        end_time=utc_now_iso(),
-                    )
-
-                    log_execution(result)
-                    logger.info(
-                        "request=%s tool=%s exit_code=%d success=%s duration=%.3fs",
-                        req_id,
-                        tool,
-                        result.exit_code,
-                        result.success,
-                        result.duration,
-                    )
-                    if heartbeat_task is not None:
-                        heartbeat_task.cancel()
                         try:
-                            await heartbeat_task
-                        except (asyncio.CancelledError, Exception):  # noqa: S110, BLE001
-                            pass
-                    return result
+                            exit_code, stdout_str, stderr_str, _duration = await spawn_isolated(
+                                command, limits
+                            )
+                        except FileNotFoundError:
+                            elapsed = time.monotonic() - start_monotonic
+                            binary = command[0] if command else "unknown"
+                            logger.warning(
+                                "request=%s tool=%s binary not found: %s",
+                                req_id,
+                                tool,
+                                binary,
+                            )
+                            result = ExecutionResult(
+                                tool=tool,
+                                command=command_str,
+                                stdout="",
+                                stderr=f"Binary not found: {binary} — check PATH",
+                                exit_code=-1,
+                                success=False,
+                                timed_out=False,
+                                duration=round(elapsed, 3),
+                                start_time=start_time,
+                                end_time=utc_now_iso(),
+                            )
+                            log_execution(result)
+                            return result
 
                 finally:
                     self._cleanup_request(req_id)
