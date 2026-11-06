@@ -593,6 +593,40 @@ def main() -> None:
         app.mount("/studio", StaticFiles(directory=web_dir, html=True), name="studio")
         logger.info("Studio web assets mounted at /studio")
 
+    # ── Dedicated Studio port (optional) ───────────────────────────
+    # When STUDIO_PORT is set (and differs from the main port), the Studio
+    # web UI + its REST routes are also served on that port by a standalone
+    # app, so agents and the browser UI use separate ports.
+    studio_ui_port = getattr(config, "studio_port", 0)
+    if getattr(config, "studio_enabled", True) and studio_ui_port and studio_ui_port != config.port:
+        from starlette.applications import Starlette
+        from starlette.routing import Mount
+        from starlette.staticfiles import StaticFiles
+
+        studio_app = Starlette(routes=[])
+        if getattr(config, "studio_enabled", True):
+            mount_studio_routes(studio_app)
+        if os.path.isdir(web_dir):
+            studio_app.routes.insert(
+                0, Mount("/studio", StaticFiles(directory=web_dir, html=True))
+            )
+
+        def _run_studio_ui() -> None:
+            uvicorn.run(
+                studio_app,
+                host=config.host,
+                port=studio_ui_port,
+                log_level="debug" if config.debug else "info",
+                access_log=config.debug,
+            )
+
+        threading.Thread(target=_run_studio_ui, name="studio-ui-server", daemon=True).start()
+        logger.info(
+            "Studio web UI served on dedicated port http://%s:%s",
+            config.host,
+            studio_ui_port,
+        )
+
     # ── Start the HTTP server ──────────────────────────────────────
     # Production entry point: bind to host:port and serve forever.
     # main() previously built the app and returned, so kmcp start / python
