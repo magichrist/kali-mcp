@@ -226,6 +226,44 @@ LAB_TARGETS: dict[str, LabTarget] = {
         ],
         allowed=True,
     ),
+    "webgoat": LabTarget(
+        name="OWASP WebGoat",
+        target="http://webgoat.lab",
+        expected_findings=[
+            GroundTruthFinding(
+                title="Open HTTP port 80",
+                severity="informational",
+                asset="webgoat.lab",
+                port=80,
+                service="http",
+                source_tool="nmap",
+            ),
+            GroundTruthFinding(
+                title="Directory listing enabled",
+                severity="low",
+                asset="webgoat.lab",
+                port=80,
+                service="http",
+                source_tool="nmap",
+            ),
+        ],
+        allowed=True,
+    ),
+    "bwapp": LabTarget(
+        name="bWAPP",
+        target="http://bwapp.lab",
+        expected_findings=[
+            GroundTruthFinding(
+                title="Open HTTP port 80",
+                severity="informational",
+                asset="bwapp.lab",
+                port=80,
+                service="http",
+                source_tool="nmap",
+            ),
+        ],
+        allowed=True,
+    ),
 }
 
 # ── evaluation harness ────────────────────────────────────────────────────
