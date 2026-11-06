@@ -84,6 +84,23 @@ class PlaybookEngine:
         # Resume: determine which step indices to skip
         skip_indices: set[int] = set()
         prior = RUN_STATUS.get(name)
+        if resume and not prior:
+            # Fall back to persisted state (e.g. after a process restart).
+            try:
+                from kali_mcp.db import manager as dbm
+
+                db = dbm.get_db()
+                if db is not None:
+                    persisted = db.load_workflow_run(name)
+                    if persisted:
+                        prior = dict(persisted.get("state") or {})
+                        prior["status"] = persisted.get("status", prior.get("status"))
+                        prior["completed_steps"] = persisted.get(
+                            "completed_steps", prior.get("completed_steps", [])
+                        )
+                        RUN_STATUS[name] = prior
+            except Exception:  # noqa: BLE001 — SQLite resume is best-effort
+                pass
         if resume and prior and prior.get("status") in ("completed", "failed", "aborted", "partial"):
             skip_indices = set(prior.get("completed_steps", []))
 
@@ -548,6 +565,7 @@ class PlaybookEngine:
                 in_degree[neighbor] -= 1
                 if in_degree[neighbor] == 0:
                     queue.append(neighbor)
+        return order
 
     def _compute_waves(self, steps: list[StepDefinition]) -> list[list[int]]:
         """Group step indices into dependency waves.
