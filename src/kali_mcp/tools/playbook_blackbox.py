@@ -12,6 +12,14 @@ Long-running executions return a job_id immediately and continue in the
 background; results land in vault category ``playbook_results`` keyed by
 job_id (engine-side) and are mirrored in THE in-memory JOB_REGISTRY so
 playbook_result can serve them without a vault round-trip.
+
+Studio-backed execution (Phase 6): when the requested playbook id exists in
+the Studio DB (``playbooks`` table), ``playbook_run`` takes the Studio path —
+assignment check (``agent_playbook_assignments``, deny-by-default for agent
+profiles), published-version resolution, and durable ``workflow_executions``
+records. Legacy ``playbooks/registry`` playbooks keep the black-box path; both
+return the same result contract. Agent-context enforcement is per-request via
+``kali_mcp.agent_context`` (X-Agent-Profile header or token-bound profile).
 """
 
 from __future__ import annotations
@@ -21,6 +29,11 @@ import json
 import logging
 from typing import Any
 
+from kali_mcp.agent_context import (
+    agent_context,
+    forbidden_playbook_payload,
+    get_current_profile,
+)
 from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
 from kali_mcp.responses import error_response, success_response
 from kali_mcp.tools.base import BaseTool
@@ -128,6 +141,10 @@ class PlaybookRunTool(BaseTool):
                     "type": "object",
                     "description": "Playbook-specific options passed to module inputs",
                 },
+                "inputs": {
+                    "type": "object",
+                    "description": "Named playbook inputs (Studio playbooks / inputs block)",
+                },
                 "background": {
                     "type": "boolean",
                     "description": "Force background execution (returns job_id immediately)",
@@ -142,11 +159,13 @@ class PlaybookRunTool(BaseTool):
         if not arguments.get("target"):
             raise ValueError("target is required")
         profile = arguments.get("profile", "safe_active")
-        if profile not in VALID_PROFILES:
+        if arguments.get("profile") is not None and profile not in VALID_PROFILES:
             raise ValueError("profile must be safe_active, aggressive, or passive")
         detail = arguments.get("detail", "normal")
         if detail not in VALID_DETAIL:
             raise ValueError("detail must be summary, normal, or full")
+        if _studio_playbook_row(arguments["playbook"]) is not None:
+            return  # Studio playbook — assignment gates checked at execute time
         try:
             from kali_mcp.playbooks.registry import get_playbook
 
@@ -158,9 +177,13 @@ class PlaybookRunTool(BaseTool):
         return ["playbook_run", arguments.get("playbook", ""), arguments.get("target", "")]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        from kali_mcp.playbooks.engine import PlaybookEngine
-
         playbook = arguments["playbook"]
+
+        # ── Studio (DB) playbook path — takes precedence when the id exists
+        if _studio_playbook_row(playbook) is not None:
+            return await self._execute_studio(arguments, playbook)
+
+        # ── Legacy black-box path (playbooks/registry) ──
         target = arguments["target"]
         scope_id = arguments.get("scope_id") or ""
         profile = arguments.get("profile", "safe_active")
@@ -178,7 +201,9 @@ class PlaybookRunTool(BaseTool):
             "started_at": utc_now_iso(),
         }
 
-        engine = PlaybookEngine()
+        from kali_mcp.playbooks.engine import PlaybookEngine
+
+        engine = PlaybookEngine()  # blackbox engine (legacy path), not the DAG engine
 
         async def run() -> dict[str, Any]:
             assessment = await engine.execute(
@@ -259,7 +284,6 @@ async def _run_background(job_id: str, coroutine_factory) -> None:
     """Run a background playbook task and keep the registry entry updated."""
     try:
         await coroutine_factory()
-    except Exception as e:
         STATUS = JOB_REGISTRY.get(job_id)
         if STATUS is not None:
             STATUS["status"] = "failed"
@@ -278,6 +302,165 @@ def _truncate_payload(assessment: dict[str, Any], limit: int = 5_000_000) -> Non
         if isinstance(node, dict):
             for sub_key in list(node.keys())[: -3]:
                 node.pop(sub_key)
+
+
+# ── Studio (DB) playbook support (Phase 6) ────────────────────────────
+
+
+def _studio_playbook_row(playbook_id: str) -> dict[str, Any] | None:
+    """Return the Studio DB playbook row for ``playbook_id`` or None.
+
+    ``None`` means "not a Studio playbook" (falls back to the legacy
+    black-box registry path). DB-disabled environments also return None.
+    """
+    if not playbook_id:
+        return None
+    from kali_mcp.db import manager as dbm
+
+    db = dbm.get_db()
+    if db is None:
+        return None
+    try:
+        return db.get_playbook(playbook_id)
+    except Exception:  # noqa: BLE001
+        logger.exception("studio playbook lookup failed for %r", playbook_id)
+        return None
+
+
+def _studio_run_definition(
+    playbook_id: str, extra_inputs: dict[str, Any] | None
+) -> tuple[Any, dict[str, Any]]:
+    """Load the current published Studio version as a PlaybookDefinition.
+
+    Merges ``extra_inputs`` (agent-supplied ``inputs``/``options``/``target``)
+    into the definition inputs. Raises ``ValueError`` with a machine-checkable
+    message when the playbook is not published or required inputs are missing.
+    """
+    from kali_mcp.db import manager as dbm
+    from kali_mcp.workflow.yaml_loader import load_playbook
+
+    db = dbm.get_db()
+    assert db is not None  # guaranteed by _studio_playbook_row caller
+    row = db.get_playbook(playbook_id)
+    if row is None:
+        raise ValueError(f"unknown playbook: {playbook_id}")
+    if row.get("status") != "published":
+        raise ValueError(
+            f"playbook {playbook_id!r} has no published version "
+            f"(status: {row.get('status')})"
+        )
+    vid = row.get("current_version_id")
+    version = db.get_playbook_version(vid) if vid is not None else None
+    if not version:
+        raise ValueError(
+            f"playbook {playbook_id!r} is published but its version is missing"
+        )
+    definition = version.get("definition")
+    if isinstance(definition, str):
+        try:
+            definition = json.loads(definition)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid stored definition: {exc}") from exc
+    defn = load_playbook(definition)
+
+    merged: dict[str, Any] = dict(extra_inputs or {})
+    for key, val in merged.items():
+        defn.inputs[key] = val
+
+    # Required-input validation: declared required inputs must be present
+    missing = sorted(
+        name
+        for name, spec in (defn.inputs or {}).items()
+        if isinstance(spec, dict) and spec.get("required") and name not in merged
+    )
+    if missing:
+        raise ValueError(
+            f"missing required playbook inputs: {', '.join(missing)}"
+        )
+    return defn, {"version_id": version.get("id"), "version": version.get("version")}
+
+
+def _record_studio_execution(
+    db: Any,
+    execution_id: str,
+    playbook_id: str,
+    version_id: Any,
+    job_id: str,
+    assessment_id: str,
+    profile_id: str | None,
+    inputs: Any,
+) -> None:
+    db.create_workflow_execution(
+        execution_id,
+        playbook_id,
+        version_id if isinstance(version_id, int) else 0,
+        job_id=job_id,
+        assessment_id=assessment_id,
+        profile_id=profile_id,
+        inputs=inputs,
+        status="running",
+        started_at=utc_now_iso(),
+    )
+
+
+def _persist_studio_result(
+    db: Any,
+    execution_id: str,
+    payload: dict[str, Any],
+    success: bool,
+) -> None:
+    """Record step executions + finalize the workflow_execution row."""
+    status = payload.get("status", "completed" if success else "failed")
+    try:
+        step_results = payload.get("step_results") or {}
+        for step_id, res in step_results.items():
+            if isinstance(res, dict):
+                step_error = res.get("error")
+                step_success = not res.get("skipped") or step_error is None
+                db.record_step_execution(
+                    execution_id,
+                    step_id,
+                    step_type=str(res.get("type")) if res.get("type") else None,
+                    tool_id=str(res.get("tool")) if res.get("tool") else None,
+                    status="failed" if step_error else (
+                        "completed" if step_success else "completed"
+                    ),
+                    outputs={"result": res} if not res.get("skipped") else None,
+                    error=str(step_error) if step_error else None,
+                    started_at=utc_now_iso(),
+                    completed_at=utc_now_iso(),
+                )
+        db.update_workflow_execution(
+            execution_id,
+            status=status,
+            outputs={
+                "summary": payload.get("summary"),
+                "results": payload.get("results"),
+            },
+            error=payload.get("error"),
+            completed_at=utc_now_iso(),
+        )
+    except Exception:  # noqa: BLE001 — persistence failures never lose the run result
+        logger.exception("failed to persist studio execution %s", execution_id)
+
+
+class StudioForbidden(Exception):
+    """Raised when an agent profile is not assigned the requested playbook."""
+
+    def __init__(self, playbook_id: str, profile_id: str) -> None:
+        self.playbook_id = playbook_id
+        self.profile_id = profile_id
+        super().__init__(
+            f"playbook {playbook_id!r} is not assigned to agent profile {profile_id!r}"
+        )
+
+
+def _error_payload_text(payload: dict[str, Any]) -> dict[str, Any]:
+    """Tool-result shape carrying a JSON error payload (MCP text content)."""
+    return {
+        "content": [{"type": "text", "text": json.dumps(payload, indent=2)}],
+        "isError": True,
+    }
 
 
 # ── playbook_catalog ──────────────────────────────────────────────────
