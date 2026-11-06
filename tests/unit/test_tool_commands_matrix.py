@@ -94,6 +94,49 @@ COMMAND_MATRIX = {
     "vault_list": ({}, "vault_list"),
     "vault_delete": ({"category": "notes", "name": "t"}, "vault_delete"),
     "vault_stats": ({}, "vault_stats"),
+    "finding_transition": (
+        {"finding_id": "f1", "new_state": "validated"},
+        "finding_transition",
+    ),
+    "assessment_diff": (
+        {"assessment_id_a": "a", "assessment_id_b": "b"},
+        "assessment_diff",
+    ),
+    "coverage_summary": (
+        {"assessment_id": "a"},
+        "coverage_summary",
+    ),
+    "assessment_run": (
+        {"workflow": "web_assessment", "targets": ["example.com"]},
+        "assessment_run",
+    ),
+    "batch_run": (
+        {"operations": [{"tool": "nmap", "args": {"target": "127.0.0.1"}}]},
+        "batch_run",
+    ),
+    "job_control": (
+        {"job_id": "job_x", "action": "status"},
+        "job_control",
+    ),
+    "findings_query": ({"severity": "high"}, "findings_query"),
+    "evidence_get": ({"evidence_id": "ev_x"}, "evidence_get"),
+    "asset_graph": ({"target": "example.com"}, "asset_graph"),
+    "tool_catalog": ({"mode": "agent"}, "tool_catalog"),
+    "report_generate": (
+        {"assessment_id": "assessment_x"},
+        "report_generate",
+    ),
+    "playbook_run": (
+        {"playbook": "api_recon", "target": "example.com"},
+        "playbook_run",
+    ),
+    "playbook_catalog": ({}, "playbook_catalog"),
+    "playbook_result": ({"job_id": "job_x"}, "playbook_result"),
+    "template_list": ({}, "template_list"),
+    "template_run": (
+        {"template_id": "quick_web_scan", "params": {"target": "example.com"}},
+        "template_run",
+    ),
 }
 
 
