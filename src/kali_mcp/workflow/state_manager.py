@@ -8,10 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from kali_mcp.db import manager as dbm
-from kali_mcp.tools.persist import now_iso
 from kali_mcp.utils.vault import vault_write
-
 
 RUN_STATUS: dict[str, dict[str, Any]] = {}
 
