@@ -71,4 +71,4 @@ def register() -> None:
     )
 
 
-__all__ = ["register", "_correlate"]
+__all__ = ["_correlate", "register"]
