@@ -32,7 +32,7 @@ def test_db_stats_resource(isolated_db_vault, monkeypatch):
 
     db = dbm.get_db()
     db.ensure_schema()
-    tid = db.upsert_target("10.8.8.8")
+    tid = db.upsert_target("127.0.0.1")
     db.add_scan(tid, "nmap", "nmap", "t1", "t2", 1.0, 1, 0, None)
 
     stats = json.loads(resources._db_stats_resource())
