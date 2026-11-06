@@ -5,6 +5,19 @@ maximum capability. test_comprehensive.py's TOOL_ARGS map must include an
 entry for every registered tool.
 """
 
+from kali_mcp.tools.agent_interface import (
+    AssessmentDiffTool,
+    AssessmentRunTool,
+    AssetGraphTool,
+    BatchRunTool,
+    CoverageSummaryTool,
+    EvidenceGetTool,
+    FindingsQueryTool,
+    FindingTransitionTool,
+    JobControlTool,
+    ReportGenerateTool,
+    ToolCatalogTool,
+)
 from kali_mcp.tools.amass import AmassTool
 from kali_mcp.tools.arjun import ArjunTool
 from kali_mcp.tools.bettercap import BettercapTool
@@ -38,6 +51,11 @@ from kali_mcp.tools.nmap import NmapTool
 from kali_mcp.tools.nuclei import NucleiTool
 from kali_mcp.tools.parallel_execute import ParallelExecuteTool, ParallelStatusTool
 from kali_mcp.tools.playbook_ad import PlaybookAdTool
+from kali_mcp.tools.playbook_blackbox import (
+    PlaybookCatalogTool,
+    PlaybookResultTool,
+    PlaybookRunTool,
+)
 from kali_mcp.tools.playbook_engine_tool import PlaybookEngineTool
 from kali_mcp.tools.playbook_recon import PlaybookReconTool
 from kali_mcp.tools.playbook_tools import PlaybookListTool, PlaybookStatusTool
@@ -48,6 +66,7 @@ from kali_mcp.tools.searchsploit import SearchsploitTool
 from kali_mcp.tools.spiderfoot import SpiderfootTool
 from kali_mcp.tools.sqlmap import SqlmapTool
 from kali_mcp.tools.subfinder import SubfinderTool
+from kali_mcp.tools.template_tools import TemplateListTool, TemplateRunTool
 from kali_mcp.tools.theharvester import TheharvesterTool
 from kali_mcp.tools.vault_tool import (
     VaultDeleteTool,
@@ -63,16 +82,6 @@ from kali_mcp.tools.wpscan import WpscanTool
 from kali_mcp.tools.zap import ZapTool
 from kali_mcp.tools.zighound import ZighoundTool
 from kali_mcp.tools.zizmor import ZizmorTool
-from kali_mcp.tools.agent_interface import (
-    AssessmentRunTool, BatchRunTool, JobControlTool,
-    FindingsQueryTool, EvidenceGetTool, AssetGraphTool,
-    ToolCatalogTool, ReportGenerateTool,
-    FindingTransitionTool, AssessmentDiffTool, CoverageSummaryTool,
-)
-from kali_mcp.tools.playbook_blackbox import (
-    PlaybookRunTool, PlaybookCatalogTool, PlaybookResultTool,
-)
-from kali_mcp.tools.template_tools import TemplateListTool, TemplateRunTool
 
 # Ordered list of tool instances (full inventory)
 ALL_TOOLS = [
