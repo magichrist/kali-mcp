@@ -40,7 +40,7 @@ def _bool_env(key: str, default: bool) -> bool:
 @dataclass(frozen=True)
 class Config:
     # Server
-    host: str = field(default_factory=lambda: os.getenv("MCP_HOST", "0.0.0.0"))
+    host: str = field(default_factory=lambda: os.getenv("MCP_HOST", "127.0.0.1"))
     port: int = field(default_factory=lambda: _int_env("MCP_PORT", 8399))
     server_name: str = field(default_factory=lambda: os.getenv("MCP_SERVER_NAME", "kali-mcp"))
     server_version: str = field(default_factory=lambda: os.getenv("MCP_SERVER_VERSION", "1.0.0"))
