@@ -29,12 +29,10 @@ steps:
     checkpoint: true
     description: "Validate target against active assessment scope"
   - id: enum
-    type: tool
-    tool: enum4linux
+    module: enum4linux
     depends_on: [validate]
     args:
       target: "{{target}}"
-      timeout: 300
     checkpoint: true
     description: "Enumerate AD domain via enum4linux"
   - id: kerberos
@@ -47,33 +45,27 @@ steps:
     checkpoint: true
     description: "Kerberos service enumeration via the kerberos module"
   - id: bloodhound
-    type: tool
-    tool: bloodhound
+    module: bloodhound
     depends_on: [enum]
     args:
       domain: "{{options.domain}}"
-      timeout: 300
     parallel: true
     checkpoint: true
     description: "Collect AD graph data via BloodHound"
   - id: netexec
-    type: tool
-    tool: netexec
+    module: netexec
     depends_on: [bloodhound]
     args:
       target: "{{target}}"
       protocol: "{{options.protocol}}"
-      timeout: 300
     checkpoint: true
     description: "Authenticated network enumeration via netexec"
   - id: crackmapexec
-    type: tool
-    tool: crackmapexec
+    module: crackmapexec
     depends_on: [bloodhound]
     args:
       target: "{{target}}"
       protocol: "{{options.protocol}}"
-      timeout: 300
     parallel: true
     checkpoint: true
     description: "Authenticated network enumeration via crackmapexec"
