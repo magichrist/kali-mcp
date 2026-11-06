@@ -1,0 +1,19 @@
+id: api_discovery
+name: "API Endpoint Discovery"
+description: "Discover API endpoints by crawling the target with katana"
+tool: katana
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target URL or base API endpoint to crawl"
+  auth_token:
+    type: string
+    description: "Optional Bearer/API authentication token"
+  api_spec:
+    type: string
+    description: "Optional OpenAPI/Swagger spec path or URL"
+outputs:
+  - endpoints
+  - assets
