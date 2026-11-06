@@ -18,11 +18,9 @@ When no scope is configured, all targets and operations are allowed
 from __future__ import annotations
 
 import os
-import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from fnmatch import fnmatch
-from typing import Any
 
 
 @dataclass(frozen=True)
@@ -174,8 +172,8 @@ def is_operation_allowed(tool_name: str | None, scope: Scope | None = None) -> b
 
 __all__ = [
     "Scope",
-    "load_scope",
     "check_scope",
-    "is_target_allowed",
     "is_operation_allowed",
+    "is_target_allowed",
+    "load_scope",
 ]
