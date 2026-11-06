@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.scope import Scope, check_scope, is_target_allowed, is_operation_allowed
+from kali_mcp.scope import Scope, check_scope, is_operation_allowed, is_target_allowed
 
 
 class TestExactMatch:
