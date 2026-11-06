@@ -37,6 +37,9 @@ def server_url():
         "MCP_TRANSPORT": "streamable-http",
         "MCP_DEBUG": "false",
         "MCP_DB_ENABLED": "false",
+        # Monitor tests do not exercise auth; opt out of the token requirement
+        # so the dev server starts without MCP_API_TOKEN.
+        "KALI_MCP_INSECURE": "1",
     }
     proc = subprocess.Popen(
         [sys.executable, str(REPO_ROOT / "src" / "kali_mcp" / "server.py")],
