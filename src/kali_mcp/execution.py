@@ -21,8 +21,8 @@ import uuid
 from kali_mcp.config import config
 from kali_mcp.logging_utils import log_execution
 from kali_mcp.models import ExecutionResult, utc_now_iso
+from kali_mcp.scope import check_scope, load_scope
 from kali_mcp.security import sanitize_command_parts
-from kali_mcp.scope import Scope, check_scope, load_scope
 from kali_mcp.utils.process import kill_process_tree
 
 logger = logging.getLogger("kali_mcp.execution")
