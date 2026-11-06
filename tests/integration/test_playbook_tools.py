@@ -21,10 +21,12 @@ def _two_step_playbook() -> dict:
         "name": "resume-test",
         "steps": [
             {
+                "id": "step1",
                 "parallel": False,
                 "tools": [{"tool": "generic_command", "args": {"command": "echo one"}}],
             },
             {
+                "id": "step2",
                 "parallel": False,
                 "tools": [{"tool": "generic_command", "args": {"command": "echo two"}}],
             },
@@ -47,6 +49,7 @@ async def test_target_placeholder_substitution():
         "target": "10.5.5.5",
         "steps": [
             {
+                "id": "step1",
                 "parallel": False,
                 "tools": [{"tool": "generic_command", "args": {"command": "echo {{target}}"}}],
             },
@@ -113,6 +116,7 @@ async def test_playbook_engine_tool_validates():
                 "name": "ok",
                 "steps": [
                     {
+                        "id": "step1",
                         "parallel": False,
                         "tools": [{"tool": "generic_command", "args": {"command": "echo ok"}}],
                     }
