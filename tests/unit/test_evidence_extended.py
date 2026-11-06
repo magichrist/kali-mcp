@@ -8,8 +8,6 @@ from __future__ import annotations
 import dataclasses
 import re
 
-import pytest
-
 from kali_mcp.evidence import EVIDENCE_DIR, get_evidence, store_evidence
 
 
