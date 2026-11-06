@@ -1,0 +1,65 @@
+name: external_recon
+version: "2.0"
+
+inputs:
+  target:
+    type: string
+    required: true
+
+execution:
+  max_parallel: 4
+  timeout: 1800
+  resume: true
+
+steps:
+  - id: validate
+    type: scope_check
+    args:
+      target: "{{target}}"
+
+  - id: discover
+    tool: subfinder
+    depends_on: [validate]
+    args:
+      domain: "{{target}}"
+
+  - id: resolve
+    tool: httpx
+    depends_on: [discover]
+    args:
+      target: "{{target}}"
+
+  - id: ports
+    tool: masscan
+    depends_on: [validate]
+    args:
+      target: "{{target}}"
+
+  - id: technologies
+    tool: whatweb
+    depends_on: [resolve]
+    args:
+      target: "{{target}}"
+
+  - id: nmap_scan
+    tool: nmap
+    depends_on: [ports]
+    args:
+      target: "{{target}}"
+      scan_type: "-sV"
+
+  - id: vuln_scan
+    tool: nuclei
+    depends_on: [resolve, technologies]
+    args:
+      target: "{{target}}"
+
+  - id: correlate
+    type: finding_correlation
+    depends_on: [resolve, technologies, nmap_scan]
+    args: {}
+
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    args: {}
