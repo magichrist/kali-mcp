@@ -84,6 +84,8 @@ class Config:
     # Studio
     studio_enabled: bool = field(default_factory=lambda: _bool_env("STUDIO_ENABLED", True))
     studio_db_path: str = field(default_factory=lambda: os.getenv("STUDIO_DB_PATH", ""))
+    # Dedicated port for the Studio web UI (0 = share the main MCP server port)
+    studio_port: int = field(default_factory=lambda: _int_env("STUDIO_PORT", 0))
     studio_default_visibility: str = field(
         default_factory=lambda: os.getenv("STUDIO_DEFAULT_VISIBILITY", "agent_callable")
     )
