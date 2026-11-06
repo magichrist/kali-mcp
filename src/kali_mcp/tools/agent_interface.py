@@ -1605,9 +1605,9 @@ class ReportGenerateTool(BaseTool):
         title = str(finding.get("title", "")).lower()
         severity = str(finding.get("severity", "")).lower()
         guidance = {
-            "admin": "Restrict admin interface behind authentication and IP allow-list; disable default credentials.",
+            "admin": "Apply authentication to exposed endpoints.",
             "tls": "Renew the TLS certificate before expiry; enforce TLS 1.2+ and strong cipher suites.",
-            "ssh": "Disable password authentication; restrict SSH to key-based auth and a non-default port if policy requires.",
+            "ssh": "Restrict access with a firewall; close unnecessary ports and disable unused services.",
             "sql": "Use parameterized queries and prepared statements; validate and sanitize all inputs.",
             "xss": "Apply output encoding and a strict Content-Security-Policy; validate inputs server-side.",
             "default": "Review the finding, apply least-privilege and patch the affected component; re-scan to confirm remediation.",
@@ -1640,7 +1640,7 @@ class ReportGenerateTool(BaseTool):
                 "source_tools": list(f.get("source_tools") or f.get("source_modules") or []),
                 "evidence_refs": list(f.get("evidence_refs") or []),
                 "description": f.get("description", ""),
-                "remediation": self._remediation_for(f),
+                "remediation": f.get("remediation") or self._remediation_for(f),
             })
         return {
             "assessment_id": assessment_id,
@@ -1902,6 +1902,7 @@ class ReportGenerateTool(BaseTool):
                 f"- Source tools: {', '.join(f.get('source_tools', []))}",
                 f"- Evidence refs: {', '.join(f.get('evidence_refs', []))}",
                 f"- Description: {f.get('description', '')}",
+                f"- Remediation: {f.get('remediation', '')}",
                 "",
             ])
         lines.extend([
