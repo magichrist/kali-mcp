@@ -185,7 +185,6 @@ class TemplateRunTool(BaseTool):
         # Render FIRST: this validates required and merges defaults
         from kali_mcp.playbooks.registry import (
             TemplateNotFound,
-            get_template,
             render_template,
         )
         from kali_mcp.workflow.yaml_loader import PlaybookError
@@ -220,7 +219,7 @@ class TemplateRunTool(BaseTool):
         engine = DAGEngine()
         try:
             result = await engine.run(definition)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             JOB_REGISTRY[job_id].update(
                 status="failed",
                 error=f"{type(e).__name__}: {e}",
@@ -281,7 +280,7 @@ class TemplateRunTool(BaseTool):
     async def _guarded(self, job_id: str, run) -> None:
         try:
             await run()
-        except Exception as e:  # noqa: BLE001 — background jobs must never raise
+        except Exception as e:
             JOB_REGISTRY.setdefault(job_id, {})
             JOB_REGISTRY[job_id].update(
                 status="failed",
