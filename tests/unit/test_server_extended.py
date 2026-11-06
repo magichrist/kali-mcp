@@ -95,7 +95,7 @@ class TestTokenAuthMiddlewareExtended:
 
     @pytest.mark.asyncio
     async def test_query_token_is_accepted(self) -> None:
-        mw = TokenAuthMiddleware(app=AsyncMock(), token="q")
+        mw = TokenAuthMiddleware(app=AsyncMock(), token="q", token_in_query=True)
         scope = {
             "type": "http",
             "headers": [],
