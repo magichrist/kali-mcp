@@ -299,7 +299,13 @@ def cmd_studio(args: argparse.Namespace) -> int:
         port = parsed.port or int(os.getenv("MCP_PORT", "8399"))
     else:
         host = getattr(args, "host", None) or os.getenv("MCP_HOST", "127.0.0.1")
-        port = int(getattr(args, "port", None) or os.getenv("MCP_PORT", "8399"))
+        port = (
+            getattr(args, "port", None)
+            or os.getenv("STUDIO_PORT", "")
+            or os.getenv("MCP_PORT", "")
+            or "8399"
+        )
+        port = int(port)
         url = f"http://{host}:{port}/studio"
 
     started_child = False
