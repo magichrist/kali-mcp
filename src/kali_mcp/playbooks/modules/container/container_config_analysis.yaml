@@ -1,0 +1,18 @@
+id: container_config_analysis
+name: Container Configuration Analysis
+description: Analyze Dockerfile and runtime container configuration for security issues
+tool: generic_command
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: Container image name or container ID
+  docker_host:
+    type: string
+    description: Docker host URI
+outputs:
+  - dockerfile_issues
+  - runtime_config_issues
+  - exposed_ports
+  - mounts
