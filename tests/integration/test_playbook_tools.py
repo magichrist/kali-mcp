@@ -46,7 +46,7 @@ async def test_run_records_status():
 async def test_target_placeholder_substitution():
     playbook = {
         "name": "subst-test",
-        "target": "10.5.5.5",
+        "target": "127.0.0.1",
         "steps": [
             {
                 "id": "step1",
@@ -58,7 +58,7 @@ async def test_target_placeholder_substitution():
     res = await PlaybookEngine().run(playbook)
     payload = json.loads(res.stdout)
     out = json.loads(payload["results"][0]["content"][0]["text"])
-    assert out["stdout"].strip() == "10.5.5.5"
+    assert out["stdout"].strip() == "127.0.0.1"
 
 
 async def test_resume_skips_completed_steps():
