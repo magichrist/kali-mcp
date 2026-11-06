@@ -289,7 +289,7 @@ class TestPlaybookRoutes:
     def test_compile_dsl(self):
         db = _make_db_with_conn()
         dsl = '''id: pb.dsl name: "t" steps {
-  s: tool nmap depends_on [] inputs { target: "10.0.0.1" }
+  s: tool nmap depends_on [] inputs { target: "127.0.0.1" }
 }'''
         with patch("kali_mcp.studio.api._db", return_value=db):
             body = json.dumps({"dsl": dsl}).encode()
