@@ -29,8 +29,9 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from kali_mcp.workflow.yaml_loader import PlaybookError
 
@@ -239,11 +240,11 @@ __all__ = [
     "ModuleContext",
     "ModuleError",
     "ModuleSpec",
-    "register",
-    "has",
+    "clear",
     "execute",
     "execute_async",
+    "has",
     "list_modules",
-    "clear",
     "load_builtin_modules",
+    "register",
 ]
