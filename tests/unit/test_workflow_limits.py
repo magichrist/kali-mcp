@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from kali_mcp.workflow import dag_executor as de
-from kali_mcp.workflow.dag_executor import PlaybookEngine, MAX_ITERATIONS
+from kali_mcp.workflow.dag_executor import PlaybookEngine, MAX_ITERATIONS, run_playbook_async
 from kali_mcp.workflow.scope_gate import (
     ScopeViolationError,
     assert_target_allowed,
@@ -211,3 +211,33 @@ class TestLegacyCustomStep:
         result = await PlaybookEngine()._run_custom_step(step, {"playbook_name": "x"})
         assert result["status"] == "executed"
         assert result["type"] == "custom"
+
+
+class TestAsyncEntry:
+    """run_playbook_async must work when awaited from a running event loop.
+
+    This is the regression test for the ``asyncio.run() cannot be called
+    from a running event loop`` crash that occurred when MCP tool handlers
+    awaited the old sync ``run_playbook`` wrapper.
+    """
+
+    async def test_run_playbook_async_inside_running_loop(self):
+        # Awaiting run_playbook_async from within this async test (which runs
+        # inside an active asyncio loop courtesy of pytest-asyncio) must not
+        # raise and must return a completed ExecutionResult.
+        pb = PlaybookDefinition(
+            name="async-regression",
+            version="1.0.0",
+            inputs={},
+            execution={"max_parallel": 2},
+            steps=[
+                StepDefinition(id="validate", type="scope_check", args={"target": "example.com"})
+            ],
+            raw={},
+        )
+        res = await run_playbook_async(pb, resume=False)
+        assert res.success is True
+        assert res.exit_code == 0
+        payload = __import__("json").loads(res.stdout)
+        assert payload["status"] == "completed"
+        assert de.RUN_STATUS.get("async-regression", {}).get("status") == "completed"
