@@ -51,11 +51,11 @@ def test_correlate_groups_by_asset_and_title(correlator):
     observations = [
         {"title": "SSL Expired", "asset_id": "example.com", "tool": "nuclei"},
         {"title": "SSL Expired", "asset_id": "example.com", "tool": "whatweb"},
-        {"title": "Open SSH", "asset_id": "10.0.0.1", "tool": "nmap"},
+        {"title": "Open SSH", "asset_id": "127.0.0.1", "tool": "nmap"},
         {"title": "SSL Expired", "asset_id": "other.com", "tool": "nuclei"},
     ]
     findings = correlator.correlate(observations)
-    # 3 groups: example.com|SSL Expired, 10.0.0.1|Open SSH, other.com|SSL Expired
+    # 3 groups: example.com|SSL Expired, 127.0.0.1|Open SSH, other.com|SSL Expired
     assert len(findings) == 3
 
 
