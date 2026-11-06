@@ -2,7 +2,7 @@
 
 if [ $# -ne 1 ]; then
     echo "Usage: $0 <mcp-url>"
-    echo "Example: $0 http://192.168.2.4:8399/mcp"
+    echo "Example: $0 http://127.0.0.1:8399/mcp"
     exit 1
 fi
 
