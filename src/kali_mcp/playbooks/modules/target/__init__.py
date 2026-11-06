@@ -11,7 +11,7 @@ import re
 from typing import Any
 
 from kali_mcp.workflow import modules_runtime as _mr
-from kali_mcp.workflow.scope_gate import assert_target_allowed, ScopeViolationError
+from kali_mcp.workflow.scope_gate import ScopeViolationError, assert_target_allowed
 
 # Injectable tool lookup (defaults to the live registry) — tests can monkeypatch.
 _tool_lookup = None  # set below
@@ -81,4 +81,4 @@ def register() -> None:
     )
 
 
-__all__ = ["register", "_validate", "_scope_check"]
+__all__ = ["_scope_check", "_validate", "register"]
