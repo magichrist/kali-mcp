@@ -88,4 +88,4 @@ def register() -> None:
     )
 
 
-__all__ = ["register", "_port_discovery"]
+__all__ = ["_port_discovery", "register"]
