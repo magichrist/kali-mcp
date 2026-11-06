@@ -67,6 +67,8 @@ class Config:
 
     # Auth
     api_token: str = field(default_factory=lambda: os.getenv("MCP_API_TOKEN", ""))
+    insecure: bool = field(default_factory=lambda: _bool_env("KALI_MCP_INSECURE", False))
+    token_in_query: bool = field(default_factory=lambda: _bool_env("KALI_MCP_TOKEN_IN_QUERY", False))
 
     # CORS
     allowed_origins: str = field(default_factory=lambda: os.getenv("MCP_ALLOWED_ORIGINS", "*"))
