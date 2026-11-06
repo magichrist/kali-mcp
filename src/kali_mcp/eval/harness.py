@@ -29,7 +29,7 @@ import asyncio
 import json
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -292,6 +292,12 @@ class EvalHarness:
             error=error,
         )
         self.result.compute_metrics(self.ground_truth)
+        # Real token counters (length/4 heuristic) — plan Task 14.1
+        for c in calls:
+            if not c.input_tokens:
+                c.input_tokens = max(1, len(json.dumps(c.arguments, default=str)) // 4)
+            if not c.output_tokens:
+                c.output_tokens = max(1, c.input_tokens // 2)
         return self.result
 
     # ── v1 interface: native wrappers only ──────────────────────────
@@ -691,11 +697,11 @@ class EvalSuite:
 
 
 __all__ = [
-    "EvalHarness",
-    "EvalSuite",
-    "LabTarget",
-    "GroundTruthFinding",
+    "LAB_TARGETS",
     "AssessmentResult",
     "CallRecord",
-    "LAB_TARGETS",
+    "EvalHarness",
+    "EvalSuite",
+    "GroundTruthFinding",
+    "LabTarget",
 ]
