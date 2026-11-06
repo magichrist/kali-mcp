@@ -86,3 +86,69 @@ def test_optional_finding_fields_default_null(db):
     fid = db.add_finding(tid, None, "tool", "type", "info", "t", "d", "e")
     row = db.conn.execute("SELECT port, service, url FROM findings WHERE id=?", (fid,)).fetchone()
     assert row["port"] is None and row["service"] is None and row["url"] is None
+
+
+def test_query_findings_filters_by_asset_id(db):
+    tid = db.upsert_target("example.com", target_type="domain")
+    other_tid = db.upsert_target("other.example.com", target_type="domain")
+    db.upsert_asset("asset_example_com", "host", "example.com", target_id=tid)
+    db.upsert_asset("asset_other", "host", "other.example.com", target_id=other_tid)
+    sid = db.add_scan(
+        tid,
+        "nmap",
+        "nmap -q example.com",
+        "2026-10-31T00:00:00Z",
+        "2026-10-31T00:00:10Z",
+        10.0,
+        1,
+        1,
+        None,
+    )
+    db.add_finding(
+        tid,
+        sid,
+        "nmap",
+        "open_port",
+        "medium",
+        "SSH exposed",
+        "tcp/22 open",
+        "nmap raw output",  # evidence
+        port=22,
+        service="ssh",
+    )
+    # A second target with no matching asset row must not leak in.
+    other_sid = db.add_scan(
+        other_tid,
+        "nmap",
+        "nmap -q other.example.com",
+        "2026-10-31T00:00:00Z",
+        "2026-10-31T00:00:10Z",
+        10.0,
+        1,
+        1,
+        None,
+    )
+    db.add_finding(
+        other_tid,
+        other_sid,
+        "nmap",
+        "open_port",
+        "low",
+        "HTTP exposed",
+        "tcp/80 open",
+        "nmap raw output",  # evidence
+        port=80,
+        service="http",
+    )
+
+    res = db.query_findings(asset_id="asset_example_com")
+    assert res["count"] == 1
+    assert res["findings"][0]["title"] == "SSH exposed"
+
+    res = db.query_findings(asset_id="asset_other")
+    assert res["count"] == 1
+    assert res["findings"][0]["title"] == "HTTP exposed"
+
+    res = db.query_findings(asset_id="asset_does_not_exist")
+    assert res["count"] == 0
+    assert res["findings"] == []
