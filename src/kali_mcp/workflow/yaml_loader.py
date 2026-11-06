@@ -7,6 +7,7 @@ Conditions are validated to ensure they reference structured outputs only.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -40,6 +41,7 @@ class PlaybookError(ValueError):
 class StepDefinition:
     id: str
     tool: str | None = None
+    module: str | None = None
     type: str = "tool"
     depends_on: list[str] = field(default_factory=list)
     when: str | None = None
@@ -158,6 +160,7 @@ def load_playbook(source: str | dict[str, Any]) -> PlaybookDefinition:
         step = StepDefinition(
             id=step_id,
             tool=tool,
+            module=step_raw.get("module"),
             type=step_raw.get("type", "tool"),
             depends_on=list(deps),
             when=step_raw.get("when"),
@@ -180,3 +183,28 @@ def load_playbook(source: str | dict[str, Any]) -> PlaybookDefinition:
         steps=steps,
         raw=data,
     )
+
+
+# ── internal module resolution ─────────────────────────────────────────
+
+MODULES_DIR = Path(__file__).resolve().parent.parent / "playbooks" / "modules"
+
+
+def load_module(module_id: str) -> dict[str, Any] | None:
+    """Locate and load an internal module definition YAML by id.
+
+    Module definitions live under ``playbooks/modules/<category>/<id>.yaml``
+    and declare (among other fields) the native ``tool`` that implements the
+    module, plus default ``inputs`` and ``outputs``. Returns the parsed
+    mapping, or ``None`` when no module definition exists for ``module_id``.
+    """
+    if not module_id:
+        return None
+    candidates = list(MODULES_DIR.glob(f"*/{module_id}.yaml")) + list(
+        MODULES_DIR.glob(f"*/{module_id}.yml")
+    )
+    if not candidates:
+        return None
+    with open(candidates[0], "r", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)
+    return data if isinstance(data, dict) else None
