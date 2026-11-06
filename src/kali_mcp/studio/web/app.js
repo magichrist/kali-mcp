@@ -1,18 +1,165 @@
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const nodeData={target:{name:'Target input',id:'input.target',type:'Input',description:'Accept domain and verify assessment scope before execution.',mapping:'{{ inputs.target }}',tool:'operator + agent',timeout:'—'},dns:{name:'DNS resolution',id:'dns.resolve',type:'Security tool',description:'Resolve A, AAAA, CNAME, MX and NS records, then discover related hostnames.',mapping:'{{ inputs.target }}',tool:'dnsx',timeout:'30 seconds'},ports:{name:'Port discovery',id:'network.port_discovery',type:'Security tool',description:'Identify reachable TCP ports on the in-scope IP addresses discovered by DNS resolution.',mapping:'{{ steps.dns.resolved_ips }}',tool:'rustscan',timeout:'120 seconds'},services:{name:'Service detection',id:'network.service_detection',type:'Security tool',description:'Fingerprint services and versions on discovered open ports.',mapping:'{{ steps.ports.hosts }}',tool:'nmap',timeout:'180 seconds'},tls:{name:'TLS inspection',id:'tls.inspect',type:'Security tool',description:'Inspect certificates, protocol versions, supported ciphers and certificate expiry.',mapping:'{{ steps.services.tls_services }}',tool:'tlsx',timeout:'60 seconds'},http:{name:'HTTP reconnaissance',id:'web.http_recon',type:'Security tool',description:'Probe HTTP services, detect technologies and optionally run approved template checks.',mapping:'{{ steps.services.http_services }}',tool:'httpx + nuclei',timeout:'180 seconds'},ssh:{name:'SSH inspection',id:'ssh.inspect',type:'Security tool',description:'Collect SSH banner and algorithm posture. Authentication attempts are disabled.',mapping:'{{ steps.services.ssh_services }}',tool:'ssh-audit',timeout:'60 seconds'},report:{name:'Normalize & aggregate',id:'internal.aggregate',type:'Internal module',description:'Deduplicate assets, correlate evidence, normalize findings and generate the assessment result.',mapping:'{{ steps.tls, steps.http, steps.ssh }}',tool:'aggregator',timeout:'30 seconds'}};
-let selected='target',zoom=100,runTimer=null,extraCount=0;
-function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2600)}
-function selectNode(id){selected=id;$$('.node').forEach(n=>n.classList.toggle('selected',n.dataset.node===id));const d=nodeData[id];if(!d)return;$('#stepNumber').textContent=`STEP ${String(Object.keys(nodeData).indexOf(id)+1).padStart(2,'0')} / ${String(Object.keys(nodeData).length).padStart(2,'0')}`;$('#nodeName').value=d.name;$('#nodeDescription').value=d.description;$('#nodeId').textContent=d.id;$('#nodeType').textContent=d.type;const section=$('#inspectorContent');section.querySelector('.section-title').innerHTML='Selected step <span style="color:var(--green)">● Enabled</span>';section.querySelectorAll('.field input')[0].value=d.name;section.querySelectorAll('.field textarea')[0].value=d.description;section.querySelectorAll('.field input')[1].value=d.mapping;section.querySelectorAll('.kv')[0].querySelector('strong').textContent=d.id;section.querySelectorAll('.kv')[1].querySelector('strong').textContent=d.type;section.querySelectorAll('.kv')[2].querySelector('strong').textContent=d.timeout;section.querySelectorAll('.kv')[3].querySelector('strong').textContent='1';}
-$$('.node').forEach(n=>{n.addEventListener('click',e=>{if(e.target.closest('.port'))return;selectNode(n.dataset.node)});let drag=false,sx=0,sy=0,ox=0,oy=0;n.addEventListener('pointerdown',e=>{if(e.button!==0)return;drag=true;sx=e.clientX;sy=e.clientY;ox=n.offsetLeft;oy=n.offsetTop;n.setPointerCapture(e.pointerId)});n.addEventListener('pointermove',e=>{if(!drag)return;n.style.left=(ox+e.clientX-sx)+'px';n.style.top=(oy+e.clientY-sy)+'px';drawEdges()});n.addEventListener('pointerup',()=>drag=false);n.addEventListener('pointercancel',()=>drag=false)});
-function drawEdges(){const pos=id=>{const n=$(`[data-node="${id}"]`);return{x:n.offsetLeft,y:n.offsetTop,w:n.offsetWidth,h:n.offsetHeight}};const a=pos('target'),b=pos('dns'),c=pos('ports'),d=pos('services'),t=pos('tls'),h=pos('http'),s=pos('ssh'),r=pos('report');const mid=(x,y)=>`${x} ${y}`;const curve=(p1,p2)=>`M${p1.x+p1.w} ${p1.y+56} C${p1.x+p1.w+35} ${p1.y+56} ${p2.x-35} ${p2.y+56} ${p2.x} ${p2.y+56}`;const branch=(p1,p2,side)=>`M${p1.x+p1.w/2} ${p1.y+p1.h} C${p1.x+p1.w/2} ${p1.y+p1.h+65} ${p2.x+p2.w/2} ${p2.y-65} ${p2.x+p2.w/2} ${p2.y}`;$('#edges').innerHTML=`<path class="edge" d="${curve(a,b)}"/><path class="edge" d="${curve(b,c)}"/><path class="edge" d="${curve(c,d)}"/><path class="edge" d="${branch(d,t)}"/><path class="edge" d="${branch(d,h)}"/><path class="edge" d="${branch(d,s)}"/><path class="edge" d="${branch(t,r)}"/><path class="edge" d="${branch(h,r)}"/><path class="edge" d="${branch(s,r)}"/>`;}
-$('#nodeName').addEventListener('change',e=>{nodeData[selected].name=e.target.value;$(`[data-node="${selected}"] .node-title`).textContent=e.target.value;});$('#nodeDescription').addEventListener('change',e=>{nodeData[selected].description=e.target.value;$(`[data-node="${selected}"] .node-body`).textContent=e.target.value;});
-function showView(v){$$('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===v));$('#builderView').style.display=v==='builder'?'grid':'none';$('#dslView').style.display=v==='dsl'?'block':'none';$('#inputsView').style.display=v==='inputs'?'block':'none';$('#runsView').style.display=v==='runs'?'block':'none'}$$('.tab').forEach(t=>t.addEventListener('click',()=>showView(t.dataset.view)));
-function openModal(){$('#addModal').classList.add('open')}function closeModal(){$('#addModal').classList.remove('open')}$('#addNodeBtn').onclick=openModal;$('#canvasAdd').onclick=openModal;$('#closeModal').onclick=closeModal;$('#addModal').addEventListener('click',e=>{if(e.target.id==='addModal')closeModal()});
-$$('.palette button').forEach(b=>b.onclick=()=>{const type=b.dataset.add;const id='custom_'+(++extraCount);const labels={tool:'New security tool',module:'Transform output',condition:'Condition branch',loop:'For each item',approval:'Approval gate',output:'Custom output'};nodeData[id]={name:labels[type],id:`${type}.${extraCount}`,type:type==='tool'?'Security tool':type==='module'?'Internal module':type[0].toUpperCase()+type.slice(1),description:'Configure this step and map its typed inputs and outputs.',mapping:'{{ steps.previous.output }}',tool:'Choose from registry',timeout:'60 seconds'};const n=document.createElement('article');n.className='node';n.dataset.node=id;n.style.left=(60+(extraCount%4)*250)+'px';n.style.top=(565+Math.floor(extraCount/4)*150)+'px';n.innerHTML=`<div class="node-top"><div class="node-icon ${type==='tool'?'scan':type==='output'?'out':'web'}">${type==='tool'?'⌕':type==='condition'?'◇':type==='loop'?'↻':type==='approval'?'♧':'▦'}</div><div><div class="node-title">${labels[type]}</div><div class="node-kind">${type.toUpperCase()} · CUSTOM</div></div><i class="node-status"></i></div><div class="node-body">Configure this step and map its typed inputs and outputs.</div><div class="node-foot"><span>not configured</span><span class="chip">draft</span></div>`;$('#canvasInner').appendChild(n);n.addEventListener('click',()=>selectNode(id));selectNode(id);closeModal();drawEdges();toast('Step added to draft workflow');});
-$('#validateBtn').onclick=()=>{const issues=[];if(!$('#dslCode').value.includes('scope_id'))issues.push('Missing scope input');if(issues.length){toast('Validation found: '+issues.join(', '));$('#draftStatus').textContent='● Needs attention';$('#draftStatus').style.color='var(--red)'}else{toast('Validation passed · 0 errors · 2 informational warnings');$('#draftStatus').textContent='● Validated';$('#draftStatus').style.color='var(--green)'}};
-$('#runBtn').onclick=()=>{if(runTimer)clearInterval(runTimer);$$('.node').forEach(n=>n.classList.remove('running','done'));const ids=['target','dns','ports','services','tls','http','ssh','report'];let i=0;$('#runBtn').textContent='◷ Running test…';$('#runBtn').disabled=true;runTimer=setInterval(()=>{if(i>0){const prev=$(`[data-node="${ids[i-1]}"]`);if(prev)prev.classList.remove('running'),prev.classList.add('done')}if(i<ids.length){const n=$(`[data-node="${ids[i]}"]`);if(n)n.classList.add('running');i++}else{clearInterval(runTimer);runTimer=null;$('#runBtn').textContent='▶ Test run';$('#runBtn').disabled=false;toast('Test run completed · 8 steps · sample data only');$('#draftStatus').textContent='● Draft';$('#draftStatus').style.color='var(--amber)'}},620)};
-$('#saveBtn').onclick=()=>{localStorage.setItem('kali-playbook-draft',JSON.stringify({nodes:nodeData,dsl:$('#dslCode').value}));toast('Draft saved locally in this prototype')};$('#shareBtn').onclick=()=>{const blob=new Blob([$('#dslCode').value],{type:'text/yaml'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='domain-recon.yaml';a.click();URL.revokeObjectURL(a.href);toast('DSL exported')};$('#syncDsl').onclick=()=>{toast('DSL parsed into the preview graph (prototype only)')};$('#addMapping').onclick=()=>toast('New typed input mapping row added (prototype preview)');$('#newInput').onclick=()=>toast('Input definition editor opened in the full implementation');$('#refreshRuns').onclick=()=>toast('Execution history refreshed');$('#duplicateBtn').onclick=()=>{const d=nodeData[selected];const id='custom_'+(++extraCount);nodeData[id]={...d,id:d.id+'.copy',name:d.name+' copy'};toast('Step duplicated in draft');};$('#deleteBtn').onclick=()=>{if(selected==='target'||selected==='report'){toast('Required input/output nodes cannot be deleted');return}const n=$(`[data-node="${selected}"]`);if(n)n.remove();delete nodeData[selected];selected='target';selectNode('target');drawEdges();toast('Step removed from draft')};
-$$('.toggle').forEach(t=>t.onclick=()=>t.classList.toggle('on'));$('#visualMode').onclick=()=>{$('#visualMode').classList.add('active');$('#compactMode').classList.remove('active');$('#canvasInner').style.transform='scale(1)';toast('Visual canvas mode')};$('#compactMode').onclick=()=>{$('#compactMode').classList.add('active');$('#visualMode').classList.remove('active');$('#canvasInner').style.transform='scale(.85)';toast('Compact canvas mode')};
-function setZoom(v){zoom=Math.max(60,Math.min(125,v));$('#canvasInner').style.transform=`scale(${zoom/100})`;$('#zoomValue').textContent=zoom+'%'}$('#zoomIn').onclick=()=>setZoom(zoom+10);$('#zoomOut').onclick=()=>setZoom(zoom-10);$('#zoomValue').onclick=()=>setZoom(100);$('#fitBtn').onclick=()=>{setZoom(80);$('#canvasArea').scrollTo({left:0,top:0,behavior:'smooth'})};$('#autoLayout').onclick=()=>{const coords={target:[40,193],dns:[300,193],ports:[560,193],services:[820,193],tls:[560,425],http:[820,425],ssh:[1080,425],report:[820,665]};Object.entries(coords).forEach(([id,[x,y]])=>{const n=$(`[data-node="${id}"]`);if(n)n.style.left=x+'px',n.style.top=y+'px'});drawEdges();toast('Layout reset to default graph')};
-$$('.nav-item').forEach(b=>b.onclick=()=>{if(b.dataset.page==='Playbook Studio')return;$$('.nav-item').forEach(x=>x.classList.remove('active'));b.classList.add('active');toast(`${b.dataset.page} section preview · navigation only`)});$('#workspaceBtn').onclick=()=>toast('Workspace switcher · preview');
-selectNode('target');drawEdges();
+const API = window.API || "/api";
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = body?.error?.message || body?.error || res.statusText;
+    throw new Error(`API ${res.status}: ${msg}`);
+  }
+  return body?.data ?? body;
+}
+
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return [...document.querySelectorAll(sel)]; }
+
+function toast(msg) {
+  const el = $("#toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => el.classList.remove("show"), 2600);
+}
+
+let selectedId = null;
+let playbooks = [];
+
+function renderList() {
+  const el = $("#playbookList");
+  if (!playbooks.length) {
+    el.innerHTML = "<p class=\"empty\">No playbooks yet.</p>";
+    return;
+  }
+  el.innerHTML = playbooks
+    .map(
+      (p) =>
+        `<button class="playbook-item${p.playbook_id === selectedId ? " active" : ""}" data-id="${p.playbook_id}">${p.name || p.playbook_id}</button>`
+    )
+    .join("");
+  el.querySelectorAll(".playbook-item").forEach((btn) => {
+    btn.addEventListener("click", () => selectPlaybook(btn.dataset.id));
+  });
+}
+
+async function loadPlaybooks() {
+  try {
+    const data = await api("/playbooks");
+    playbooks = data.playbooks || data || [];
+    renderList();
+    if (playbooks.length && !selectedId) selectPlaybook(playbooks[0].playbook_id);
+  } catch (e) {
+    $("#playbookList").innerHTML = `<p class="error">${e.message}</p>`;
+  }
+}
+
+async function selectPlaybook(id) {
+  selectedId = id;
+  renderList();
+  $("#editorTitle").textContent = id;
+  $("#result").textContent = "";
+  try {
+    const data = await api(`/playbooks/${encodeURIComponent(id)}/definition`);
+    const def = data.definition || data;
+    $("#dslCode").value = JSON.stringify(def, null, 2);
+  } catch (e) {
+    // Fall back to playbook metadata.
+    try {
+      const pb = await api(`/playbooks/${encodeURIComponent(id)}`);
+      $("#dslCode").value = JSON.stringify(pb, null, 2);
+    } catch (e2) {
+      $("#dslCode").value = "";
+      toast(e2.message);
+    }
+  }
+}
+
+async function validateCurrent() {
+  if (!selectedId) return;
+  let definition;
+  try {
+    definition = JSON.parse($("#dslCode").value || "{}");
+  } catch (e) {
+    toast("Invalid JSON");
+    return;
+  }
+  try {
+    const res = await api(`/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
+      method: "POST",
+      body: JSON.stringify({ definition }),
+    });
+    $("#result").textContent = JSON.stringify(res, null, 2);
+    toast(res.valid ? "Validation passed" : "Validation failed");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function saveCurrent() {
+  if (!selectedId) return;
+  let definition;
+  try {
+    definition = JSON.parse($("#dslCode").value || "{}");
+  } catch (e) {
+    toast("Invalid JSON");
+    return;
+  }
+  try {
+    await api(`/playbooks/${encodeURIComponent(selectedId)}/definition`, {
+      method: "PUT",
+      body: JSON.stringify({ definition }),
+    });
+    toast("Saved");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function publishCurrent() {
+  const version = prompt("Version string (e.g. 1.0.0):");
+  if (!version) return;
+  let definition;
+  try {
+    definition = JSON.parse($("#dslCode").value || "{}");
+  } catch (e) {
+    toast("Invalid JSON");
+    return;
+  }
+  try {
+    await api(`/playbooks/${encodeURIComponent(selectedId)}/publish`, {
+      method: "POST",
+      body: JSON.stringify({ version, definition }),
+    });
+    toast(`Published ${version}`);
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+function bindEvents() {
+  $("#refreshBtn")?.addEventListener("click", loadPlaybooks);
+  $("#validateBtn")?.addEventListener("click", validateCurrent);
+  $("#saveBtn")?.addEventListener("click", saveCurrent);
+  $("#publishBtn")?.addEventListener("click", publishCurrent);
+  $("#newPlaybookBtn")?.addEventListener("click", async () => {
+    const id = prompt("New playbook id:");
+    const name = prompt("Name:");
+    if (!id || !name) return;
+    try {
+      await api("/playbooks", {
+        method: "POST",
+        body: JSON.stringify({ playbook_id: id, name }),
+      });
+      await loadPlaybooks();
+      selectPlaybook(id);
+    } catch (e) {
+      toast(e.message);
+    }
+  });
+}
+
+bindEvents();
+loadPlaybooks();
