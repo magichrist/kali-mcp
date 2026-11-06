@@ -5,6 +5,7 @@ Usage:
 
     kmcp                                  # show help
     kmcp --help                           # show help
+    kmcp init [--force]                       # generate .env from .env.example with a secure API token
     kmcp start [--host HOST] [--port PORT]   # start the MCP server (alias: s)
     kmcp monitor [URL]                        # launch the monitor TUI (alias: m)
     kmcp purge SCOPE [--confirm]              # purge data: db | vault | all (alias: p)
@@ -39,6 +40,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -135,6 +138,145 @@ def cmd_monitor(args: argparse.Namespace) -> int:
     return 0
 
 
+# ── init (.env bootstrap) ────────────────────────────────────────────────
+
+# Keys that must be filled with a generated secure value when the .env
+# has them empty or missing.
+_GENERATED_KEYS = ("MCP_API_TOKEN",)
+
+
+def _generate_env_value(key: str) -> str:
+    """Produce a secure random value for a required key."""
+    if key == "MCP_API_TOKEN":
+        return secrets.token_urlsafe(48)
+    raise KeyError(key)
+
+
+def _parse_env_text(text: str) -> dict[str, str | None]:
+    """Parse KEY=VALUE lines (existing file); values may be empty."""
+    env: dict[str, str | None] = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        key, sep, value = stripped.partition("=")
+        env.setdefault(key.strip(), value if sep else None)
+    return env
+
+
+def _fill_template(template_text: str) -> str:
+    """Fill empty values for required keys in a .env template with generated values."""
+    out_lines: list[str] = []
+    for line in template_text.splitlines():
+        stripped = line.strip()
+        key, sep, value = stripped.partition("=")
+        if (
+            sep
+            and key.strip() in _GENERATED_KEYS
+            and not value.strip()
+            and not stripped.startswith("#")
+        ):
+            out_lines.append(f"{key.strip()}={_generate_env_value(key.strip())}")
+        else:
+            out_lines.append(line)
+    return "\n".join(out_lines) + "\n"
+
+
+def _backfill_env(env_path: Path, template_text: str) -> list[str]:
+    """Add missing or empty required keys to an existing .env in place.
+
+    Never overwrites values the user has already set. Returns change notes.
+    """
+    changes: list[str] = []
+    content = env_path.read_text()
+    parsed = _parse_env_text(content)
+    template_parsed = _parse_env_text(template_text)
+    modified = False
+
+    def _get_template_value(key: str) -> str | None:
+        for tline in template_text.splitlines():
+            tkey, sep, tvalue = tline.strip().partition("=")
+            if sep and tkey.strip() == key:
+                return tvalue.strip()
+        return None
+
+    fills: list[str] = []
+
+    # 1. Required keys: generate a secure value when absent or empty.
+    for key in _GENERATED_KEYS:
+        value = parsed.get(key)
+        if value is None:
+            fills.append(f"{key}={_generate_env_value(key)}")
+            changes.append(f"{key}: generated secure value (was missing)")
+        elif value.strip() == "":
+            new_value = _generate_env_value(key)
+            content = re.sub(
+                rf"^{key}=(\s*)$", f"{key}={new_value}", content, flags=re.MULTILINE
+            )
+            changes.append(f"{key}: generated secure value (was empty)")
+
+    # 2. Keys present in the template but not in .env: append the template default.
+    for key in sorted(set(template_parsed) - set(parsed)):
+        if key in _GENERATED_KEYS:
+            continue  # already added a generated value above
+        fills.append(f"{key}={_get_template_value(key)}")
+        changes.append(f"{key}: added default from .env.example")
+
+    if fills:
+        content = (
+            content.rstrip("\n")
+            + "\n\n# Added by `kmcp init`\n"
+            + "\n".join(fills)
+            + "\n"
+        )
+        modified = True
+
+    if modified:
+        env_path.write_text(content)
+        changes.append(f"updated {env_path}")
+    elif not changes:
+        changes.append("already complete — nothing to add")
+    return changes
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Generate a complete .env from .env.example with a secure API token.
+
+    - No .env present: create one from .env.example, filling required
+      secrets (MCP_API_TOKEN) with cryptographically secure random values.
+    - .env present: backfill missing or empty required keys without
+      touching any user-set values. Use --force to regenerate from scratch.
+    """
+    _load_env()
+    env_path = REPO_ROOT / ".env"
+    example_path = REPO_ROOT / ".env.example"
+
+    if not example_path.exists():
+        print(f"error: {example_path} not found — cannot generate .env", file=sys.stderr)
+        return 1
+    template_text = example_path.read_text()
+
+    if args.force and env_path.exists():
+        backup = env_path.with_suffix(".env.bak")
+        shutil.copy2(env_path, backup)
+        env_path.unlink()
+        print(f"backed up existing .env to {backup}")
+
+    if not env_path.exists():
+        env_path.write_text(_fill_template(template_text))
+        print(f"created {env_path} from .env.example")
+        for key in _GENERATED_KEYS:
+            print(f"  {key}: generated secure value")
+    else:
+        changes = _backfill_env(env_path, template_text)
+        print(f"checked {env_path}:")
+        for change in changes:
+            print(f"  {change}")
+
+    print("done — run `kmcp start` now")
+    return 0
+
+
 def _confirm(prompt: str) -> bool:
     """Ask the user for confirmation. Returns True on 'y'/'yes'."""
     try:
@@ -143,69 +285,6 @@ def _confirm(prompt: str) -> bool:
         print("\naborted")
         return False
     return response in ("y", "yes")
-
-
-def _normalize_frontend_url(url: str) -> str:
-    """Ensure a URL points at the Playbook Studio frontend."""
-    url = (url or "").strip()
-    if not url:
-        return url
-    try:
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        path = (parsed.path or "").rstrip("/")
-        if path in ("", "/"):
-            url = url.rstrip("/") + "/studio"
-    except Exception:  # noqa: BLE001
-        if not url.rstrip("/").endswith("/studio"):
-            url = url.rstrip("/") + "/studio"
-    return url
-
-
-def _open_frontend(args: argparse.Namespace) -> int:
-    """Open the Playbook Studio frontend in the default browser."""
-    _load_env()
-
-    url = getattr(args, "url", None)
-    if url:
-        url = str(url).strip()
-    else:
-        host = getattr(args, "host", None) or os.getenv("MCP_HOST", "127.0.0.1")
-        port = (
-            getattr(args, "port", None)
-            or os.getenv("STUDIO_PORT", "")
-            or os.getenv("MCP_PORT", "")
-            or "8399"
-        )
-        if host in ("0.0.0.0", "::", "", None):
-            host = "127.0.0.1"
-        url = f"http://{host}:{port}/studio"
-
-    no_browser = bool(getattr(args, "no_browser", False) or getattr(args, "no_open", False))
-    if not no_browser:
-        try:
-            webbrowser.open(url)
-        except Exception:  # noqa: BLE001
-            pass
-
-    print(f"Frontend: {url}")
-    return 0
-
-
-# Aliases for the frontend command (all delegate to _open_frontend).
-cmd_studio = _open_frontend
-cmd_frontend = _open_frontend
-cmd_web = _open_frontend
-cmd_ui = _open_frontend
-cmd_browser = _open_frontend
-cmd_open = _open_frontend
-cmd_gui = _open_frontend
-cmd_dashboard = _open_frontend
-cmd_webui = _open_frontend
-cmd_open_frontend = _open_frontend
-cmd_start_frontend = _open_frontend
-cmd_frontend_browser = _open_frontend
 
 
 def cmd_purge(args: argparse.Namespace) -> int:
@@ -279,13 +358,27 @@ def _wait_for_server(url: str, proc: subprocess.Popen, timeout: float = 25.0) ->
     return False
 
 
+def _normalize_frontend_url(url: str) -> str:
+    """Ensure a URL points at the Playbook Studio frontend."""
+    url = (url or "").strip()
+    if not url:
+        return url
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    path = (parsed.path or "").rstrip("/")
+    if path in ("", "/"):
+        url = url.rstrip("/") + "/studio"
+    return url
+
+
 def cmd_studio(args: argparse.Namespace) -> int:
     """Open the Playbook Studio web UI in a browser.
 
-    If the MCP server is already running at the target host:port, the
-    browser is opened straight away. Otherwise the server is started in
-    the foreground (as a child process) and the browser is opened once
-    it is ready. The server keeps running until Ctrl+C.
+    The browser opens on the Studio port (STUDIO_PORT when set, otherwise
+    the main MCP server port). If the server is not already running, it is
+    started in the foreground (as a child process) and the browser is
+    opened once it is ready. The server keeps running until Ctrl+C.
     """
     _load_env()
 
@@ -295,38 +388,45 @@ def cmd_studio(args: argparse.Namespace) -> int:
         from urllib.parse import urlparse
 
         parsed = urlparse(url)
-        host = parsed.hostname or "127.0.0.1"
-        port = parsed.port or int(os.getenv("MCP_PORT", "8399"))
+        browser_host = parsed.hostname or "127.0.0.1"
+        browser_port = parsed.port or int(os.getenv("STUDIO_PORT", "") or os.getenv("MCP_PORT", "8399"))
     else:
-        host = getattr(args, "host", None) or os.getenv("MCP_HOST", "127.0.0.1")
-        port = (
+        browser_host = getattr(args, "host", None) or os.getenv("MCP_HOST", "127.0.0.1")
+        browser_port = (
             getattr(args, "port", None)
             or os.getenv("STUDIO_PORT", "")
             or os.getenv("MCP_PORT", "")
             or "8399"
         )
-        port = int(port)
-        url = f"http://{host}:{port}/studio"
+        browser_port = int(browser_port)
+        url = f"http://{browser_host}:{browser_port}/studio"
+
+    # Map wildcard bind hosts to localhost for the browser URL.
+    reach_host = "127.0.0.1" if browser_host in ("0.0.0.0", "::", "") else browser_host
+    if not url_arg:
+        url = f"http://{reach_host}:{browser_port}/studio"
 
     started_child = False
     child: subprocess.Popen | None = None
     if _server_reachable(url):
-        print(f"server already running at http://{host}:{port}")
+        print(f"server already running at {url}")
     else:
-        child = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "kali_mcp",
-                "start",
-                "--host",
-                str(host),
-                "--port",
-                str(port),
-            ]
-        )
+        # The child inherits STUDIO_PORT via the environment, so the server
+        # binds its own MCP_PORT and serves the Studio UI on the dedicated one.
+        mcp_port = int(os.getenv("MCP_PORT", "8399"))
+        cmd = [
+            sys.executable,
+            "-m",
+            "kali_mcp",
+            "start",
+            "--host",
+            os.getenv("MCP_HOST", "0.0.0.0"),
+            "--port",
+            str(mcp_port),
+        ]
+        child = subprocess.Popen(cmd)
         started_child = True
-        print(f"starting MCP server at http://{host}:{port} ...")
+        print("starting MCP server ...")
         if not _wait_for_server(url, child):
             if child.poll() is not None:
                 print(
@@ -848,31 +948,33 @@ def build_parser() -> argparse.ArgumentParser:
     e_cancel.add_argument("id", help="Execution ID")
     e_cancel.set_defaults(func=cmd_execution_cancel)
 
-    # ── frontend / studio (open in browser) ───────────────────────
-    _frontend_commands = [
-        ("studio", ["st"], "Open the Playbook Studio UI in a browser (starts the server if needed)"),
-        ("frontend", ["fe", "front-end"], "Open the Playbook Studio frontend in the browser"),
-        ("web", ["w"], "Open the Playbook Studio frontend in the browser"),
-        ("ui", [], "Open the Playbook Studio frontend in the browser"),
-        ("browser", [], "Open the Playbook Studio frontend in the browser"),
-        ("open", [], "Open the Playbook Studio frontend in the browser"),
-        ("gui", [], "Open the Playbook Studio frontend in the browser"),
-        ("dashboard", ["dash"], "Open the Playbook Studio frontend in the browser"),
-        ("webui", ["web-ui", "web_ui"], "Open the Playbook Studio frontend in the browser"),
-        ("open-frontend", ["open_frontend", "openfrontend"], "Open the Playbook Studio frontend in the browser"),
-        ("start-frontend", ["start_frontend", "startfrontend"], "Open the Playbook Studio frontend in the browser"),
-        ("frontend-browser", ["frontend_browser", "frontendbrowser"], "Open the Playbook Studio frontend in the browser"),
-    ]
-    for _name, _aliases, _help in _frontend_commands:
-        _norm = _name.replace("-", "_")
-        _func = globals().get(f"cmd_{_norm}", cmd_frontend)
-        _p = sub.add_parser(_name, aliases=_aliases, help=_help)
-        _p.add_argument("url", nargs="?", default=None, help="Base URL of the MCP server or frontend URL")
-        _p.add_argument("--url", dest="url", default=None, help="Base URL of the MCP server or frontend URL")
-        _p.add_argument("--host", default=None, help="Listen host (default: MCP_HOST or 127.0.0.1)")
-        _p.add_argument("--port", default=None, help="Listen port (default: MCP_PORT or 8399)")
-        _p.add_argument("--no-browser", "--no-open", dest="no_browser", action="store_true", help="Do not open the browser")
-        _p.set_defaults(func=_func)
+    # ── init (bootstrap .env) ─────────────────────────────────────
+    p_init = sub.add_parser(
+        "init",
+        help="Generate .env from .env.example and fill MCP_API_TOKEN with a secure random value",
+    )
+    p_init.add_argument(
+        "--force",
+        action="store_true",
+        help="Regenerate .env from scratch (existing .env is backed up to .env.bak)",
+    )
+    p_init.set_defaults(func=cmd_init)
+
+    # ── studio (open the Playbook Studio UI in a browser) ─────────
+    p_studio = sub.add_parser(
+        "studio",
+        aliases=["st"],
+        help="Open the Playbook Studio UI in a browser (starts the server if needed)",
+    )
+    p_studio.add_argument(
+        "url", nargs="?", default=None, help="MCP server or Studio URL (default: from MCP_HOST/MCP_PORT or STUDIO_PORT)"
+    )
+    p_studio.add_argument("--host", default=None, help="Server host (default: MCP_HOST or 127.0.0.1)")
+    p_studio.add_argument("--port", default=None, help="Studio port (default: STUDIO_PORT or MCP_PORT)")
+    p_studio.add_argument(
+        "--no-browser", "--no-open", dest="no_browser", action="store_true", help="Print the URL instead of opening a browser"
+    )
+    p_studio.set_defaults(func=cmd_studio)
 
     return parser
 
