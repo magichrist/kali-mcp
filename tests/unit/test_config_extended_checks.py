@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import FrozenInstanceError
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -61,7 +60,7 @@ class TestConfigBoolParsingExtended:
 class TestConfigStringAndPathDefaults:
     def test_host_default_and_override(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            assert Config().host == "0.0.0.0"
+            assert Config().host == "127.0.0.1"
         with patch.dict(os.environ, {"MCP_HOST": "127.0.0.1"}, clear=True):
             assert Config().host == "127.0.0.1"
 
