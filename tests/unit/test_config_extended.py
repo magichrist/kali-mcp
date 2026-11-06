@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.config import Config, config
+from kali_mcp.config import Config
 
 
 class TestConfigEnvParsing:
@@ -57,7 +57,7 @@ class TestConfigEnvParsing:
                 assert c.debug is False, f"expected False for {val!r}"
 
     def test_paths_default(self) -> None:
-        with patch.dict(os.environ, {}):
+        with patch.dict(os.environ, {}, clear=True):
             c = Config()
             assert c.log_dir == Path("logs")
             assert c.artifact_dir == Path("artifacts")
@@ -79,16 +79,19 @@ class TestConfigEnvParsing:
             assert c.db_path == Path("/tmp/custom.db")
 
     def test_transport_defaults_to_sse(self) -> None:
-        with patch.dict(os.environ, {}):
-            assert config.transport == "sse"
+        with patch.dict(os.environ, {}, clear=True):
+            assert Config().transport == "sse"
 
     def test_api_token_default_empty(self) -> None:
-        with patch.dict(os.environ, {}):
+        # clear=True: config.py loads .env on import, so a locally set
+        # MCP_API_TOKEN would otherwise leak into this process and fail
+        # the "default empty" contract.
+        with patch.dict(os.environ, {}, clear=True):
             c = Config()
             assert c.api_token == ""
 
     def test_allowed_origins_default_star(self) -> None:
-        with patch.dict(os.environ, {}):
+        with patch.dict(os.environ, {}, clear=True):
             c = Config()
             assert c.allowed_origins == "*"
 
