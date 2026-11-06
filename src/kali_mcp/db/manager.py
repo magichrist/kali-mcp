@@ -405,6 +405,18 @@ class DBManager:
             );
             CREATE INDEX IF NOT EXISTS idx_step_exec_execution ON workflow_step_executions(execution_id);
 
+            CREATE TABLE IF NOT EXISTS workflow_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL UNIQUE,
+                playbook_name TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'running',
+                completed_steps TEXT,
+                state_json TEXT,
+                started_at TEXT NOT NULL,
+                finished_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_workflow_runs_playbook ON workflow_runs(playbook_name);
+
             CREATE TABLE IF NOT EXISTS playbook_validations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 version_id INTEGER,
@@ -1886,12 +1898,51 @@ class DBManager:
         self.conn.commit()
         return int(cid)
 
+    def save_workflow_run(self, run_id: str, playbook_name: str, status: str,
+                         completed_steps: list, state: dict) -> None:
+        import json as _json
+        now = self._now_utc()
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO workflow_runs (run_id, playbook_name, status, completed_steps,
+                                      state_json, started_at, finished_at)
+            VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(run_id) DO UPDATE SET
+                status=excluded.status,
+                completed_steps=excluded.completed_steps,
+                state_json=excluded.state_json,
+                finished_at=excluded.finished_at
+            """,
+            (run_id, playbook_name, status, _json.dumps(completed_steps),
+             _json.dumps(state, default=str), now, now if status != "running" else None),
+        )
+        self.conn.commit()
+
+    def load_workflow_run(self, run_id: str) -> dict | None:
+        import json as _json
+        cur = self.conn.cursor()
+        row = cur.execute(
+            "SELECT * FROM workflow_runs WHERE run_id = ?", (run_id,)
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["completed_steps"] = _json.loads(d.get("completed_steps") or "[]")
+        except Exception:  # noqa: BLE001
+            d["completed_steps"] = []
+        try:
+            d["state"] = _json.loads(d.get("state_json") or "{}")
+        except Exception:  # noqa: BLE001
+            d["state"] = {}
+        return d
+
     def close(self) -> None:
         try:
             self.conn.close()
         except Exception:  # noqa: BLE001, S110
             pass
-
 
 _db_singleton: DBManager | None = None
 
