@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
+from kali_mcp.workflow.yaml_loader import PlaybookDefinition
 
 
 def _quote(s: str) -> str:
@@ -70,7 +70,8 @@ def deserialize(defn: PlaybookDefinition) -> str:
     lines: list[str] = []
 
     # ── header ───────────────────────────────────────────────────────────
-    lines.append(f"id: {defn.name.split('.')[-1] if '.' in defn.name else defn.name}")
+    pb_id = defn.raw.get("id", defn.name.replace(" ", "_").lower())
+    lines.append(f"id: {pb_id}")
     lines.append(f"name: {_quote(defn.name)}")
     if defn.version:
         lines.append(f"version: {_quote(defn.version)}")
