@@ -13,14 +13,14 @@ TOOL_MAP = {t.name: t for t in ALL_TOOLS}
 # Synthetic tool outputs exercising each parser
 HYDRA_OUT = (
     "Hydra v9.5 starting\n"
-    "[22][ssh] host: 10.0.0.1   login: root   password: toor\n"
-    "[22][ssh] host: 10.0.0.1   login: admin   password: admin123\n"
+    "[22][ssh] host: 127.0.0.1   login: root   password: toor\n"
+    "[22][ssh] host: 127.0.0.1   login: admin   password: admin123\n"
     "1 of 1 target successfully completed\n"
 )
-MEDUSA_OUT = "[ssh] host: 10.0.0.5 user: root password: toor: SUCCESS\n"
+MEDUSA_OUT = "[ssh] host: 127.0.0.1 user: root password: toor: SUCCESS\n"
 JOHN_OUT = "5f4dcc3b5aa765d61d8327deb882cf99:password\n1 session opened\n"
 HASHCAT_OUT = "5f4dcc3b5aa765d61d8327deb882cf99:monkey\n"
-MASSCAN_OUT = "Discovered open port 80/tcp on 10.0.0.1\nDiscovered open port 443/tcp on 10.0.0.1\n"
+MASSCAN_OUT = "Discovered open port 80/tcp on 127.0.0.1\nDiscovered open port 443/tcp on 127.0.0.1\n"
 GOBUSTER_OUT = "/admin (Status: 200)\n/backup (Status: 403)\n"
 DIRB_OUT = "+ http://x/cgi-bin/ (CODE:200)\n==> DIRECTORY: http://x/uploads/\n"
 WFUZZ_OUT = "000001:   200  28 L   55 W      5 Ch   'http://x/admin'\n"
@@ -131,20 +131,20 @@ class _FakeResult:
 
 PARSER_CASES = {
     "hydra": (
-        {"target": "10.0.0.1", "service": "ssh", "user_list": "/u", "pass_list": "/p"},
+        {"target": "127.0.0.1", "service": "ssh", "user_list": "/u", "pass_list": "/p"},
         HYDRA_OUT,
         "credentials",
         2,
     ),
     "medusa": (
-        {"target": "10.0.0.1", "service": "ssh", "user_list": "/u", "pass_list": "/p"},
+        {"target": "127.0.0.1", "service": "ssh", "user_list": "/u", "pass_list": "/p"},
         MEDUSA_OUT,
         "credentials",
         1,
     ),
     "john": ({"hash_file": "/h"}, JOHN_OUT, "credentials", 1),
     "hashcat": ({"hash_file": "/h"}, HASHCAT_OUT, "credentials", 1),
-    "masscan": ({"target": "10.0.0.1"}, MASSCAN_OUT, "findings", 2),
+    "masscan": ({"target": "127.0.0.1"}, MASSCAN_OUT, "findings", 2),
     "gobuster": ({"target": "http://x", "wordlist": "/w"}, GOBUSTER_OUT, "findings", 2),
     "dirb": ({"target": "http://x", "wordlist": "/w"}, DIRB_OUT, "findings", 1),
     "wfuzz": ({"target": "http://x/FUZZ", "wordlist": "/w"}, WFUZZ_OUT, "findings", 1),
