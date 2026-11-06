@@ -417,7 +417,7 @@ class TestValidateAssessmentRun:
     def test_valid_full(self):
         AssessmentRunTool().validate({
             "workflow": "network_assessment",
-            "targets": ["1.2.3.4"],
+            "targets": ["127.0.0.1"],
             "scope_id": "scope-1",
             "profile": "aggressive",
             "execution": {"max_parallel": 10, "max_duration": 600, "resume": True},
@@ -1642,7 +1642,7 @@ class TestCoverageSummaryExecute:
         conn = FakeConn(rows_by_sql={
             "SELECT id, tool, target_id FROM scans WHERE assessment_id = ?": [(1, "nmap", 10)],
             "SELECT id FROM findings WHERE scan_id = ?": [(1,), (2,)],
-            "SELECT target FROM targets WHERE id = ?": [("10.0.0.1",)],
+            "SELECT target FROM targets WHERE id = ?": [("127.0.0.1",)],
         })
         db = FakeDB(conn=conn)
         patch_db(db)
