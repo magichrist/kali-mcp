@@ -1,117 +1,54 @@
-"""Template tools (v2.0).
-
-Instantiated assessment blueprints with pre-declared parameters.
-Agents can:
-- template_list: browse available templates and their parameter schemas
-- template_run: render a template with parameters and execute the resulting
-  workflow-engine playbook (inline, or as a background job via job_id)
-
-Templates live in ``src/kali_mcp/playbooks/templates/`` and are loaded by
-``kali_mcp.playbooks.registry`` through its template loader.
-"""
+"""Template tooling — render a template into a playbook and execute it."""
 
 from __future__ import annotations
 
-import asyncio
-import json
-import logging
-import uuid
 from typing import Any
 
-from kali_mcp.models import ExecutionResult, utc_now_iso
-from kali_mcp.responses import success_response
 from kali_mcp.tools.base import BaseTool
-from kali_mcp.tools.playbook_blackbox import JOB_REGISTRY
-
-logger = logging.getLogger("kali_mcp.tools")
-
-
-def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+from kali_mcp.utils.jobs import JOB_REGISTRY, _new_id, _run_background
+from kali_mcp.utils.time import utc_now_iso
 
 
-def _success_tool_result(
-    tool_name: str, payload: dict[str, Any]
-) -> dict[str, Any]:
-    return success_response(
-        ExecutionResult(
-            tool=tool_name,
-            command=tool_name,
-            stdout=json.dumps(payload, indent=2, default=str),
-            stderr="",
-            exit_code=0,
-            success=True,
-            timed_out=False,
-            duration=0.0,
-            start_time=utc_now_iso(),
-            end_time=utc_now_iso(),
-        )
-    )
+# ── Alias maps (AI-agent friendly: accept any common spelling) ──
+# Any of these keys resolve to the template identifier.
+_TEMPLATE_ID_KEYS = ("template_id", "template", "id", "name", "template_name")
+
+# Any of these keys resolve to the target parameter.
+_TARGET_KEYS = ("target", "host", "ip", "domain", "url", "target_host")
+
+# MCP-level fields that are NOT template parameters.
+_MCP_KEYS = frozenset(
+    {"template_id", "template", "id", "name", "template_name",
+     "params", "background", "target", "host", "ip", "domain", "url"}
+)
 
 
-# ── template_list ─────────────────────────────────────────────────────
+def _resolve_template_id(arguments: dict[str, Any]) -> str:
+    """Return the template identifier from any accepted alias."""
+    for key in _TEMPLATE_ID_KEYS:
+        val = arguments.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    return ""
 
 
-class TemplateListTool(BaseTool):
-    """List assessment templates and their parameters."""
+def _extract_params(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Merge canonical ``params`` object with any flat top-level parameter keys.
 
-    @property
-    def name(self) -> str:
-        return "template_list"
-
-    @property
-    def description(self) -> str:
-        return (
-            "List available assessment templates and their required parameters.\n\n"
-            "Use when:\n"
-            "  - You want a pre-orchestrated assessment without building a\n"
-            "    custom playbook.\n"
-            "  - You need to know which parameters to pass to template_run.\n\n"
-            "Inputs:\n"
-            "  - (none)\n\n"
-            "Returns:\n"
-            "  - Templates with id, name, description, and parameter schema\n"
-            "    (type, description, required, default).\n\n"
-            "Does not: execute anything."
-        )
-
-    def input_schema(self) -> dict[str, Any]:
-        return {
-            "type": "object",
-            "properties": {
-                "detail": {
-                    "type": "string",
-                    "description": "verbosity: compact | full (default compact)",
-                    "default": "compact",
-                },
-            },
-        }
-
-    def validate(self, arguments: dict[str, Any]) -> None:
-        pass
-
-    def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        return ["template_list"]
-
-    async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        from kali_mcp.playbooks.registry import list_templates
-
-        templates = list_templates()
-        detail = arguments.get("detail", "compact")
-        if detail == "compact":
-            templates = [
-                {"id": t["id"], "name": t["name"], "description": t["description"],
-                 "required_params": [k for k, v in t["parameters"].items() if v["required"]]}
-                for t in templates
-            ]
-        payload = {
-            "templates": templates,
-            "count": len(templates),
-            "next_actions": [
-                "Call template_run with a template id and its required parameters."
-            ],
-        }
-        return _success_tool_result(self.name, payload)
+    Every top-level key that is not an MCP-level field is treated as a template
+    parameter. This lets callers pass parameters either nested under ``params``
+    or flat at the top level — both work identically.
+    """
+    params: dict[str, Any] = {}
+    raw_params = arguments.get("params")
+    if isinstance(raw_params, dict):
+        params.update(raw_params)
+    for key, val in arguments.items():
+        if key in _MCP_KEYS:
+            continue
+        if key not in params:
+            params[key] = val
+    return params
 
 
 # ── template_run ──────────────────────────────────────────────────────
@@ -131,11 +68,12 @@ class TemplateRunTool(BaseTool):
             "Use when:\n"
             "  - A template from template_list matches your scenario.\n"
             "  - You want curated tool orchestration with minimal parameters.\n\n"
-            "Inputs:\n"
-            "  - template_id: template id from template_list (required).\n"
-            "  - params: template parameters — see template_list (required).\n"
-            "    Every parameter is passed flat, e.g. target, depth, benchmark.\n"
-            "  - background: force background execution, returning job_id.\n\n"
+            "Inputs (all flexible):\n"
+            "  - template_id | template | id | name : template id from template_list (required)\n"
+            "  - params : object of template parameters, OR pass parameters flat at top level\n"
+            "    (e.g. target=..., depth=..., benchmark=...)\n"
+            "  - target | host | ip | domain | url : the target to assess\n"
+            "  - background : force background execution (returns job_id immediately)\n\n"
             "Returns:\n"
             "  - job_id, status, per-step results, findings, summary, next_actions.\n\n"
             "Does not: expose internal module wiring (templates are pre-authorized)."
@@ -151,16 +89,36 @@ class TemplateRunTool(BaseTool):
             "properties": {
                 "template_id": {
                     "type": "string",
-                    "description": "Template id from template_list (required; or use 'template')",
+                    "description": "Template id from template_list (also accepted as 'template', 'id', or 'name')",
                 },
                 "template": {
                     "type": "string",
-                    "description": "Alias for template_id (template id from template_list)",
+                    "description": "Alias for template_id",
+                },
+                "id": {
+                    "type": "string",
+                    "description": "Alias for template_id",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Alias for template_id",
+                },
+                "template_name": {
+                    "type": "string",
+                    "description": "Alias for template_id",
                 },
                 "params": {
                     "type": "object",
                     "description": "Template parameters (flat key/value map). Top-level parameter keys are also accepted and merged into params.",
                 },
+                "target": {
+                    "type": "string",
+                    "description": "Target to assess (also accepted as host, ip, domain, url)",
+                },
+                "host": {"type": "string", "description": "Alias for target"},
+                "ip": {"type": "string", "description": "Alias for target"},
+                "domain": {"type": "string", "description": "Alias for target"},
+                "url": {"type": "string", "description": "Alias for target"},
                 "background": {
                     "type": "boolean",
                     "description": "Force background execution (returns job_id)",
@@ -170,24 +128,13 @@ class TemplateRunTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        # Accept "template" as a user-friendly alias for "template_id".
-        template_id = arguments.get("template_id") or arguments.get("template")
+        template_id = _resolve_template_id(arguments)
         if not template_id:
-            raise ValueError("template_id is required")
-        # Accept flat top-level params (e.g. target=..., benchmark=...) in
-        # addition to the canonical "params" object. Merge them into params.
-        params = arguments.get("params")
-        if params is None:
-            params = {}
-        elif not isinstance(params, dict):
-            raise ValueError("params must be an object")
-        # Fold any top-level template-parameter keys into params (keys that
-        # are not MCP-level fields).
-        mcp_keys = {"template_id", "template", "params", "background"}
-        for key, val in arguments.items():
-            if key not in mcp_keys and key not in params:
-                params[key] = val
-        if params is not None and not isinstance(params, dict):
+            raise ValueError(
+                "template_id is required (also accepted as 'template', 'id', or 'name')"
+            )
+        params = _extract_params(arguments)
+        if not isinstance(params, dict):
             raise ValueError("params must be an object")
         try:
             from kali_mcp.playbooks.registry import get_template
@@ -197,18 +144,14 @@ class TemplateRunTool(BaseTool):
             raise ValueError(f"unknown template: {e}")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        template_id = arguments.get("template_id") or arguments.get("template", "")
+        template_id = _resolve_template_id(arguments)
         return ["template_run", template_id]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        # Normalize: accept "template" alias for "template_id".
-        template_id = arguments.get("template_id") or arguments.get("template")
-        # Normalize: merge flat top-level params into params.
-        params = arguments.get("params") or {}
-        mcp_keys = {"template_id", "template", "params", "background"}
-        for key, val in arguments.items():
-            if key not in mcp_keys and key not in params:
-                params[key] = val
+        # Resolve template id from any accepted alias.
+        template_id = _resolve_template_id(arguments)
+        # Merge canonical params with flat top-level parameter keys.
+        params = _extract_params(arguments)
         wants_background = bool(arguments.get("background", False))
 
         # Render FIRST: this validates required and merges defaults
@@ -253,100 +196,68 @@ class TemplateRunTool(BaseTool):
             raise
         JOB_REGISTRY[job_id].update(
             status="completed" if result.success else "failed",
-            result=json.loads(result.stdout),
             finished_at=utc_now_iso(),
+            result={
+                "success": result.success,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            },
         )
 
-        payload = self._payload_from_execution(
-            template_id, job_id, result
-        )
-        response = _success_tool_result(self.name, payload)
-        response["template_run"] = payload
-        return response
+        return {
+            "tool": self.name,
+            "command": self.build_command(arguments),
+            "job_id": job_id,
+            "template": template_id,
+            "status": JOB_REGISTRY[job_id]["status"],
+            "result": result,
+        }
 
     async def _run_background(
         self, template_id: str, definition: Any, params: dict[str, Any]
     ) -> dict[str, Any]:
+        import asyncio
+
         job_id = _new_id("job")
         JOB_REGISTRY[job_id] = {
             "job_id": job_id,
             "assessment_id": job_id,
             "tool": self.name,
             "template": template_id,
-            "status": "running",
+            "status": "accepted",
             "started_at": utc_now_iso(),
         }
 
-        async def run() -> None:
+        async def _run() -> None:
             from kali_mcp.workflow import PlaybookEngine as DAGEngine
 
             engine = DAGEngine()
-            result = await engine.run(definition)
-            JOB_REGISTRY[job_id].update(
-                status="completed" if result.success else "failed",
-                result=json.loads(result.stdout),
-                finished_at=utc_now_iso(),
-            )
-
-        asyncio.create_task(self._guarded(job_id, run))
-        payload = {
-            "job_id": job_id,
-            "template_id": template_id,
-            "status": "accepted",
-            "params": {k: v for k, v in params.items() if "password" not in k.lower()},
-            "next_actions": [
-                "Use job_control or playbook_result with this job_id to poll progress.",
-            ],
-        }
-        response = _success_tool_result(self.name, payload)
-        response["template_run"] = payload
-        return response
-
-    async def _guarded(self, job_id: str, run) -> None:
-        try:
-            await run()
-        except Exception as e:
-            JOB_REGISTRY.setdefault(job_id, {})
-            JOB_REGISTRY[job_id].update(
-                status="failed",
-                error=f"{type(e).__name__}: {e}",
-                finished_at=utc_now_iso(),
-            )
-            logger.exception("background template job %s failed", job_id)
-
-    @staticmethod
-    def _payload_from_execution(
-        template_id: str, job_id: str, result: Any
-    ) -> dict[str, Any]:
-        stdout_payload: dict[str, Any] = {}
-        try:
-            stdout_payload = json.loads(result.stdout or "{}")
-        except (TypeError, ValueError):
-            stdout_payload = {}
-
-        step_results = stdout_payload.get("step_results", {}) or {}
-        findings: list[dict[str, Any]] = []
-        for step_name, res in step_results.items():
-            if isinstance(res, dict):
-                findings.extend(
-                    f for f in res.get("findings", []) if isinstance(f, dict)
+            try:
+                result = await engine.run(definition)
+                JOB_REGISTRY[job_id].update(
+                    status="completed" if result.success else "failed",
+                    finished_at=utc_now_iso(),
+                    result={
+                        "success": result.success,
+                        "stdout": result.stdout,
+                        "stderr": result.stderr,
+                    },
+                )
+            except Exception as e:  # noqa: BLE001
+                JOB_REGISTRY[job_id].update(
+                    status="failed",
+                    error=f"{type(e).__name__}: {e}",
+                    finished_at=utc_now_iso(),
                 )
 
-        severity_counts: dict[str, int] = {}
-        for f in findings:
-            sev = f.get("severity", "informational")
-            severity_counts[sev] = severity_counts.get(sev, 0) + 1
-
+        asyncio.create_task(_run())
         return {
+            "tool": self.name,
+            "command": ["template_run", template_id],
             "job_id": job_id,
-            "template_id": template_id,
-            "status": "completed" if result.success else "failed",
-            "steps": stdout_payload.get("steps", []),
-            "step_results": step_results,
-            "findings": findings,
-            "summary": {"total": len(findings), "by_severity": severity_counts},
+            "template": template_id,
+            "status": "accepted",
             "next_actions": [
-                "Use playbook_result with this job_id for the raw payload.",
-                "Use report_generate to package findings for delivery.",
+                "Use job_control or template_result with this job_id to poll progress.",
             ],
         }
