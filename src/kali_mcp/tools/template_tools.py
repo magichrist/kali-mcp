@@ -151,18 +151,22 @@ class TemplateRunTool(BaseTool):
             "properties": {
                 "template_id": {
                     "type": "string",
-                    "description": "Template id from template_list (required)",
+                    "description": "Template id from template_list (required; or use 'template')",
+                },
+                "template": {
+                    "type": "string",
+                    "description": "Alias for template_id (template id from template_list)",
                 },
                 "params": {
                     "type": "object",
-                    "description": "Template parameters (flat key/value map)",
+                    "description": "Template parameters (flat key/value map). Top-level parameter keys are also accepted and merged into params.",
                 },
                 "background": {
                     "type": "boolean",
                     "description": "Force background execution (returns job_id)",
                 },
             },
-            "required": ["template_id"],
+            "required": [],
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
