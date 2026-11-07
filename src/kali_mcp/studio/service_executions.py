@@ -53,7 +53,18 @@ def get_execution(db: DBManager, execution_id: str) -> dict[str, Any] | None:
     if row is None:
         return None
     data = dict(row)
-    data["steps"] = list_steps(db, execution_id)
+    # Drop internal plumbing columns from the API surface — keep the response
+    # compact and context-friendly (execution_id, playbook_id, status, inputs,
+    # outputs, trigger, debug, timestamps only).
+    for key in ("id", "job_id", "assessment_id", "profile_id"):
+        data.pop(key, None)
+    steps = []
+    for s in list_steps(db, execution_id):
+        s = dict(s)
+        for key in ("id", "execution_id", "step_type", "inputs", "outputs"):
+            s.pop(key, None)
+        steps.append(s)
+    data["steps"] = steps
     return data
 
 

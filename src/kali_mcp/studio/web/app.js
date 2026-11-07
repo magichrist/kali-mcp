@@ -2110,8 +2110,8 @@ async function pageExecutionDetail(id) {
     <div class="panel" style="margin-top:14px;padding:14px"><pre class="result">${esc(JSON.stringify(e, null, 2))}</pre></div>
     <div class="panel" style="min-height:120px">
       <div class="panel-head"><span>Steps</span></div>
-      <div style="padding:8px">${table(["Step", "Type", "Tool", "Status"], (d.steps || []).map((s) => ({
-        cells: [esc(s.step_id), esc(s.step_type || "—"), esc(s.tool_id || "—"), BADGE(s.status)],
+      <div style="padding:8px">${table(["Step", "Tool", "Status"], (d.steps || []).map((s) => ({
+        cells: [esc(s.step_id), esc(s.tool_id || "—"), BADGE(s.status)],
       })), "No steps recorded.")}</div>
     </div>
     <div class="panel" style="min-height:120px;margin-top:14px">
