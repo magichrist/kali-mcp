@@ -654,9 +654,7 @@ def main() -> None:
         from kali_mcp.studio.api import mount_studio_routes
 
         mount_studio_routes(app)
-    # Test route
-    app.add_route("/api/test_debug", lambda request: JSONResponse({"test": "hello"}), methods=["GET"])
-        logger.info("Studio REST routes mounted")
+    logger.info("Studio REST routes mounted")
 
     # ── Studio static web (Phase 5) ────────────────────────────────
     web_dir = os.path.join(os.path.dirname(__file__), "studio", "web")
