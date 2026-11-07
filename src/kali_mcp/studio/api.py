@@ -586,6 +586,22 @@ async def set_tool_visibility_api(request: Request) -> JSONResponse:
     return JSONResponse({"tool_id": tool_id, "visibility": visibility})
 
 
+async def findings_api(request: Request) -> JSONResponse:
+    """Query normalized findings with optional filters."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    target = request.query_params.get("target")
+    severity = request.query_params.get("severity")
+    tool = request.query_params.get("tool")
+    limit = int(request.query_params.get("limit", "100"))
+    offset = int(request.query_params.get("offset", "0"))
+    result = db.query_findings(
+        target=target, severity=severity, tool=tool, limit=limit, offset=offset,
+    )
+    return JSONResponse(result)
+
+
 def mount_studio_routes(app) -> None:
     """Mount all Studio REST routes on the given Starlette app."""
 
@@ -618,6 +634,9 @@ def mount_studio_routes(app) -> None:
     # Tool Registry routes
     app.add_route("/api/tools", list_tools_api, methods=["GET"])
     app.add_route("/api/tools/{id}/visibility", set_tool_visibility_api, methods=["PUT"])
+
+    # Findings routes
+    app.add_route("/api/findings", findings_api, methods=["GET"])
 
     # Execution routes
     app.add_route("/api/executions", list_executions, methods=["GET"])
