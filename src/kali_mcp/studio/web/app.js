@@ -1050,7 +1050,7 @@ function insInputsTab(s) {
 
 function insOutputsTab(s) {
   if (s.type === "shell") {
-    const f = s.filter && s.filter.type !== "none" ? s.filter : { type: "grep", pattern: "" };
+    const f = s.filter && s.filter.type === "none" ? { type: "none" } : (s.filter || { type: "grep", pattern: "" });
     const fields = namedGroups(f.pattern);
     return `
       ${subLabel("Output extraction", "Cut structured values out of the command output. <b>grep</b> returns the first/last matching line, <b>regex</b> applies a pattern with named capture groups <code>(?P&lt;field&gt;…)</code> — each named group becomes an output field the next step can map as <code>{{thisstepid.field}}</code>.")}
@@ -1320,7 +1320,9 @@ function applyTabFields(s) {
   if (ftypeEl) {
     const ftype = ftypeEl.value || "none";
     const fpat = ($("#insFilterPattern")?.value || "").trim();
-    if (ftype && ftype !== "none" && fpat) {
+    if (ftype === "none") {
+      s.filter = { type: "none" };
+    } else if (ftype && ftype !== "none" && fpat) {
       s.filter = { type: ftype, pattern: fpat };
       if ($("#insFilterFirst")?.checked) s.filter.first_only = true;
     } else delete s.filter;
@@ -1663,12 +1665,15 @@ function addStage(type) {
 async function runModal(id) {
   let def = null;
   try { def = (await api(`/playbooks/${encodeURIComponent(id)}/definition`)).definition; } catch { /* not saved yet */ }
-  // The server returns null for unsaved drafts (until restarted); fall back to
-  // the live editor graph so the run modal still shows the inputs the steps
-  // reference ({{name}} run inputs, step.inputs mappings, shell command refs).
-  if (!def && graphDef) {
+  // Always prefer the live editor graph (graphDef) — it holds the user's
+  // unsaved step inputs / {{name}} references. Only fall back to the server
+  // definition when the editor graph hasn't been loaded yet.
+  if (graphDef) {
     applyTabFields(stepById(graphSel));
     def = graphDef;
+  } else if (!def) {
+    // server returned null (unsaved draft, server not yet restarted); nothing to show
+    def = null;
   }
   const declared = defInputs(def);
   const stepDerived = collectRunInputs(def);
