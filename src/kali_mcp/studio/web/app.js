@@ -835,16 +835,29 @@ function defInputs(def) {
    shell commands — these are the inputs a playbook actually takes at launch */
 function collectRunInputs(def) {
   const names = new Set();
+  const stepInputDefaults = {};
   const add = (v) => {
     if (typeof v !== "string") return;
     for (const m of v.matchAll(/\{\{\s*([a-zA-Z_][\w]*)\s*\}\}/g)) names.add(m[1]);
   };
   for (const s of def?.steps || []) {
-    if (s.inputs) for (const v of Object.values(s.inputs)) add(v);
+    if (s.inputs) {
+      for (const [k, v] of Object.entries(s.inputs)) {
+        stepInputDefaults[k] = v; // literal default for this input key
+        add(v);
+      }
+    }
     if (s.command) add(s.command);
     if (s.args) for (const v of Object.values(s.args)) add(v);
   }
-  return [...names].map((name) => ({ name, spec: { type: "string", required: true } }));
+  const result = [...names].map((name) => ({ name, spec: { type: "string", required: true } }));
+  // step input keys that aren't run-input references become optional literal inputs
+  for (const [k, v] of Object.entries(stepInputDefaults)) {
+    if (!names.has(k) && typeof v === "string" && !v.match(/^\{\{[a-zA-Z_]\w*\}\}$/)) {
+      result.push({ name: k, spec: { type: "string", required: false, default: v } });
+    }
+  }
+  return result;
 }
 
 function namedGroups(pattern) {
