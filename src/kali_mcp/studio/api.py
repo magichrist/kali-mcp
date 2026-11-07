@@ -305,6 +305,18 @@ async def resume_execution(request: Request) -> JSONResponse:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+
+async def server_info(request: Request) -> JSONResponse:
+    """Return server info for the UI."""
+    from pathlib import Path
+    db_path = Path(config.db_path)
+    db_exists = db_path.exists()
+    return JSONResponse({
+        "db_path": str(db_path),
+        "db_exists": db_exists,
+    })
+
+
 def mount_studio_routes(app) -> None:
     """Mount all Studio REST routes on the given Starlette app."""
 
