@@ -110,7 +110,174 @@ def resume_execution(db: DBManager, execution_id: str) -> dict[str, Any] | None:
     return {"execution": exec_row, "checkpoint": run}
 
 
+# ── Start execution (Phase 7 / 08_FILE_PLAN: "start (delegates to engine)") ─
+
+
+def _merge_required_inputs(defn: Any, supplied: dict[str, Any]) -> None:
+    """Raise ValueError when declared required inputs are missing.
+
+    Declared inputs may be supplied directly; the single ``target`` input is
+    mirrored as ``targets`` so the DAG engine's ``{{target}}`` substitution
+    applies to step args (same contract as the MCP ``playbook_run`` path).
+    """
+    merged = supplied or {}
+    for key, val in merged.items():
+        defn.inputs[key] = val
+    target_value = defn.inputs.get("target")
+    if target_value and "targets" not in merged:
+        defn.inputs["targets"] = target_value
+    missing = sorted(
+        name
+        for name, spec in (defn.inputs or {}).items()
+        if isinstance(spec, dict) and spec.get("required") and name not in merged
+    )
+    if missing:
+        raise ValueError(f"missing required playbook inputs: {', '.join(missing)}")
+
+
+async def start_execution(
+    db: DBManager,
+    playbook_id: str,
+    inputs: dict[str, Any] | None = None,
+    profile_id: str | None = None,
+    version_id: int | str | None = None,
+) -> dict[str, Any]:
+    """Start (and await) a run of a published Studio playbook.
+
+    Loads the current published version (or ``version_id``), validates the
+    declared required inputs, creates a durable ``workflow_executions`` row,
+    runs the playbook through the DAG engine, records per-step executions,
+    and finalizes the row status. Raises ``LookupError`` for unknown
+    playbooks/versions and ``ValueError`` for invalid input.
+    """
+    row = db.get_playbook(playbook_id)
+    if row is None:
+        raise LookupError(f"playbook {playbook_id!r} not found")
+    if row.get("status") != "published":
+        raise ValueError(
+            f"playbook {playbook_id!r} is not published (status: {row.get('status')})"
+        )
+
+    if version_id is not None:
+        version = db.get_playbook_version(version_id)
+        if version is None or version.get("playbook_id") != playbook_id:
+            raise LookupError(f"version {version_id!r} not found for {playbook_id!r}")
+    else:
+        current = row.get("current_version_id")
+        if current is None:
+            raise ValueError(
+                f"playbook {playbook_id!r} is published but has no current version"
+            )
+        version = db.get_playbook_version(current)
+
+    definition = version.get("definition")
+    if isinstance(definition, str):
+        import json as _json
+
+        try:
+            definition = _json.loads(definition)
+        except _json.JSONDecodeError as exc:
+            raise ValueError(f"invalid stored definition: {exc}") from exc
+
+    from kali_mcp.workflow.yaml_loader import load_playbook
+
+    try:
+        defn = load_playbook(definition)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"invalid playbook definition: {exc}") from exc
+
+    _merge_required_inputs(defn, inputs)
+
+    import uuid as _uuid
+
+    execution_id = f"wexec_{_uuid.uuid4().hex[:12]}"
+    job_id = f"job_{_uuid.uuid4().hex[:12]}"
+    assessment_id = f"assessment_{_uuid.uuid4().hex[:12]}"
+
+    db.create_workflow_execution(
+        execution_id,
+        playbook_id,
+        int(version["id"]) if isinstance(version.get("id"), int) else 0,
+        job_id=job_id,
+        assessment_id=assessment_id,
+        profile_id=profile_id,
+        inputs=inputs or {},
+        status="running",
+        started_at=db._now_utc(),
+    )
+
+    from kali_mcp.workflow.dag_executor import run_playbook_async
+    from kali_mcp.workflow.scope_gate import ScopeViolationError
+
+    try:
+        res = await run_playbook_async(defn)
+    except ScopeViolationError as exc:
+        db.update_workflow_execution(
+            execution_id, status="failed", error=str(exc),
+            completed_at=db._now_utc(),
+        )
+        raise ValueError(f"scope violation: {exc}") from exc
+    except Exception as exc:  # noqa: BLE001
+        db.update_workflow_execution(
+            execution_id, status="failed", error=str(exc),
+            completed_at=db._now_utc(),
+        )
+        raise
+
+    import json as _json2
+
+    try:
+        payload = _json2.loads(res.stdout or "{}") or {}
+    except _json2.JSONDecodeError:
+        payload = {
+            "status": "completed" if res.success else "failed",
+            "results": [],
+            "step_results": {},
+        }
+    status = payload.get("status") or ("completed" if res.success else "failed")
+    payload.setdefault("status", status)
+    payload["summary"] = payload.get("summary") or {
+        "steps": payload.get("steps", []),
+        "completed_steps": payload.get("completed_steps", 0),
+    }
+
+    db.update_workflow_execution(
+        execution_id,
+        status=status,
+        outputs={
+            "results": payload.get("results"),
+            "summary": payload.get("summary"),
+        },
+        completed_at=db._now_utc(),
+    )
+    for step_id, step_res in (payload.get("step_results") or {}).items():
+        if isinstance(step_res, dict):
+            step_error = step_res.get("error")
+            try:
+                db.record_step_execution(
+                    execution_id,
+                    step_id,
+                    tool_id=str(step_res.get("tool")) if step_res.get("tool") else None,
+                    status="failed" if step_error else "completed",
+                    error=str(step_error) if step_error else None,
+                    started_at=db._now_utc(),
+                    completed_at=db._now_utc(),
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("step record failed for %s", step_id)
+
+    exec_row = get_execution(db, execution_id)
+    return {
+        "execution": exec_row,
+        "job_id": job_id,
+        "assessment_id": assessment_id,
+        "status": status,
+        "payload": payload,
+    }
+
+
 __all__ = [
+    "start_execution",
     "list_executions",
     "get_execution",
     "list_steps",
