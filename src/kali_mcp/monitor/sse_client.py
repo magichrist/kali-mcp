@@ -19,20 +19,13 @@ class SseClient:
 
     Usage::
 
-        client = SseClient("http://localhost:8399/monitor/stream",
-                           headers={"Authorization": "Bearer <token>"})
+        client = SseClient("http://localhost:8399/monitor/stream")
         await client.connect()
         snapshot = await client.next_snapshot()  # blocks until next event
     """
 
-    def __init__(
-        self,
-        url: str,
-        max_queue: int = 10,
-        headers: dict[str, str] | None = None,
-    ) -> None:
+    def __init__(self, url: str, max_queue: int = 10) -> None:
         self.url = url
-        self._headers = headers or {}
         self._max_queue = max_queue
         self._snapshot: dict[str, Any] | None = None
         self._queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=max_queue)
@@ -47,7 +40,7 @@ class SseClient:
         while not self._closed:
             try:
                 async with (
-                    httpx.AsyncClient(timeout=None, headers=self._headers) as http,
+                    httpx.AsyncClient(timeout=None) as http,
                     http.stream("GET", self.url) as response,
                 ):
                     response.raise_for_status()
@@ -71,10 +64,6 @@ class SseClient:
                                 self._queue.put_nowait(payload)
             except (httpx.ConnectError, httpx.ReadError, OSError):
                 # Server went down — retry after a short pause
-                await asyncio.sleep(2.0)
-            except httpx.HTTPStatusError as exc:
-                # 401/403 etc — auth problem, keep retrying so a token change
-                # or server restart recovers without restarting the TUI.
                 await asyncio.sleep(2.0)
             except asyncio.CancelledError:
                 return
