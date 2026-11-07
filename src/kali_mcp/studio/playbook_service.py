@@ -384,7 +384,7 @@ def import_playbook(
 
 def seed_builtin_playbooks(
     db: DBManager,
-    definitions_dir: str = "src/kali_mcp/playbooks/definitions",
+    definitions_dir: str | None = None,
 ) -> int:
     """Seed existing YAML playbook definitions into the DB as built-ins.
 
@@ -397,6 +397,13 @@ def seed_builtin_playbooks(
     Returns the number of playbooks seeded/updated.
     """
     import glob as _glob
+    import os as _os
+
+    if definitions_dir is None:
+        # Resolve relative to this package so it works from any CWD
+        definitions_dir = str(
+            _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "playbooks", "definitions")
+        )
 
     count = 0
     for path in sorted(_glob.glob(os.path.join(definitions_dir, "*.yaml"))) + sorted(
