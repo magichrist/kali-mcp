@@ -601,7 +601,6 @@ def main() -> None:
         logger.info("Transport: streamable-http")
     else:
         app = mcp.sse_app()
-    app.add_route("/api/direct_test2", lambda request: JSONResponse({"test": "hello2"}), methods=["GET"])
         logger.info("Transport: sse")
 
     origins = [o.strip() for o in config.allowed_origins.split(",") if o.strip()]
@@ -655,9 +654,7 @@ def main() -> None:
         from kali_mcp.studio.api import mount_studio_routes
 
         mount_studio_routes(app)
-    # Test route directly added
-    app.add_route("/api/test_direct", lambda request: JSONResponse({"test": "hello"}), methods=["GET"])
-        logger.info("Studio REST routes mounted")
+    logger.info("Studio REST routes mounted")
 
     # ── Studio static web (Phase 5) ────────────────────────────────
     web_dir = os.path.join(os.path.dirname(__file__), "studio", "web")
