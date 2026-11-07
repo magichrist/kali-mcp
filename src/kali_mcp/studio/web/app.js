@@ -1550,6 +1550,22 @@ document.addEventListener("keydown", (e) => {
     const col = $("#insCol");
     if (col) col.classList.remove("ins-open");
   }
+  /* Delete / Backspace removes the selected node (when not typing in a field). */
+  if ((e.key === "Delete" || e.key === "Backspace") && graphSel) {
+    const active = document.activeElement;
+    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA"
+      || active.tagName === "SELECT" || active.isContentEditable)) return;
+    e.preventDefault();
+    deleteGraphStep(graphSel);
+  }
+});
+
+/* Clicking the ? help icon toggles its bubble; hover still works too. */
+document.addEventListener("click", (e) => {
+  const tip = e.target.closest(".help-tip");
+  if (!tip) return;
+  e.stopPropagation();
+  tip.classList.toggle("open");
 });
 
 function redrawEdges() {
