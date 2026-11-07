@@ -134,8 +134,13 @@ class TestTemplateRunTool:
         assert tool.default_timeout == 3600
         schema = tool.input_schema()
         assert schema["type"] == "object"
-        assert set(schema["required"]) == {"template_id"}
+        # Both template_id and template are valid; neither is strictly required
+        # at the schema level (validate() enforces presence).
+        assert set(schema["required"]) == set()
+        assert "template_id" in schema["properties"]
+        assert "template" in schema["properties"]
         assert tool.build_command({"template_id": "t1"}) == ["template_run", "t1"]
+        assert tool.build_command({"template": "t1"}) == ["template_run", "t1"]
 
     @pytest.mark.parametrize(
         "args,err",
