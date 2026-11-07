@@ -386,14 +386,23 @@ async def get_definition(request: Request) -> JSONResponse:
     if row is None:
         return _error("playbook not found", 404)
     vid = row.get("current_version_id")
+    # A saved-but-unpublished draft wins; callers can force the published
+    # version with ?published=1 (e.g. the run modal runs published content).
     definition = None
-    if vid:
-        vrow = db_manager.DBManager.get_playbook_version(db, vid) if False else None
-        # Use service layer
+    from_draft = False
+    draft = row.get("draft_definition")
+    if draft and not request.query_params.get("published"):
+        try:
+            definition = json.loads(draft) if isinstance(draft, str) else draft
+            from_draft = True
+        except (json.JSONDecodeError, TypeError):
+            definition = None
+            from_draft = False
+    if definition is None and vid:
         vrow = playbook_service.get_version(db, vid)
         if vrow:
             definition = json.loads(vrow["definition"]) if isinstance(vrow.get("definition"), str) else vrow.get("definition")
-    return _ok({"playbook_id": playbook_id, "definition": definition, "version_id": vid})
+    return _ok({"playbook_id": playbook_id, "definition": definition, "version_id": vid, "draft": from_draft})
 
 
 async def put_definition(request: Request) -> JSONResponse:
@@ -410,8 +419,13 @@ async def put_definition(request: Request) -> JSONResponse:
     if not validation["valid"]:
         return _error("definition failed validation", 422, code="validation_error",
                       details={"findings": validation["findings"]})
-    # Update playbook metadata (definition is stored as a version on publish)
-    playbook_service.update_playbook(db, playbook_id, status="draft")
+    # Validate, then persist as a draft on the row itself — the run/inspect
+    # flow reloads the editor from GET /definition, so drafts must survive
+    # reloads (published versions are only written on publish).
+    playbook_service.update_playbook(
+        db, playbook_id, status="draft",
+        draft_definition=json.dumps(definition),
+    )
     audit.record_audit(
         db, event="playbook.definition.update", entity_type="playbook", entity_id=playbook_id,
     )
@@ -629,6 +643,8 @@ async def start_execution_endpoint(request: Request) -> JSONResponse:
             inputs=body.get("inputs") if isinstance(body.get("inputs"), dict) else None,
             profile_id=profile_id,
             version_id=body.get("version_id"),
+            trigger=body.get("trigger") or "api",
+            debug=bool(body.get("debug", False)),
         )
     except LookupError as exc:
         return _error(str(exc), 404)
