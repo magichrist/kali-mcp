@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
+from pathlib import Path
 from typing import Any
 
 from starlette.requests import Request
@@ -157,7 +159,13 @@ async def delete_playbook(request: Request) -> JSONResponse:
     if db is None:
         return _error("database unavailable", 500)
     playbook_id = request.path_params["id"]
-    ok = playbook_service.delete_playbook(db, playbook_id)
+    try:
+        ok = playbook_service.delete_playbook(db, playbook_id)
+    except sqlite3.IntegrityError:
+        return _error(
+            "playbook cannot be deleted: published versions still referenced by executions",
+            409, code="conflict",
+        )
     if not ok:
         return _error("playbook not found", 404)
     audit.record_audit(
@@ -211,6 +219,30 @@ async def test_playbook_endpoint(request: Request) -> JSONResponse:
     return _ok(result)
 
 
+async def request_publish_approval(request: Request) -> JSONResponse:
+    """Create the pending publish approval for a playbook (POST /api/playbooks/{id}/approval-request).
+
+    The publish gate passes while a pending approval request exists; the
+    publish handler closes it as approved-with-audit on success. This
+    endpoint records the request so operators can trigger the gate from
+    the Studio without touching the database directly.
+    """
+    db = _db()
+    if db is None:
+        return _error("database unavailable", 500)
+    playbook_id = request.path_params["id"]
+    if db.get_playbook(playbook_id) is None:
+        return _error(f"playbook {playbook_id!r} not found", 404)
+    aid = approvals.request_approval(
+        db, gate=approvals.GATE_PUBLISH, resource_id=playbook_id, requested_by="studio",
+    )
+    audit.record_audit(
+        db, event="playbook.approval_request", entity_type="playbook",
+        entity_id=playbook_id, details={"gate": approvals.GATE_PUBLISH, "approval_id": aid},
+    )
+    return _ok({"approval_id": aid, "gate": approvals.GATE_PUBLISH, "resource_id": playbook_id})
+
+
 async def publish_playbook(request: Request) -> JSONResponse:
     db = _db()
     if db is None:
@@ -249,9 +281,11 @@ async def publish_playbook(request: Request) -> JSONResponse:
     except ValueError as exc:
         return _error(str(exc), 422)
 
-    approvals.approve(db, approval_id=approvals.get_pending_approval(
-        approvals.GATE_PUBLISH, playbook_id
-    )["id"], approved_by="studio", status="approved")
+    pending = approvals.get_pending_approval(db, approvals.GATE_PUBLISH, playbook_id)
+    if pending:
+        approvals.approve(
+            db, approval_id=pending["id"], approved_by="studio", status="approved",
+        )
     audit.record_audit(
         db, event="playbook.publish", entity_type="playbook", entity_id=playbook_id,
         details={"version": version, "version_id": vid},
@@ -327,9 +361,11 @@ async def import_playbook_endpoint(request: Request) -> JSONResponse:
     result = playbook_service.import_playbook(db, package, require_approval=False)
     if not result["ok"]:
         return _error(result["error"], 422)
-    approvals.approve(db, approval_id=approvals.get_pending_approval(
-        approvals.GATE_IMPORT, playbook_id or "import"
-    )["id"], approved_by="studio", status="approved")
+    pending = approvals.get_pending_approval(db, approvals.GATE_IMPORT, playbook_id or "import")
+    if pending:
+        approvals.approve(
+            db, approval_id=pending["id"], approved_by="studio", status="approved",
+        )
     audit.record_audit(
         db, event="playbook.import", entity_type="playbook", entity_id=playbook_id,
         details={"versions_imported": result.get("versions_imported")},
@@ -558,6 +594,48 @@ async def get_execution(request: Request) -> JSONResponse:
     steps = service_executions.list_steps(db, execution_id)
     artifacts = service_executions.list_artifacts(db, execution_id)
     return _ok({"execution": row, "steps": steps, "artifacts": artifacts})
+
+
+async def start_execution_endpoint(request: Request) -> JSONResponse:
+    """Start a run of a published Studio playbook (POST /api/executions)."""
+    db = _db()
+    if db is None:
+        return _error("database unavailable", 500)
+
+    from kali_mcp.agent_context import get_current_profile
+    from kali_mcp.studio import service_executions
+
+    try:
+        body = await _json_body(request)
+    except Exception:  # noqa: BLE001
+        return _error("invalid or missing JSON body", 400)
+
+    playbook_id = body.get("playbook_id") or body.get("playbook")
+    if not playbook_id:
+        return _error("playbook_id is required", 400)
+
+    profile_id = body.get("profile_id") or get_current_profile()
+
+    try:
+        result = await service_executions.start_execution(
+            db,
+            str(playbook_id),
+            inputs=body.get("inputs") if isinstance(body.get("inputs"), dict) else None,
+            profile_id=profile_id,
+            version_id=body.get("version_id"),
+        )
+    except LookupError as exc:
+        return _error(str(exc), 404)
+    except ValueError as exc:
+        return _error(str(exc), 400)
+
+    audit.record_audit(
+        db, event="execution.start", entity_type="execution",
+        entity_id=result["execution"]["execution_id"]
+        if isinstance(result["execution"], dict)
+        else str(playbook_id),
+    )
+    return _ok(result)
 
 
 async def cancel_execution(request: Request) -> JSONResponse:
@@ -1114,6 +1192,9 @@ async def get_server_info(request: Request) -> JSONResponse:
         "default_timeout": config.default_timeout,
         "max_timeout": config.max_timeout,
         "max_concurrent": config.max_concurrent,
+        "db_path": str(getattr(config, "db_path", "")),
+        "db_exists": Path(str(getattr(config, "db_path", ""))).is_file()
+        if str(getattr(config, "db_path", "")) else False,
     })
 
 
@@ -1131,6 +1212,7 @@ routes = [
     Route("/api/playbooks/{id}/preview", preview_playbook_endpoint, methods=["POST"]),
     Route("/api/playbooks/{id}/test", test_playbook_endpoint, methods=["POST"]),
     Route("/api/playbooks/{id}/publish", publish_playbook, methods=["POST"]),
+    Route("/api/playbooks/{id}/approval-request", request_publish_approval, methods=["POST"]),
     Route("/api/playbooks/{id}/versions", list_versions, methods=["GET"]),
     Route("/api/playbooks/{id}/rollback", rollback_playbook, methods=["POST"]),
     Route("/api/playbooks/{id}/export", export_playbook_endpoint, methods=["GET"]),
@@ -1148,6 +1230,7 @@ routes = [
     Route("/api/tools/{id}/visibility", set_tool_visibility_endpoint, methods=["PUT"]),
     # Executions
     Route("/api/executions", list_executions, methods=["GET"]),
+    Route("/api/executions", start_execution_endpoint, methods=["POST"]),
     Route("/api/executions/{id}", get_execution, methods=["GET"]),
     Route("/api/executions/{id}/cancel", cancel_execution, methods=["POST"]),
     Route("/api/executions/{id}/resume", resume_execution, methods=["POST"]),
@@ -1182,6 +1265,10 @@ routes = [
     Route("/api/scope", get_scope, methods=["GET"]),
     Route("/api/server", get_server_info, methods=["GET"]),
 ]
+
+
+# Alias consumed by tooling/tests that enumerate the route table by name.
+ROUTES = routes
 
 
 def mount_studio_routes(app: Any) -> None:

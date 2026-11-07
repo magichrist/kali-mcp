@@ -1377,8 +1377,12 @@ class DBManager:
         Returns True when the playbook row was removed.
         """
         cur = self.conn.cursor()
+        # playbook_versions rows may carry either parent key on legacy
+        # databases (integer playbooks.id) or current ones (text playbook_id).
         cur.execute(
-            "DELETE FROM playbook_versions WHERE playbook_id = ?", (playbook_id,)
+            "DELETE FROM playbook_versions WHERE playbook_id IN (%s)"
+            % ",".join("?" * len(self._playbook_fk_values(playbook_id))),
+            tuple(self._playbook_fk_values(playbook_id)),
         )
         cur.execute(
             "DELETE FROM agent_playbook_assignments WHERE playbook_id = ?",
@@ -1387,10 +1391,34 @@ class DBManager:
         cur.execute(
             "DELETE FROM playbook_validations WHERE playbook_id = ?", (playbook_id,)
         )
-        cur.execute("DELETE FROM playbooks WHERE playbook_id = ?", (playbook_id,))
+        cur.execute(
+            "DELETE FROM playbooks WHERE playbook_id = ?", (playbook_id,))
         deleted = cur.rowcount > 0
         self.conn.commit()
         return deleted
+
+    def _playbook_fk_parent(self, playbook_id: str) -> str:
+        """Return the parent-key column used by the playbook_versions FK.
+
+        Schemas created earlier referenced playbooks(id) (integer); the
+        current schema references playbooks(playbook_id) (text). Reading the
+        actual constraint keeps writes compatible with both databases.
+        """
+        cur = self.conn.cursor()
+        for fk in cur.execute("PRAGMA foreign_key_list(playbook_versions)").fetchall():
+            if str(fk["table"]).lower() == "playbooks":
+                return str(fk["to"] or "id")
+        return "playbook_id"
+
+    def _playbook_fk_values(self, playbook_id: str) -> tuple[str]:
+        """Return all key values a playbook_versions row can use for this playbook."""
+        if self._playbook_fk_parent(playbook_id) == "id":
+            row = self.conn.cursor().execute(
+                "SELECT id FROM playbooks WHERE playbook_id=?", (playbook_id,)
+            ).fetchone()
+            if row is not None:
+                return (str(int(row[0])), playbook_id)
+        return (playbook_id,)
 
     def publish_playbook_version(
         self,
@@ -1410,6 +1438,10 @@ class DBManager:
         playbook_versions row id (matching workflow_executions.version_id).
         """
         now = self._now_utc()
+        # Insert whichever key the actual playbook_versions FK expects
+        # (integer playbooks.id on legacy databases, text playbook_id on
+        # current ones) — see _playbook_fk_values.
+        fk_value = self._playbook_fk_values(playbook_id)[0]
         if version_id is None:
             base = f"{playbook_id}-{version}"
             cur = self.conn.cursor()
@@ -1426,7 +1458,7 @@ class DBManager:
             VALUES (?,?,?,?,?,?,?,?)
             """,
             (
-                version_id, playbook_id, version, self._dump_json(definition),
+                version_id, fk_value, version, self._dump_json(definition),
                 self._dump_json(inputs_schema), notes, now, published_by,
             ),
         )

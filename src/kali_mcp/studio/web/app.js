@@ -213,6 +213,9 @@ async function selectPlaybook(id) {
     $("#dslCode").value = def ? JSON.stringify(def, null, 2) : "";
     $("#editorTitle").textContent = `${d.name} — ${id}`;
     $("#editorStatus").innerHTML = `${BADGE(d.status)} <span class="version">${esc(d.current_version_id || "no version")}</span>`;
+    if (builderView === "graph") {
+      if (loadGraphFromDSL()) renderBuilder();
+    }
   } catch (err) {
     toast(err.message, true);
   }
@@ -243,6 +246,16 @@ async function publish() {
     toast(`Published ${version}`);
     await refreshPlaybooks();
   } catch (err) {
+    if (/approval/i.test(err.message || "")) {
+      if (confirm(`Publishing requires an approval request first.\nCreate the pending approval for ${selectedId} and retry?`)) {
+        try {
+          await api(`/playbooks/${encodeURIComponent(selectedId)}/approval-request`, { method: "POST" });
+          toast("Approval request recorded — retrying publish");
+          await publish();
+        } catch (e2) { toast(e2.message, true); }
+      }
+      return;
+    }
     toast(err.message, true);
   }
 }
@@ -317,13 +330,14 @@ async function importPlaybook() {
 }
 
 async function pagePlaybooks() {
+  builderView = "dsl"; graphDef = null; graphSel = null; graphPos = {}; graphZoom = 1;
   setPageMeta({
     crumb: "Playbook Studio", subtitle: "Plan & edit playbooks",
     actions: [{ label: "New", fn: newPlaybook }, { label: "Refresh", fn: refreshPlaybooks }],
   });
   $("#pageHeadInfo").innerHTML = `
     <div class="eyebrow">PLAYBOOK STUDIO</div><h1>Playbooks</h1>
-    <div class="subtitle">Select a playbook to edit its definition. Save drafts, publish versions, roll back or export.</div>`;
+    <div class="subtitle">Select a playbook and edit it in the DSL editor or visually in the graph builder. Save drafts, publish versions, roll back or export.</div>`;
   $("#pageHeadActions").innerHTML = headActionsHtml([
     { id: "refreshBtn", label: "↻ Refresh" },
     { id: "newPlaybookBtn", label: "＋ New", cls: "primary" },
@@ -332,23 +346,64 @@ async function pagePlaybooks() {
   <section class="studio-grid">
     <aside class="playbook-list" id="playbookList">Loading…</aside>
     <section class="editor">
-      <div class="panel-head"><span id="editorTitle">Select a playbook</span><span id="editorStatus"></span></div>
-      <textarea class="code-area" id="dslCode" spellcheck="false" placeholder="Playbook definition (JSON as returned by /definition)…"></textarea>
-      <div class="editor-actions">
-        <button class="btn" id="validateBtn">✓ Validate</button>
-        <button class="btn" id="saveDraftBtn">Save draft</button>
-        <button class="btn primary" id="publishBtn">Publish</button>
-        <span style="flex:1"></span>
-        <button class="btn ghost" id="versionsBtn">Versions / rollback</button>
-        <button class="btn ghost" id="exportBtn">↗ Export</button>
-        <button class="btn ghost" id="importBtn">↙ Import</button>
-        <button class="btn danger" id="deleteBtn">Delete</button>
+      <div class="panel-head">
+        <span id="editorTitle">Select a playbook</span>
+        <div class="mode-switch" id="builderSwitch">
+          <button data-view="dsl" class="active">DSL editor</button>
+          <button data-view="graph">Graph builder</button>
+        </div>
+        <span id="editorStatus"></span>
+      </div>
+      <div id="dslView">
+        <textarea class="code-area" id="dslCode" spellcheck="false" placeholder="Playbook definition (JSON as returned by /definition)…"></textarea>
+        <div class="editor-actions">
+          <button class="btn" id="validateBtn">✓ Validate</button>
+          <button class="btn" id="saveDraftBtn">Save draft</button>
+          <button class="btn primary" id="publishBtn">Publish</button>
+          <button class="btn" id="runBtn">▶ Run</button>
+          <span style="flex:1"></span>
+          <button class="btn ghost" id="versionsBtn">Versions / rollback</button>
+          <button class="btn ghost" id="exportBtn">↗ Export</button>
+          <button class="btn ghost" id="importBtn">↙ Import</button>
+          <button class="btn danger" id="deleteBtn">Delete</button>
+        </div>
+      </div>
+      <div id="graphView" class="builder" hidden>
+        <div class="workarea">
+          <div class="canvas-toolbar">
+            <div class="mode-switch" id="graphCount">graph builder</div>
+            <div class="canvas-tools">
+              <button class="btn" id="addStepBtn">＋ Step</button>
+              <button class="btn" id="resetLayoutBtn">Reset layout</button>
+              <button class="btn" id="graphSaveBtn">Save draft</button>
+              <button class="btn" id="graphValidateBtn">✓ Validate</button>
+              <button class="btn" id="graphRunBtn">▶ Run</button>
+            </div>
+          </div>
+          <div class="canvas-area" id="canvasArea">
+            <div class="canvas-inner" id="canvasInner">
+              <span class="canvas-label">EXECUTION GRAPH</span>
+              <span class="canvas-hint">click a step to edit · drag to rearrange</span>
+              <svg class="edges" id="edgeLayer"></svg>
+              <div class="canvas-legend">
+                <span><i class="legend-dot" style="background:#edc57c"></i>tool</span>
+                <span><i class="legend-dot" style="background:#92dbad"></i>scope / report</span>
+                <span><i class="legend-dot" style="background:#aabaff"></i>correlation</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <aside class="inspector" id="inspector"></aside>
       </div>
       <pre class="result" id="editorResult" hidden></pre>
     </section>
   </section>`;
   $("#refreshBtn").addEventListener("click", () => refreshPlaybooks());
   $("#newPlaybookBtn").addEventListener("click", newPlaybook);
+
+  $$("#builderSwitch button").forEach((btn) =>
+    btn.addEventListener("click", () => switchBuilderView(btn.dataset.view)));
+
   $("#validateBtn").addEventListener("click", async () => {
     const out = $("#editorResult");
     if (!selectedId) return toast("Select a playbook first", true);
@@ -367,11 +422,304 @@ async function pagePlaybooks() {
   });
   $("#saveDraftBtn").addEventListener("click", saveDraft);
   $("#publishBtn").addEventListener("click", publish);
+  $("#runBtn").addEventListener("click", () => runPlaybook(selectedId));
   $("#versionsBtn").addEventListener("click", showVersions);
   $("#exportBtn").addEventListener("click", exportPlaybook);
   $("#importBtn").addEventListener("click", importPlaybook);
   $("#deleteBtn").addEventListener("click", deletePlaybook);
+
+  $("#addStepBtn").addEventListener("click", addGraphStep);
+  $("#resetLayoutBtn").addEventListener("click", resetGraphLayout);
+  $("#graphSaveBtn").addEventListener("click", () => { captureGraphToDSL(); saveDraft(); });
+  $("#graphValidateBtn").addEventListener("click", async () => {
+    captureGraphToDSL();
+    const out = $("#editorResult");
+    if (!selectedId) return toast("Select a playbook first", true);
+    try {
+      const r = await api(`/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
+        method: "POST", body: JSON.stringify({ definition: JSON.parse($("#dslCode").value) }),
+      });
+      out.hidden = false;
+      out.textContent = JSON.stringify(r, null, 2);
+      toast(r.valid ? "Definition valid" : r.findings?.length + " validation finding(s)", !r.valid);
+    } catch (err) { toast(err.message, true); }
+  });
+  $("#graphRunBtn").addEventListener("click", () => runPlaybook(selectedId));
+
   await refreshPlaybooks();
+}
+
+/* ── graph (visual) builder ────────────────────────────────────────── */
+
+const NODE_W = 190, NODE_H = 111, X_GAP = 260, Y_GAP = 150;
+let builderView = "dsl";
+let graphDef = null;          // definition object while in graph view
+let graphSel = null;          // selected step id
+let graphPos = {};            // {stepId:{x,y}} drag overrides
+let graphZoom = 1;
+
+const TYPE_ICONS = {
+  tool: { cls: "scan", glyph: "◎" },
+  scope_check: { cls: "dns", glyph: "✓" },
+  finding_correlation: { cls: "web", glyph: "⇄" },
+  assessment_report: { cls: "out", glyph: "▤" },
+};
+const iconFor = (s) => TYPE_ICONS[s?.type] || { cls: "scan", glyph: "◈" };
+
+function getGraphSteps() { return Array.isArray(graphDef?.steps) ? graphDef.steps : []; }
+
+function loadGraphFromDSL() {
+  const raw = $("#dslCode")?.value?.trim();
+  if (raw) {
+    try {
+      graphDef = JSON.parse(raw);
+    } catch (err) {
+      toast("DSL is not valid JSON — fix the DSL before opening the graph: " + err.message, true);
+      return false;
+    }
+  } else {
+    graphDef = { name: selectedId || "empty", steps: [] };
+  }
+  if (!Array.isArray(graphDef.steps)) graphDef.steps = [];
+  graphSel = null;
+  graphPos = {};
+  return true;
+}
+
+function captureGraphToDSL() {
+  if (builderView !== "graph" || !graphDef) return;
+  const t = $("#dslCode");
+  if (t) t.value = JSON.stringify(graphDef, null, 2);
+}
+
+function switchBuilderView(view) {
+  if (view === builderView && view === "graph") { renderBuilder(); return; }
+  if (view === "graph") {
+    if (!loadGraphFromDSL()) return;
+  } else {
+    captureGraphToDSL();
+  }
+  builderView = view;
+  const dv = $("#dslView"), gv = $("#graphView");
+  if (dv) dv.hidden = view !== "dsl";
+  if (gv) gv.hidden = view !== "graph";
+  $$("#builderSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  if (view === "graph") { renderBuilder(); } else { const inj = $("#inspector"); if (inj) inj.innerHTML = ""; }
+}
+
+function stepById(id) { return getGraphSteps().find((s) => s.id === id); }
+
+/* cycle-safe longest-path layering (iterative relaxation) */
+function graphLayout(depths) {
+  const steps = getGraphSteps();
+  const ids = new Set(steps.map((s) => s.id));
+  steps.forEach((s) => { depths[s.id] = 0; });
+  for (let iter = 0; iter < steps.length + 1; iter++) {
+    let changed = false;
+    for (const s of steps) {
+      const deps = (s.depends_on || []).filter((d) => ids.has(d) && d !== s.id);
+      const d = deps.length ? Math.max(...deps.map((x) => (depths[x] ?? 0) + 1)) : 0;
+      if (d > depths[s.id]) { depths[s.id] = d; changed = true; }
+    }
+    if (!changed) break;
+  }
+}
+
+function nodePos(id, depths) {
+  if (graphPos[id]) return graphPos[id];
+  const depth = depths[id] ?? 0;
+  const sameLane = getGraphSteps().filter((s) => (depths[s.id] ?? 0) === depth);
+  const yIdx = sameLane.findIndex((s) => s.id === id);
+  return { x: 40 + depth * X_GAP, y: 193 + yIdx * Y_GAP };
+}
+
+function renderBuilder() {
+  const inner = $("#canvasInner");
+  if (!inner) return;
+  const steps = getGraphSteps();
+  const countEl = $("#graphCount");
+  if (countEl) countEl.innerHTML = `<span>${steps.length} step${steps.length === 1 ? "" : "s"}</span>`;
+  const depths = {};
+  graphLayout(depths);
+
+  // remove previous nodes, keep static chrome
+  $$(".node", inner).forEach((n) => n.remove());
+  inner.style.transform = `scale(${graphZoom})`;
+
+  for (const s of steps) {
+    const p = nodePos(s.id, depths);
+    const ic = iconFor(s);
+    const isTool = s.type === "tool";
+    const argSummary = isTool
+      ? `tool: ${s.tool || "?"} · ${Object.keys(s.args || {}).length} arg(s)`
+      : Object.keys(s.args || {}).length ? `${Object.keys(s.args || {}).length} arg(s)` : "internal stage";
+    const el = document.createElement("div");
+    el.className = `node ${graphSel === s.id ? "selected" : ""}`;
+    el.style.left = `${p.x}px`; el.style.top = `${p.y}px`;
+    el.dataset.step = s.id;
+    el.innerHTML = `
+      <div class="node-top"><div class="node-icon ${ic.cls}">${ic.glyph}</div>
+        <div><div class="node-title">${esc(s.id)}</div><div class="node-kind">${esc(s.type || "step")}</div></div>
+        <span class="node-status ${(s.done || s.checkpoint) ? "done" : ""}"></span></div>
+      <div class="node-body">${esc(argSummary)}${s.when ? `<br/>when: ${esc(s.when)}` : ""}</div>
+      <div class="node-foot"><span class="chip">${esc((s.depends_on || []).length + " dep(s)")}</span>${s.checkpoint ? '<span class="chip">checkpoint</span>' : ""}</div>
+      <span class="port left"></span><span class="port right"></span>`;
+    el.addEventListener("mousedown", (e) => startNodeDrag(e, s.id, p, depths));
+    inner.appendChild(el);
+  }
+
+  // edges
+  const svg = $("#edgeLayer");
+  let edges = "";
+  for (const s of steps) {
+    for (const dep of s.depends_on || []) {
+      if (!depths.hasOwnProperty(dep) || dep === s.id) continue;
+      const a = nodePos(dep, depths), b = nodePos(s.id, depths);
+      const x1 = a.x + NODE_W, y1 = a.y + 51, x2 = b.x, y2 = b.y + 51;
+      const mx = (x1 + x2) / 2;
+      edges += `<path class="edge" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    }
+  }
+  svg.innerHTML = edges;
+  renderInspector();
+}
+
+function renderInspector() {
+  const inj = $("#inspector");
+  const s = graphSel ? stepById(graphSel) : null;
+  if (!s) {
+    inj.innerHTML = `<div style="padding:14px"><div class="eyebrow">INSPECTOR</div>
+      <p class="empty" style="padding:8px 0">Select a step on the canvas to edit id, type, tool, dependencies and args. Use ＋ Step to add one.</p></div>`;
+    return;
+  }
+  inj.innerHTML = `<div style="padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto">
+    <div class="eyebrow">INSPECTOR</div>
+    <label class="dim" style="font-size:10px">Step id<input class="select" id="insId" value="${esc(s.id)}"></label>
+    <label class="dim" style="font-size:10px">Type
+      <select class="select" id="insType">
+        ${["tool", "scope_check", "finding_correlation", "assessment_report", "custom"]
+          .map((v) => `<option value="${v}" ${v === (s.type || "tool") ? "selected" : ""}>${v}</option>`).join("")}
+      </select></label>
+    <label class="dim" style="font-size:10px">Tool (type=tool)<input class="select" id="insTool" value="${esc(s.tool || "")}" placeholder="e.g. nuclei"></label>
+    <label class="dim" style="font-size:10px">depends_on (comma separated)<input class="select" id="insDeps" value="${esc((s.depends_on || []).join(", "))}"></label>
+    <label class="dim" style="font-size:10px">when (optional condition)<input class="select" id="insWhen" value="${esc(s.when || "")}"></label>
+    <label class="dim" style="font-size:10px" style="display:flex;gap:6px;align-items:center">checkpoint
+      <input type="checkbox" id="insCheckpoint" ${s.checkpoint ? "checked" : ""}></label>
+    <label class="dim" style="font-size:10px">args (JSON)<textarea class="select" id="insArgs" style="min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:11px" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea></label>
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" id="insApply">Apply</button>
+      <button class="btn danger" id="insDel">Delete step</button>
+    </div>
+  </div>`;
+  $("#insApply").addEventListener("click", applyInspector);
+  $("#insDel").addEventListener("click", () => deleteGraphStep(graphSel));
+}
+
+function applyInspector() {
+  const s = stepById(graphSel);
+  if (!s) return;
+  const oldId = s.id;
+  const newId = ($("#insId").value || "").trim();
+  const ids = new Set(getGraphSteps().map((x) => x.id).filter((x) => x !== oldId));
+  if (!newId) return toast("Step id required", true);
+  if (newId !== oldId && ids.has(newId)) return toast(`Step id "${newId}" already used`, true);
+  if (newId !== oldId) {
+    getGraphSteps().forEach((x) => {
+      if (Array.isArray(x.depends_on)) x.depends_on = x.depends_on.map((d) => (d === oldId ? newId : d));
+    });
+    delete graphPos[oldId];
+  }
+  s.id = newId;
+  s.type = $("#insType").value;
+  const tool = $("#insTool").value.trim();
+  if (s.type === "tool") { if (tool) s.tool = tool; else delete s.tool; }
+  else delete s.tool;
+  s.depends_on = $("#insDeps").value.split(",").map((d) => d.trim()).filter(Boolean);
+  if (!Array.isArray(s.depends_on)) s.depends_on = [];
+  const when = $("#insWhen").value.trim();
+  if (when) s.when = when; else delete s.when;
+  if ($("#insCheckpoint").checked) s.checkpoint = true; else delete s.checkpoint;
+  try {
+    const parsed = JSON.parse($("#insArgs").value || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      if (Object.keys(parsed).length) s.args = parsed; else delete s.args;
+    } else { toast("args must be a JSON object — kept previous value", true); }
+  } catch { return toast("args is not valid JSON — nothing applied for args", true); }
+
+  graphSel = s.id;
+  renderBuilder();
+  captureGraphToDSL();
+  toast(`Step ${s.id} updated`);
+}
+
+function deleteGraphStep(id) {
+  graphDef.steps = getGraphSteps().filter((s) => s.id !== id);
+  getGraphSteps().forEach((s) => {
+    if (Array.isArray(s.depends_on)) s.depends_on = s.depends_on.filter((d) => d !== id);
+  });
+  graphSel = null;
+  captureGraphToDSL();
+  renderBuilder();
+  toast(`Step ${id} deleted`);
+}
+
+function addGraphStep() {
+  if (builderView !== "graph") {
+    if (!loadGraphFromDSL()) return;
+  }
+  let n = 1, id;
+  do { id = `step_${n++}`; } while (stepById(id));
+  getGraphSteps().push({ id, type: "tool", depends_on: [] });
+  graphSel = id;
+  renderBuilder();
+  captureGraphToDSL();
+  toast(`Added ${id}`);
+}
+
+function resetGraphLayout() { graphPos = {}; graphZoom = 1; renderBuilder(); toast("Layout reset"); }
+
+/* node dragging: pointer capture on .node */
+let dragCtx = null;
+function startNodeDrag(e, id, origin) {
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  const ox = origin.x, oy = origin.y;
+  let moved = false;
+  const move = (ev) => {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    if (!moved && Math.hypot(dx, dy) < 4) return;
+    moved = true;
+    const x = Math.max(0, Math.round(ox + dx / graphZoom)), y = Math.max(0, Math.round(oy + dy / graphZoom));
+    graphPos[id] = { x, y };
+    const el = $(`.node[data-step="${CSS.escape(id)}"]`);
+    if (el) { el.style.left = `${x}px`; el.style.top = `${y}px`; }
+    redrawEdges();
+  };
+  const up = () => {
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+    if (!moved) { graphSel = id; renderBuilder(); }
+  };
+  document.addEventListener("mousemove", move);
+  document.addEventListener("mouseup", up);
+}
+
+function redrawEdges() {
+  const inner = $("#canvasInner");
+  const depths = {};
+  graphLayout(depths);
+  const svg = $("#edgeLayer");
+  let edges = "";
+  for (const s of getGraphSteps()) {
+    for (const dep of s.depends_on || []) {
+      if (!depths.hasOwnProperty(dep) || dep === s.id) continue;
+      const a = nodePos(dep, depths), b = nodePos(s.id, depths);
+      const x1 = a.x + NODE_W, y1 = a.y + 51, x2 = b.x, y2 = b.y + 51;
+      const mx = (x1 + x2) / 2;
+      edges += `<path class="edge" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    }
+  }
+  svg.innerHTML = edges;
 }
 
 /* ── route: executions ─────────────────────────────────────────────── */
@@ -396,10 +744,29 @@ async function refreshExecutions(status) {
     })), "No executions match this filter.");
 }
 
+async function runPlaybook(pid) {
+  const id = pid || selectedId;
+  if (!id) return toast("Select a playbook first", true);
+  let inputs = {};
+  const raw = prompt(`Run "${id}" now (runs the published version).\nInputs JSON (optional, e.g. {"target":"127.0.0.1"}):`, "{}");
+  if (raw === null) return;
+  if (raw.trim()) {
+    try { inputs = JSON.parse(raw); } catch { return toast("Inputs must be valid JSON", true); }
+  }
+  toast(`Starting ${id}…`);
+  try {
+    const r = await api("/executions", { method: "POST", body: JSON.stringify({ playbook_id: id, inputs }) });
+    const execId = r?.execution?.execution_id || r?.execution_id || "";
+    toast(`Run started${execId ? `: ${execId}` : ""}`);
+    if (execId) location.hash = `#/executions/${encodeURIComponent(execId)}`;
+    else { location.hash = "#/executions"; }
+  } catch (err) { toast(err.message, true); }
+}
+
 async function pageExecutions() {
   setPageMeta({
     crumb: "Executions", title: "Executions", subtitle: "Live workflow runs",
-    actions: [{ label: "Refresh", fn: () => refreshExecutions($("#execFilter")?.value || "all") }],
+    actions: [{ label: "▶ Run…", fn: () => runPlaybook(prompt("Playbook id to run:", "")) }, { label: "Refresh", fn: () => refreshExecutions($("#execFilter")?.value || "all") }],
   });
   $("#pageHeadInfo").innerHTML = `
     <div class="eyebrow">EXECUTIONS</div><h1>Executions</h1>
@@ -473,9 +840,35 @@ async function pageExecutionDetail(id) {
 let toolsCache = [];
 
 async function refreshTools() {
-  const d = await api("/tools?limit=500");
-  toolsCache = d.tools || [];
-  renderTools();
+  const el = $("#toolTable");
+  if (el) el.innerHTML = `<div class="panel table-panel"><p class="empty">Loading tools…</p></div>`;
+  const hint = $("#toolHint");
+  try {
+    const d = await api("/tools?limit=500");
+    toolsCache = d.tools || [];
+    renderTools();
+    if (hint) {
+      if (toolsCache.length) {
+        hint.textContent = "";
+      } else {
+        const srv = await toolRegistryHint().catch(() => "");
+        hint.innerHTML = `<div class="panel" style="padding:12px"><p class="empty">No tools registered — import MCP connections to populate the registry.</p>
+          <p class="dim" style="font-size:11px">This list is read straight from the running server's database. ${esc(srv)}<br/>
+          If you expected tools here: hard-refresh this page (Cmd/Ctrl+Shift+R) to drop a cached script, and check that you are connected to the intended server/port.</p></div>`;
+      }
+    }
+  } catch (err) {
+    if (el) el.innerHTML = `<div class="panel table-panel"><p class="empty">Failed to load tools: ${esc(err.message)}</p></div>`;
+    if (hint) hint.textContent = "";
+  }
+}
+
+async function toolRegistryHint() {
+  try {
+    const s = await api("/server");
+    const parts = [`db: ${s.db_path || "unknown"} (${s.db_exists ? "file exists" : "file missing"})`];
+    return parts.join(" · ");
+  } catch { return ""; }
 }
 
 function renderTools() {
@@ -518,6 +911,7 @@ async function pageTools() {
     <div class="eyebrow">TOOL REGISTRY</div><h1>Tool Registry</h1>
     <div class="subtitle">Every tool known to the backend. Changing visibility writes straight to the DB (promoting to agent_callable may require an approval).</div>`;
   $("#pageBody").innerHTML = `
+    <div id="toolHint"></div>
     <div class="filterbar"><input class="select" id="toolSearch" placeholder="Search tool id or name…" /></div>
     <div id="toolTable">Loading…</div>`;
   $("#toolSearch").addEventListener("input", renderTools);
