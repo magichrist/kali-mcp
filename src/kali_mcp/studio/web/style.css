@@ -715,11 +715,15 @@ label > .select, label > .inp, label.ins-field > .select { margin-top: 6px; }
   min-height: 0;
   position: relative;
   overflow: hidden;
+  cursor: grab;
   background:
     radial-gradient(circle, rgba(70, 88, 110, .22) 1px, transparent 1px);
   background-size: 24px 24px;
   background-color: #0b1016;
 }
+body.canvas-panning,
+body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
+.canvas-area:active { cursor: grabbing; }
 .canvas-inner { position: absolute; inset: 0 auto auto 0; transform-origin: 0 0; }
 
 .canvas-legend {

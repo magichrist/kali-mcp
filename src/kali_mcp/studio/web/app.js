@@ -425,6 +425,7 @@ async function pagePlaybookEditor(id) {
   document.addEventListener("click", pbCloseMenuOnOutside);
 
   initInspectorResizer();
+  initCanvasGestures();
   refreshTools().then(() => renderPalette()).catch(() => renderPalette());
   loadRunStatus(selectedId).catch(() => {});
   switchBuilderView("graph");
@@ -440,6 +441,71 @@ function pbCloseMenuOnOutside(e) {
   const wrap = $("#pbMenuWrap");
   if (!wrap) { document.removeEventListener("click", pbCloseMenuOnOutside); return; }
   if (!wrap.contains(e.target)) { const l = $("#pbMenuList"); if (l) l.hidden = true; }
+}
+
+/* ── canvas gestures: trackpad pinch-zoom, scroll pan, drag pan ───── */
+/* macOS trackpad: two-finger pinch → wheel + ctrlKey (Chrome/Edge) or
+   gesturechange (Safari). Two-finger scroll pans. Click-drag on empty
+   canvas pans too, like the run-detail graphs you already know. */
+
+function initCanvasGestures() {
+  const area = $("#canvasArea");
+  if (!area || area.dataset.gestures) return;
+  area.dataset.gestures = "1";
+
+  /* two-finger scroll / shift-wheel → pan (natural-scroll friendly) */
+  area.addEventListener("wheel", (e) => {
+    if (e.ctrlKey) {
+      // trackpad pinch — zoom anchored at the pointer
+      e.preventDefault();
+      // cap per-event step so momentum pinch doesn't overshoot
+      const factor = Math.min(1.6, Math.max(0.6, Math.exp(-e.deltaY * 0.01)));
+      canvasZoomAt(e.clientX, e.clientY, factor);
+      return;
+    }
+    // plain two-finger scroll: pan the workflow instead of scrolling the page
+    e.preventDefault();
+    const lines = e.deltaMode === 1 ? 16 : 1; // normalize firefox "lines" mode
+    graphPan = { x: graphPan.x - e.deltaX * lines, y: graphPan.y - e.deltaY * lines };
+    applyZoom();
+  }, { passive: false });
+
+  /* Safari pinch (aspect=0 for full zoom pinches) */
+  let gestureScale = null;
+  area.addEventListener("gesturestart", (e) => { gestureScale = e.scale || 1; e.preventDefault(); });
+  area.addEventListener("gesturechange", (e) => {
+    if (!gestureScale) return;
+    e.preventDefault();
+    const factor = Math.min(1.6, Math.max(0.6, (e.scale || 1) / gestureScale));
+    canvasZoomAt(e.clientX, e.clientY, factor);
+    gestureScale = e.scale || 1;
+  });
+  area.addEventListener("gestureend", () => { gestureScale = null; });
+
+  /* click-drag on empty canvas → pan */
+  area.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    if (e.target instanceof Element &&
+        e.target.closest(".node, .port, .canvas-empty button")) return;
+    const sx = e.clientX, sy = e.clientY, ox = graphPan.x, oy = graphPan.y;
+    let moved = false;
+    document.body.classList.add("canvas-panning");
+    const move = (ev) => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!moved && Math.hypot(dx, dy) < 4) return;
+      moved = true;
+      graphPan = { x: ox + dx, y: oy + dy };
+      applyZoom();
+    };
+    const up = () => {
+      document.body.classList.remove("canvas-panning");
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+    e.preventDefault();
+  });
 }
 
 function initInspectorResizer() {
@@ -608,16 +674,25 @@ function applyZoom() {
   if (inner) inner.style.transform = `translate(${graphPan.x}px,${graphPan.y}px) scale(${graphZoom})`;
 }
 
+/* zoom keeping the canvas point under clientX/clientY anchored in place */
+function canvasZoomAt(clientX, clientY, factor) {
+  const area = $("#canvasArea");
+  if (!area) return;
+  const rect = area.getBoundingClientRect();
+  const ox = clientX - rect.left, oy = clientY - rect.top;
+  const nz = Math.round(Math.min(2.5, Math.max(0.2, graphZoom * factor)) * 1000) / 1000;
+  if (nz === graphZoom) return;
+  const k = nz / graphZoom;
+  graphZoom = nz;
+  graphPan = { x: ox - (ox - graphPan.x) * k, y: oy - (oy - graphPan.y) * k };
+  applyZoom();
+}
+
 function nudgeZoom(delta) {
   const area = $("#canvasArea");
-  const old = graphZoom;
-  graphZoom = Math.min(2, Math.max(0.25, Math.round((graphZoom + delta) * 100) / 100));
-  if (area && old !== graphZoom) {
-    const k = graphZoom / old;
-    const cx = area.clientWidth / 2, cy = area.clientHeight / 2;
-    graphPan = { x: Math.round(cx - (cx - graphPan.x) * k), y: Math.round(cy - (cy - graphPan.y) * k) };
-  }
-  applyZoom();
+  if (!area) return;
+  const rect = area.getBoundingClientRect();
+  canvasZoomAt(rect.left + area.clientWidth / 2, rect.top + area.clientHeight / 2, 1 + delta);
 }
 
 function fitToScreen() {
@@ -669,7 +744,7 @@ function renderBuilder() {
   applyZoom();
   const empty = $("#canvasEmpty");
   if (empty) empty.hidden = steps.length > 0;
-  const legend = $(".canvas-legend", inner);
+  const legend = $(".canvas-legend");
   if (legend) legend.style.display = steps.length ? "" : "none";
 
   for (const s of steps) {
