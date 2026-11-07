@@ -1534,16 +1534,110 @@ async function publish() {
   }
 }
 
+/* ── create: structured modal (name → auto id → category → description) */
+
 async function newPlaybook() {
-  const name = prompt("Playbook name:", "");
-  if (!name) return;
-  let pid = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48);
-  if (!pid) pid = `pb_${Date.now().toString(36)}`;
-  try {
-    await api("/playbooks", { method: "POST", body: JSON.stringify({ playbook_id: pid, name, category: "custom" }) });
-  } catch (err) { return toast(err.message, true); }
-  toast("Playbook created — opening the editor");
-  location.hash = `#/playbooks/${encodeURIComponent(pid)}`;
+  const existing = new Set(playbooksCache.map((p) => p.playbook_id));
+  const bd = document.createElement("div");
+  bd.className = "modal-backdrop show";
+  bd.innerHTML = `
+    <div class="modal new-pb-modal" role="dialog" aria-modal="true" aria-labelledby="npTitle">
+      <div class="np-head">
+        <div class="np-glyph">✦</div>
+        <div>
+          <h3 id="npTitle">New playbook</h3>
+          <p class="dim">Name it here — the workflow canvas opens right after, so you can start wiring steps immediately.</p>
+        </div>
+      </div>
+      <label class="np-field">
+        <span class="np-label">Name <em>shown in the library and editor header</em></span>
+        <input class="select" id="npName" placeholder="e.g. External recon sweep" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="np-field">
+        <span class="np-label">Playbook ID <em>stable identifier used in runs and URLs — auto-filled from the name</em></span>
+        <input class="select mono" id="npId" placeholder="external_recon_sweep" autocomplete="off" spellcheck="false">
+        <span class="np-hint" id="npHint"></span>
+      </label>
+      <div class="np-row2">
+        <label class="np-field">
+          <span class="np-label">Category</span>
+          <select class="select" id="npCat">
+            <option value="custom">custom</option>
+            <option value="recon">recon</option>
+            <option value="assessment">assessment</option>
+            <option value="reporting">reporting</option>
+            <option value="response">response</option>
+          </select>
+        </label>
+        <label class="np-field np-col">
+          <span class="np-label">Description <em>optional</em></span>
+          <input class="select" id="npDesc" placeholder="What does this workflow do?">
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="npCancel">Cancel</button>
+        <button class="btn primary" id="npCreate" disabled>Create playbook</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bd);
+
+  const nameEl = bd.querySelector("#npName"), idEl = bd.querySelector("#npId"),
+    hintEl = bd.querySelector("#npHint"), catEl = bd.querySelector("#npCat"),
+    descEl = bd.querySelector("#npDesc"), createBtn = bd.querySelector("#npCreate");
+  let idDirty = false;
+
+  function slugify(v) {
+    const s = String(v).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48);
+    return s || (v ? `pb_${Date.now().toString(36)}` : "");
+  }
+  function validate() {
+    let err = "";
+    const id = idEl.value;
+    if (id && existing.has(id)) err = `A playbook with ID “${id}” already exists`;
+    else if (/[^\w-]/.test(id)) err = "Letters, numbers, dashes and underscores only";
+    hintEl.textContent = err;
+    hintEl.classList.toggle("warn", !!err);
+    if (err) { createBtn.disabled = true; return false; }
+    createBtn.disabled = !(nameEl.value.trim() && id);
+    return true;
+  }
+
+  idEl.addEventListener("input", () => { idDirty = true; validate(); });
+  nameEl.addEventListener("input", () => { if (!idDirty) idEl.value = slugify(nameEl.value); validate(); });
+  descEl.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+  [nameEl, idEl].forEach((el) => el.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); }));
+  document.addEventListener("keydown", escClose);
+
+  function escClose(e) { if (e.key === "Escape") close(); }
+  function close() {
+    document.removeEventListener("keydown", escClose);
+    bd.remove();
+  }
+  async function submit() {
+    if (!validate() || createBtn.disabled) return;
+    const name = nameEl.value.trim().slice(0, 120);
+    const pid = idEl.value.trim();
+    if (existing.has(pid)) { nameEl.reportValidity?.(); return; }
+    const payload = { playbook_id: pid, name, category: catEl.value };
+    if (descEl.value.trim()) payload.description = descEl.value.trim();
+    createBtn.disabled = true;
+    createBtn.textContent = "Creating…";
+    try {
+      await api("/playbooks", { method: "POST", body: JSON.stringify(payload) });
+    } catch (err) {
+      createBtn.disabled = false;
+      createBtn.textContent = "Create playbook";
+      return toast(err.message, true);
+    }
+    close();
+    toast(`“${name}” created — opening the editor`);
+    location.hash = `#/playbooks/${encodeURIComponent(pid)}`;
+  }
+
+  bd.querySelector("#npCancel").addEventListener("click", close);
+  createBtn.addEventListener("click", submit);
+  bd.addEventListener("mousedown", (e) => { if (e.target === bd) close(); });
+  nameEl.focus();
 }
 
 async function deletePlaybook() {
