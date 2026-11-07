@@ -332,6 +332,9 @@ def mount_studio_routes(app) -> None:
     app.add_route("/api/playbooks/{id}/rollback", rollback_playbook, methods=["POST"])
     app.add_route("/api/playbooks/{id}/export", export_playbook, methods=["GET"])
 
+    # Server info
+    app.add_route("/api/server", server_info, methods=["GET"])
+
     # Execution routes
     app.add_route("/api/executions", list_executions, methods=["GET"])
     app.add_route("/api/executions", start_execution, methods=["POST"])
