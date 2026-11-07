@@ -608,7 +608,8 @@ label > .select, label > .inp, label.ins-field > .select { margin-top: 6px; }
 }
 .pb-hint { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* editor grid: palette | canvas | resizer | inspector */
+/* editor grid: palette | canvas | resizer | inspector;
+   with the palette closed the column is dropped so children don't shift left */
 .editor-grid {
   flex: 1;
   min-height: 0;
@@ -616,6 +617,7 @@ label > .select, label > .inp, label.ins-field > .select { margin-top: 6px; }
   grid-template-columns: auto minmax(0, 1fr) 6px var(--ins-w);
   overflow: hidden;
 }
+.editor-grid:not(.pal-open) { grid-template-columns: minmax(0, 1fr) 6px var(--ins-w); }
 
 /* palette drawer */
 .palette {
@@ -993,9 +995,8 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
   content: attr(data-tip);
   position: absolute;
   bottom: calc(100% + 9px);
-  left: 50%;
-  transform: translateX(-50%);
-  min-width: max-content;
+  left: -6px;
+  width: max-content;
   max-width: 265px;
   padding: 8px 11px;
   background: #0e1520;
@@ -1015,7 +1016,11 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
 .help-tip.tip-left::after {
   left: auto;
   right: -6px;
-  transform: none;
+}
+/* near the top of the scroll area, open downward instead */
+.help-tip.tip-down::after {
+  bottom: auto;
+  top: calc(100% + 9px);
 }
 
 /* tool-argument schema builder rows */
@@ -1107,7 +1112,9 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
 @media (max-width: 1439px) {
   /* palette is position:absolute here, so it occupies no grid track —
      the template must drop its column too or every child shifts left */
-  .editor-grid { grid-template-columns: minmax(0, 1fr) 6px minmax(min(var(--ins-w), 360px), var(--ins-w)); }
+  .editor-grid { grid-template-columns: auto minmax(0, 1fr) 6px minmax(min(var(--ins-w), 360px), var(--ins-w)); }
+  .editor-grid:not(.pal-open) { grid-template-columns: minmax(0, 1fr) 6px minmax(min(var(--ins-w), 360px), var(--ins-w)); }
+  .editor-grid.pal-open { grid-template-columns: auto minmax(0, 1fr) 6px minmax(min(var(--ins-w), 360px), var(--ins-w)); }
   .palette {
     position: absolute;
     z-index: 40;
