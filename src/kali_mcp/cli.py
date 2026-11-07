@@ -131,11 +131,10 @@ def cmd_monitor(args: argparse.Namespace) -> int:
     """Launch the interactive monitor TUI."""
     _load_env()
     url = args.url or os.getenv("MCP_MONITOR_URL", "http://127.0.0.1:8399")
-    token = os.getenv("MCP_API_TOKEN", "") or None
 
     from kali_mcp.monitor.tui import main as monitor_main
 
-    monitor_main(url, token)
+    monitor_main(url)
     return 0
 
 
