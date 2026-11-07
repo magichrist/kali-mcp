@@ -315,6 +315,16 @@ async def server_info(request: Request) -> JSONResponse:
     return JSONResponse({
         "db_path": str(db_path),
         "db_exists": db_exists,
+        "server_name": getattr(config, "server_name", "kali-mcp"),
+        "server_version": getattr(config, "server_version", "2.0.0"),
+        "host": getattr(config, "host", "127.0.0.1"),
+        "port": getattr(config, "port", 8399),
+        "transport": getattr(config, "transport", "streamable-http"),
+        "auth_enabled": bool(getattr(config, "mcp_api_token", None)) and not getattr(config, "kali_mcp_insecure", False),
+        "default_timeout": getattr(config, "default_timeout", 300),
+        "max_timeout": getattr(config, "max_timeout", 600),
+        "max_concurrent": getattr(config, "max_concurrent", 10),
+        "debug": bool(getattr(config, "debug", False)),
     })
 
 
@@ -440,6 +450,92 @@ async def discover_connection_api(request: Request) -> JSONResponse:
     return JSONResponse({"imported_tools": imported, "count": len(imported)})
 
 
+async def overview_api(request: Request) -> JSONResponse:
+    """Aggregate dashboard overview stats from across the studio."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    cur = db.conn.cursor()
+
+    # Playbooks
+    pb_rows = db_manager.DBManager.list_playbooks(db)
+    pb_by_status: dict[str, int] = {}
+    for r in pb_rows:
+        st = r.get("status") or "unknown"
+        pb_by_status[st] = pb_by_status.get(st, 0) + 1
+
+    # Executions
+    from kali_mcp.studio import service_executions
+
+    exec_rows = service_executions.list_executions(db, limit=500)
+    ex_by_status: dict[str, int] = {}
+    for r in exec_rows:
+        st = r.get("status") or "unknown"
+        ex_by_status[st] = ex_by_status.get(st, 0) + 1
+    recent_executions = [
+        {
+            "execution_id": r.get("execution_id"),
+            "playbook_id": r.get("playbook_id"),
+            "status": r.get("status"),
+            "started_at": r.get("started_at"),
+        }
+        for r in exec_rows[:10]
+    ]
+
+    # Tools
+    td_rows = db.list_tool_definitions()
+    td_by_visibility: dict[str, int] = {}
+    for r in td_rows:
+        vis = r.get("visibility") or "unknown"
+        td_by_visibility[vis] = td_by_visibility.get(vis, 0) + 1
+
+    # Connections
+    conn_rows = service_connections.list_connections(db)
+    conn_healthy = sum(1 for c in conn_rows if c.get("health_status") == "healthy")
+
+    # Agents
+    try:
+        agent_rows = db.list_agent_profiles()
+    except Exception:
+        agent_rows = []
+
+    # Findings
+    findings_total = 0
+    try:
+        ft = cur.execute("SELECT COALESCE(SUM(findings_count), 0) FROM scans").fetchone()[0]
+        findings_total = int(ft or 0)
+    except Exception:
+        findings_total = 0
+
+    try:
+        finding_rows = cur.execute(
+            "SELECT tool, command, findings_count, started_at FROM scans ORDER BY started_at DESC LIMIT 10"
+        ).fetchall()
+        recent_findings = [
+            {
+                "port_state": r[0] or "—",
+                "tool": r[1] or "—",
+                "severity": "info",
+                "test_name": f"scan ({r[2] or 0} findings)",
+            }
+            for r in finding_rows
+        ]
+    except Exception:
+        recent_findings = []
+
+    return JSONResponse({
+        "playbooks": {"total": len(pb_rows), "by_status": pb_by_status},
+        "executions": {"total": len(exec_rows), "by_status": ex_by_status},
+        "tools": {"total": len(td_rows), "by_visibility": td_by_visibility},
+        "findings": {"total": findings_total, "by_severity": {}},
+        "connections": {"total": len(conn_rows), "healthy": conn_healthy},
+        "agents": {"total": len(agent_rows)},
+        "recent_executions": recent_executions,
+        "recent_findings": recent_findings,
+    })
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Tool Registry handlers
 # ══════════════════════════════════════════════════════════════════════════════
@@ -507,6 +603,9 @@ def mount_studio_routes(app) -> None:
 
     # Server info
     app.add_route("/api/server", server_info, methods=["GET"])
+
+    # Overview
+    app.add_route("/api/overview", overview_api, methods=["GET"])
 
     # MCP Connections routes
     app.add_route("/api/connections", list_connections_api, methods=["GET"])
