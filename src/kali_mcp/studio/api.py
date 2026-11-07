@@ -1,722 +1,328 @@
-"""MCP Server — hardened SSE transport, tool registration, request handling."""
+"""Studio REST API routes.
+
+Mounts all Studio (Playbook Studio) REST endpoints on the main Starlette app
+via ``mount_studio_routes(app)``. Called from ``src/kali_mcp/server.py``
+lifespan startup.
+"""
 
 from __future__ import annotations
 
-import asyncio
-import gc
-import inspect
 import json
 import logging
-import os
-import signal
-import threading
-import time
-import uuid
-from contextlib import asynccontextmanager
+from typing import Any
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.server import Context
-from mcp.server.fastmcp.tools.base import Tool as MCPTool
-from mcp.server.fastmcp.utilities.func_metadata import func_metadata
+from starlette.requests import Request
+from starlette.responses import JSONResponse, PlainTextResponse
 
-from kali_mcp.agent_context import agent_context
-from kali_mcp.config import config
 from kali_mcp.db import manager as db_manager
-from kali_mcp.execution import engine, reset_progress_cb, set_progress_cb
-from kali_mcp.identifiers import (
-    generate_assessment_id,
-    generate_job_id,
-    reset_assessment_context,
-    set_assessment_context,
-)
-from kali_mcp.logging_utils import setup_logging
-from kali_mcp.monitor import Monitor
-from kali_mcp.monitor.sessions import session_registry
-from kali_mcp.notifications import emit_log, notify_resource_updated
-from kali_mcp.prompts import register_prompts
-from kali_mcp.registry import registry
-from kali_mcp.resources import register_resources
-from kali_mcp.scope import check_scope
+from kali_mcp.config import config
 
-# Import all tools (triggers registration)
-from kali_mcp.tools import ALL_TOOLS
-from kali_mcp.tools.persist import extract_target
-from kali_mcp.utils.vault import ensure_vault_dirs
-
-setup_logging()
-logger = logging.getLogger("kali_mcp.server")
-print(f"MODULE LEVEL: db_path={config.db_path}, db_enabled={config.db_enabled}", flush=True)
+logger = logging.getLogger("kali_mcp.studio.api")
 
 
-# ── Health Monitor ──────────────────────────────────────────────
-class HealthMonitor:
-    """Background thread that monitors server health and cleans up stuck state."""
+# ══════════════════════════════════════════════════════════════════════════════
+# Playbook CRUD routes
+# ══════════════════════════════════════════════════════════════════════════════
 
-    def __init__(self) -> None:
-        self._running = False
-        self._last_gc = time.monotonic()
-        self._request_count = 0
-        self._error_count = 0
-        self._start_time = time.monotonic()
-        self._lock = threading.Lock()
+async def list_playbooks(request: Request) -> JSONResponse:
+    """List playbooks (with optional status/builtin filtering)."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
 
-    def start(self) -> None:
-        if self._running:
-            return
-        self._running = True
-        t = threading.Thread(target=self._loop, daemon=True, name="health-monitor")
-        t.start()
-        logger.info("Health monitor started")
+    status = request.query_params.get("status")
+    is_builtin = request.query_params.get("is_builtin")
+    limit = int(request.query_params.get("limit", "50"))
+    offset = int(request.query_params.get("offset", "0"))
 
-    def stop(self) -> None:
-        self._running = False
+    rows = db_manager.DBManager.list_playbooks(db, status=status)
 
-    def _loop(self) -> None:
-        while self._running:
-            time.sleep(30)
-            try:
-                self._check()
-            except Exception:  # noqa: BLE001, S110
-                pass  # Monitor must never crash
+    if is_builtin is not None:
+        want = is_builtin.lower() in ("1", "true", "yes")
+        rows = [r for r in rows if bool(r.get("is_builtin", 0)) == want]
 
-    def _check(self) -> None:
-        now = time.monotonic()
-
-        # Periodic GC (every 5 minutes)
-        if now - self._last_gc > 300:
-            gc.collect()
-            self._last_gc = now
-
-        # Check for stuck executions
-        stuck = engine.get_stuck_executions()
-        if stuck:
-            for s in stuck:
-                logger.warning(
-                    "health: stuck execution detected — request=%s tool=%s elapsed=%.0fs",
-                    s["request_id"],
-                    s["tool"],
-                    s["elapsed_seconds"],
-                )
-
-        # Force cleanup if too many stuck
-        if len(stuck) > config.max_concurrent:
-            logger.warning("health: too many stuck executions (%d), force cleaning", len(stuck))
-            engine.force_cleanup()
-
-        # Log health metrics
-        uptime = now - self._start_time
-        active = engine.active_count
-        with self._lock:
-            req_count = self._request_count
-            err_count = self._error_count
-        if active > 0 or req_count > 0:
-            logger.info(
-                "health: uptime=%.0fs active=%d requests=%d errors=%d",
-                uptime,
-                active,
-                req_count,
-                err_count,
-            )
-
-    def record_request(self) -> None:
-        with self._lock:
-            self._request_count += 1
-
-    def record_error(self) -> None:
-        with self._lock:
-            self._error_count += 1
-
-    def get_status(self) -> dict:
-        uptime = time.monotonic() - self._start_time
-        with self._lock:
-            return {
-                "status": "healthy",
-                "uptime_seconds": round(uptime, 1),
-                "active_executions": engine.active_count,
-                "total_requests": self._request_count,
-                "total_errors": self._error_count,
-                "tools_registered": len(registry.tool_names()),
-                "memory_mb": _get_memory_mb(),
-            }
+    rows = rows[offset : offset + limit]
+    return JSONResponse({"playbooks": rows, "limit": limit, "offset": offset})
 
 
-health = HealthMonitor()
+async def get_playbook(request: Request) -> JSONResponse:
+    """Get playbook metadata."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
 
-# Interactive monitor — aggregates sessions, active jobs, and health.
-monitor = Monitor(session_registry, engine, health)
-
-
-def _get_memory_mb() -> float:
-    """Get current process memory usage in MB."""
-    try:
-        import resource as _resource
-
-        usage = _resource.getrusage(_resource.RUSAGE_SELF)
-        return round(usage.ru_maxrss / 1024, 1)  # Linux: bytes→MB
-    except Exception:  # noqa: BLE001
-        return 0.0
+    playbook_id = request.path_params["id"]
+    row = db.get_playbook(playbook_id)
+    if row is None:
+        return JSONResponse({"error": "playbook not found"}, status_code=404)
+    return JSONResponse(row)
 
 
-# ── Lifespan ────────────────────────────────────────────────────
-@asynccontextmanager
-async def lifespan(app):
-    """Server lifecycle — startup and shutdown."""
-    print(f"DEBUG LIFESPAN START: db_path={config.db_path}, db_enabled={config.db_enabled}", flush=True)
-    logger.info("Server starting up...")
-    logger.info("Registered %d tools: %s", len(ALL_TOOLS), [t.name for t in ALL_TOOLS])
-    # Initialize foundational infrastructure (Phase 1)
-    try:
-        ensure_vault_dirs()
-        logger.info("Vault directories initialized")
-    except Exception:
-        logger.exception("Vault initialization failed")
+async def put_definition(request: Request) -> JSONResponse:
+    """Save playbook definition (draft)."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
 
-    try:
-        print(f"DEBUG: db_enabled={config.db_enabled}, db_path={config.db_path}", flush=True)
-        if getattr(config, "db_enabled", True):
-            _db = db_manager.get_db()
-            print(f"DEBUG: get_db() returned {_db}", flush=True)
-            if _db is not None:
-                try:
-                    from kali_mcp.studio.service_tools import sync_registry_to_db
+    playbook_id = request.path_params["id"]
+    body = await request.json()
+    definition = body.get("definition")
+    if not isinstance(definition, dict):
+        return JSONResponse({"error": "definition is required"}, status_code=422)
 
-                    synced = sync_registry_to_db(_db)
-                    logger.info("Synced %d tools to tool_definitions", len(synced))
-                except Exception:  # a sync failure must not stop startup (BLE001 deliberately tolerated here)
-                    logger.exception("Tool registry sync failed")
+    from kali_mcp.studio import playbook_service
 
-                # ── Seed built-in Studio playbooks from YAML definitions ──
-                try:
-                    from kali_mcp.studio.playbook_service import seed_builtin_playbooks
+    validation = playbook_service.validate_definition(db, playbook_id, definition)
+    if not validation["valid"]:
+        return JSONResponse(
+            {"error": "definition failed validation", "details": validation["findings"]},
+            status_code=422,
+        )
 
-                    seeded = seed_builtin_playbooks(_db)
-                    logger.info("Seeded %d built-in playbooks from YAML definitions", seeded)
-                except Exception:  # seed failure must not stop startup
-                    logger.exception("Built-in playbook seeding failed")
-            logger.info("Database initialized (path=%s)", str(config.db_path))
-        else:
-            logger.info("Database disabled via MCP_DB_ENABLED=false")
-    except Exception:
-        logger.exception("Database initialization failed")
-
-    # Verify critical binaries
-    import shutil
-
-    for bin_name in ["nmap", "curl"]:
-        if shutil.which(bin_name):
-            logger.info("Startup check OK: %s found", bin_name)
-        else:
-            logger.warning("Startup check WARN: %s not found in PATH", bin_name)
-
-    health.start()
-    logger.info("Health monitor active")
-
-    yield
-
-    health.stop()
-    engine.force_cleanup()
-    logger.info("Server shut down cleanly")
-
-
-# ── FastMCP ─────────────────────────────────────────────────────
-mcp = FastMCP(
-    name=config.server_name,
-    instructions=(
-        "Kali MCP Server — penetration testing execution backend. "
-        "Exposes native security tools and a generic_command escape hatch. "
-        "All tools return structured JSON with stdout, stderr, exit_code, and timing."
-    ),
-    lifespan=lifespan,
-    host=config.host,
-    port=config.port,
-)
-
-# Resources + prompts (protocol-level metadata surfaced to clients)
-register_resources(mcp, health=health)
-register_prompts(mcp)
-
-
-# Register all tools with safe_execute wrapper
-for tool_instance in ALL_TOOLS:
-    registry.register(tool_instance)
-
-    def _make_handler(t):
-        schema = t.input_schema()
-        properties = schema.get("properties", {})
-        required = schema.get("required", [])
-
-        # Map JSON schema types to Python types
-        TYPE_MAP = {
-            "string": str,
-            "integer": int,
-            "number": float,
-            "boolean": bool,
-            "object": dict,
-            "array": list,
-        }
-
-        params = []
-        for name, prop in properties.items():
-            has_default = "default" in prop
-            is_required = name in required
-            json_type = prop.get("type", "string")
-            if isinstance(json_type, list):
-                # Union type (e.g. ["object", "string"])
-                py_types = tuple(TYPE_MAP.get(t, str) for t in json_type)
-                py_type = py_types[0] if len(py_types) == 1 else py_types[0] | py_types[1]
-            else:
-                py_type = TYPE_MAP.get(json_type, str)
-
-            if has_default:
-                default = prop.get("default")
-                params.append(
-                    inspect.Parameter(
-                        name,
-                        inspect.Parameter.KEYWORD_ONLY,
-                        default=default,
-                        annotation=py_type,
-                    )
-                )
-            elif is_required:
-                params.append(
-                    inspect.Parameter(
-                        name,
-                        inspect.Parameter.KEYWORD_ONLY,
-                        annotation=py_type,
-                    )
-                )
-            else:
-                # Optional — default to None, type is Optional[py_type]
-                params.append(
-                    inspect.Parameter(
-                        name,
-                        inspect.Parameter.KEYWORD_ONLY,
-                        default=None,
-                        annotation=py_type | None,
-                    )
-                )
-
-        sig = inspect.Signature(params)
-
-        async def handler(ctx: Context, **kwargs) -> str:
-            request_id = uuid.uuid4().hex[:12]
-            health.record_request()
-            # ── Agent profile resolution + per-call enforcement ────────
-            # Resolve the profile from the request headers (no header → no
-            # agent context → unchanged default behavior). When a profile IS
-            # resolved, every tool call is deny-by-default checked against
-            # its agent_tool_permissions grants (07_SECURITY §Layer 2).
-            profile_token = None
-            profile_ctx = None
-            try:
-                profile_ctx = agent_context.resolve_from_context(ctx)
-            except Exception:  # BLE001 tolerated — resolution must never crash the dispatch
-                logger.debug("agent profile resolution failed", exc_info=True)
-                profile_ctx = None
-            if profile_ctx:
-                profile_token = agent_context.set_current_profile(profile_ctx)
-                if not agent_context.can_call_tool(profile_ctx, t.name):
-                    health.record_error()
-                    emit_log(
-                        ctx,
-                        "warning",
-                        f"Forbidden {t.name} for profile {profile_ctx} ({request_id})",
-                    )
-                    return agent_context.forbidden_tool_payload(t.name, profile_ctx)
-            # ── Scope enforcement (Phase 1 Foundation) ──────────────────
-            # Every tool call passes through the server-side scope check
-            # before it is dispatched to the tool implementation.
-            tool_name = t.name
-            target = extract_target(kwargs)
-            try:
-                check_scope(target, tool_name)
-            except ValueError as exc:
-                health.record_error()
-                emit_log(
-                    ctx,
-                    "warning",
-                    f"Scope violation {tool_name} ({request_id}): {exc}",
-                )
-                return json.dumps(
-                    {"error": str(exc), "scope_violation": True}, indent=2
-                )
-            # ── Assessment / job context ────────────────────────────────
-            # Opaque handles stored on scans / evidence rows for traceability.
-            assessment_id = kwargs.get("assessment_id") or generate_assessment_id()
-            job_id = kwargs.get("job_id") or generate_job_id()
-            ctx_tokens = set_assessment_context(assessment_id, job_id)
-            # Track MCP client session for interactive monitoring
-            _session = getattr(ctx, "session", None)
-            if _session is not None:
-                _session_id = id(_session)
-                session_registry.on_connect(_session_id)
-                session_registry.on_activity(_session_id)
-
-            async def progress(completed, total, message=None) -> None:
-                try:
-                    await ctx.report_progress(completed, total, message=message)
-                except Exception:  # noqa: BLE001, S110
-                    pass  # client didn't ask for progress — no-op
-
-            token = set_progress_cb(progress)
-            try:
-                emit_log(ctx, "info", f"Starting {t.name} ({request_id})")
-                # Coerce string values to correct types based on schema
-                for pname, prop in properties.items():
-                    if pname in kwargs and kwargs[pname] is not None:
-                        expected = prop.get("type")
-                        val = kwargs[pname]
-                        if expected == "integer" and isinstance(val, str):
-                            kwargs[pname] = int(val)
-                        elif expected == "number" and isinstance(val, str):
-                            kwargs[pname] = float(val)
-                        elif expected == "boolean" and isinstance(val, str):
-                            kwargs[pname] = val.lower() in ("1", "true", "yes")
-                        elif expected == "boolean" and isinstance(val, bool):
-                            pass  # already correct
-                        elif isinstance(expected, list) and isinstance(val, str):
-                            # Union type allowing object/array — coerce JSON
-                            # strings; non-JSON plain text stays a string
-                            if any(t in ("object", "array") for t in expected):
-                                try:
-                                    kwargs[pname] = json.loads(val)
-                                except json.JSONDecodeError:
-                                    pass
-                        elif (
-                            expected == "object"
-                            and isinstance(val, str)
-                            or expected == "array"
-                            and isinstance(val, str)
-                        ):
-                            kwargs[pname] = json.loads(val)
-                logger.info(
-                    "request=%s tool=%s args=%s",
-                    request_id,
-                    t.name,
-                    list(kwargs.keys()),
-                )
-                result = await t.safe_execute(kwargs)
-                emit_log(ctx, "info", f"Completed {t.name} ({request_id})")
-                if t.name == "file_write":
-                    notify_resource_updated(ctx, "kali://artifacts")
-                if isinstance(result, dict) and "content" in result:
-                    for block in result["content"]:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            return block["text"]
-                return json.dumps(result, indent=2)
-            except asyncio.CancelledError:
-                logger.warning("request=%s tool=%s cancelled", request_id, t.name)
-                emit_log(ctx, "warning", f"Cancelled {t.name} ({request_id})")
-                return json.dumps({"error": "Request cancelled"})
-            except Exception:
-                health.record_error()
-                logger.exception("request=%s catastrophic error in tool %s", request_id, t.name)
-                emit_log(ctx, "error", f"Failed {t.name} ({request_id})")
-                return json.dumps({"error": "Tool execution failed"}, indent=2)
-            finally:
-                reset_assessment_context(ctx_tokens)
-                reset_progress_cb(token)
-                if profile_token is not None:
-                    agent_context.reset_current_profile(profile_token)
-
-        handler.__name__ = t.name
-        handler.__doc__ = t.description
-        handler.__signature__ = sig
-        return handler
-
-    tool_fn = _make_handler(tool_instance)
-
-    fm = func_metadata(tool_fn)
-    mcp_tool = MCPTool(
-        fn=tool_fn,
-        name=tool_instance.name,
-        description=tool_instance.description,
-        parameters=tool_instance.input_schema(),
-        fn_metadata=fm,
-        is_async=True,
-        context_kwarg="ctx",
-    )
-    mcp._tool_manager._tools[tool_instance.name] = mcp_tool
-
-
-# ── Health Check Tool ───────────────────────────────────────────
-@mcp.tool()
-def health_check() -> str:
-    """Check server health, memory, active executions, and registered tools."""
-    status = health.get_status()
-    status["available_tools"] = registry.tool_names()
-    stuck = engine.get_stuck_executions()
-    if stuck:
-        status["stuck_executions"] = stuck
-    return json.dumps(status, indent=2)
-
-
-# ── Force Cleanup Tool ──────────────────────────────────────────
-@mcp.tool()
-def force_cleanup() -> str:
-    """Force cleanup all stuck executions. Use when server appears unresponsive."""
-    count = engine.force_cleanup()
-    gc.collect()
-    return json.dumps(
-        {
-            "status": "cleaned",
-            "requests_cleaned": count,
-            "message": f"Force-cleaned {count} tracked executions and ran GC",
-        },
-        indent=2,
+    playbook_service.update_playbook(
+        db, playbook_id, status="draft", draft_definition=json.dumps(definition)
     )
 
-
-# ── File Download Endpoint ─────────────────────────────────────
-async def download_file(request):
-    """Serve a file download by path."""
-    from starlette.responses import FileResponse, JSONResponse
-
-    path = request.query_params.get("path", "")
-    if not path:
-        return JSONResponse({"error": "Missing path parameter"}, status_code=400)
-    if not os.path.isfile(path):
-        return JSONResponse({"error": "File not found"}, status_code=404)
-    return FileResponse(path, media_type="application/octet-stream")
+    return JSONResponse({"playbook_id": playbook_id, "valid": True})
 
 
-# ── Monitor Endpoints ──────────────────────────────────────────────
-async def monitor_stream(request):
-    """Server-sent events stream of live monitor snapshots.
+async def put_definition_publish(request: Request) -> JSONResponse:
+    """Publish playbook definition."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
 
-    Connects a client to the monitor's broadcast queue. Sends an immediate
-    snapshot, then pushes new snapshots whenever state changes (or every
-    second as a heartbeat).
-    """
-    from starlette.responses import StreamingResponse
+    playbook_id = request.path_params["id"]
+    body = await request.json()
+    definition = body.get("definition")
+    version = body.get("version", "1.0.0")
 
-    queue = monitor.subscribe()
+    if not isinstance(definition, dict):
+        return JSONResponse({"error": "definition is required"}, status_code=422)
 
-    async def event_generator():
-        # Immediate snapshot on connect
-        snapshot = monitor.build_snapshot()
-        yield f"data: {json.dumps(snapshot)}\n\n"
+    from kali_mcp.studio import playbook_service
 
-        try:
-            while True:
-                try:
-                    snapshot = await asyncio.wait_for(queue.get(), timeout=1.0)
-                    yield f"data: {json.dumps(snapshot)}\n\n"
-                except asyncio.TimeoutError:
-                    # Heartbeat: send a fresh snapshot every second
-                    snapshot = monitor.build_snapshot()
-                    yield f"data: {json.dumps(snapshot)}\n\n"
-        except asyncio.CancelledError:
-            pass
-        finally:
-            monitor.unsubscribe(queue)
+    validation = playbook_service.validate_definition(db, playbook_id, definition, for_publish=True)
+    if not validation["valid"]:
+        return JSONResponse(
+            {"error": "definition failed validation", "details": validation["findings"]},
+            status_code=422,
+        )
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    vid = playbook_service.publish_playbook_version(
+        db, playbook_id, version, definition, published_by="studio"
+    )
+
+    return JSONResponse({
+        "playbook_id": playbook_id,
+        "version_id": vid,
+        "status": "published",
+    })
 
 
-async def monitor_action(request):
-    """Execute a monitor action: kill_job, force_cleanup, or get_snapshot."""
-    from starlette.requests import Request
-    from starlette.responses import JSONResponse
+async def list_versions(request: Request) -> JSONResponse:
+    """List playbook versions."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
 
-    req = Request(request.scope, request.receive)
+    playbook_id = request.path_params["id"]
+    versions = db.list_playbook_versions(playbook_id)
+    return JSONResponse({"versions": versions})
+
+
+async def rollback_playbook(request: Request) -> JSONResponse:
+    """Rollback playbook to a previous version."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    playbook_id = request.path_params["id"]
+    body = await request.json()
+    version_id = body.get("version_id")
+
+    from kali_mcp.studio import playbook_service
+
     try:
-        body = await req.json()
-    except Exception:  # noqa: BLE001
+        playbook_service.rollback_version(db, playbook_id, version_id)
+    except (ValueError, LookupError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    return JSONResponse({"status": "rolled_back", "version_id": str(version_id)})
+
+
+async def export_playbook(request: Request) -> JSONResponse:
+    """Export playbook."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    playbook_id = request.path_params["id"]
+    from kali_mcp.studio import playbook_service
+
+    pkg = playbook_service.export_playbook(db, playbook_id)
+    if pkg is None:
+        return JSONResponse({"error": "playbook not found"}, status_code=404)
+
+    return JSONResponse(pkg)
+
+
+async def import_playbook(request: Request) -> JSONResponse:
+    """Import playbook."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    body = await request.json()
+    package = body.get("package")
+    if not package:
+        return JSONResponse({"error": "package is required"}, status_code=422)
+
+    from kali_mcp.studio import playbook_service
+
+    result = playbook_service.import_playbook(db, package)
+    return JSONResponse(result)
+
+
+async def delete_playbook(request: Request) -> JSONResponse:
+    """Delete playbook."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    playbook_id = request.path_params["id"]
+    from kali_mcp.studio import playbook_service
+
+    ok = playbook_service.delete_playbook(db, playbook_id)
+    if not ok:
+        return JSONResponse({"error": "playbook not found"}, status_code=404)
+
+    return JSONResponse({"status": "deleted"})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Execution routes
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def list_executions(request: Request) -> JSONResponse:
+    """List workflow executions."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    from kali_mcp.studio import service_executions
+
+    status = request.query_params.get("status")
+    playbook_id = request.query_params.get("playbook_id")
+    limit = int(request.query_params.get("limit", "50"))
+    offset = int(request.query_params.get("offset", "0"))
+
+    rows = service_executions.list_executions(
+        db, status=status, playbook_id=playbook_id, limit=limit, offset=offset
+    )
+    return JSONResponse({"executions": rows, "limit": limit, "offset": offset})
+
+
+async def start_execution(request: Request) -> JSONResponse:
+    """Start a playbook execution."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    from kali_mcp.studio import service_executions
+
+    try:
+        body = await request.json()
+    except Exception:
         return JSONResponse({"error": "invalid JSON"}, status_code=400)
 
-    action = body.get("action")
-    if action == "kill_job":
-        result = await monitor.kill_job(body.get("request_id", ""))
-    elif action == "force_cleanup":
-        result = await monitor.force_cleanup()
-    elif action == "get_snapshot":
-        result = monitor.build_snapshot()
-    else:
-        return JSONResponse({"error": "unknown action"}, status_code=400)
+    playbook_id = body.get("playbook_id")
+    inputs = body.get("inputs")
+    debug = body.get("debug", False)
+    trigger = body.get("trigger", "studio")
+
+    try:
+        result = await service_executions.start_execution(
+            db, playbook_id, inputs=inputs, debug=debug, trigger=trigger
+        )
+    except (LookupError, ValueError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
 
     return JSONResponse(result)
 
 
-# ── Middleware ───────────────────────────────────────────────────
-class TokenAuthMiddleware:
-    """Bearer-token gate for the HTTP surface.
+async def get_execution(request: Request) -> JSONResponse:
+    """Get execution detail."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
 
-    ``open_paths`` lists path prefixes (e.g. ``("/studio",)``) that are
-    served WITHOUT authentication. This exists so the Playbook Studio
-    static UI can load in a regular browser — the UI is inert without
-    the API, and every ``/api/*``, MCP, and monitor path still requires
-    the token.
-    """
+    from kali_mcp.studio import service_executions
 
-    # Methods that may pass through an open path (browser asset loads).
-    _OPEN_METHODS = ("GET", "HEAD")
-
-    def __init__(
-        self,
-        app,
-        token: str,
-        token_in_query: bool = False,
-        open_paths: tuple[str, ...] = (),
-    ):
-        self.app = app
-        self.token = token
-        self.token_in_query = token_in_query
-        self.open_paths = tuple(open_paths)
-
-    def _is_open(self, path: str, method: str) -> bool:
-        if method not in self._OPEN_METHODS:
-            return False
-        return any(path == p or path.startswith(p + "/") for p in self.open_paths)
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and self.token:
-            path = scope.get("path", "")
-            method = scope.get("method", "")
-            if not self._is_open(path, method):
-                from starlette.requests import Request
-                from starlette.responses import JSONResponse
-
-                request = Request(scope, receive)
-                auth = request.headers.get("authorization", "")
-                provided = auth.removeprefix("Bearer ").strip()
-                if self.token_in_query:
-                    provided = provided or request.query_params.get("token", "")
-                if provided != self.token:
-                    response = JSONResponse({"error": "Unauthorized"}, status_code=401)
-                    await response(scope, receive, send)
-                    return
-
-        await self.app(scope, receive, send)
+    execution_id = request.path_params["id"]
+    row = service_executions.get_execution(db, execution_id)
+    if row is None:
+        return JSONResponse({"error": "execution not found"}, status_code=404)
+    return JSONResponse(row)
 
 
-# ── Main ────────────────────────────────────────────────────────
-def main() -> None:
-    """Run the MCP server over HTTP (SSE or streamable-http)."""
-    import uvicorn
-    from starlette.middleware.cors import CORSMiddleware
+async def cancel_execution(request: Request) -> JSONResponse:
+    """Cancel execution."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
 
-    if config.transport == "streamable-http":
-        app = mcp.streamable_http_app()
-        logger.info("Transport: streamable-http")
-    else:
-        app = mcp.sse_app()
-        logger.info("Transport: sse")
+    from kali_mcp.studio import service_executions
 
-    origins = [o.strip() for o in config.allowed_origins.split(",") if o.strip()]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    execution_id = request.path_params["id"]
+    try:
+        await service_executions.cancel_execution(db, execution_id)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
 
-    api_token = os.getenv("MCP_API_TOKEN", "") or config.api_token
-    if not api_token and not config.insecure:
-        raise SystemExit(
-            "MCP_API_TOKEN is required. Set MCP_API_TOKEN in .env, or set "
-            "KALI_MCP_INSECURE=1 to run without authentication (dev only)."
-        )
-    if api_token and not config.insecure:
-        app.add_middleware(
-            TokenAuthMiddleware,
-            token=api_token,
-            token_in_query=config.token_in_query,
-            open_paths=("/studio",),
-        )
-        logger.info(
-            "API token authentication enabled (/studio UI assets are public;"
-            " /api/* and MCP are token-protected)"
-        )
-    else:
-        logger.warning(
-            "KALI_MCP_INSECURE=1 or no MCP_API_TOKEN set — server is open."
-        )
-
-    # Graceful shutdown
-    def _shutdown_handler(signum, frame):
-        logger.info("Received signal %d, shutting down...", signum)
-        health.stop()
-        engine.force_cleanup()
-
-    signal.signal(signal.SIGTERM, _shutdown_handler)
-    signal.signal(signal.SIGINT, _shutdown_handler)
-
-    # File download route
-    from starlette.routing import Route
-
-    app.routes.insert(0, Route("/download", download_file, methods=["GET"]))
-    app.routes.insert(0, Route("/monitor/stream", monitor_stream, methods=["GET"]))
-    app.routes.insert(0, Route("/monitor/action", monitor_action, methods=["POST"]))
-
-    # ── Studio REST routes (Playbook Studio Phase 4) ────────────────
-    if getattr(config, "studio_enabled", True):
-        from kali_mcp.studio.api import mount_studio_routes
-
-        mount_studio_routes(app)
-    logger.info("Studio REST routes mounted")
-
-    # ── Studio static web (Phase 5) ────────────────────────────────
-    web_dir = os.path.join(os.path.dirname(__file__), "studio", "web")
-    if os.path.isdir(web_dir):
-        from starlette.staticfiles import StaticFiles
-
-        app.mount("/studio", StaticFiles(directory=web_dir, html=True), name="studio")
-        logger.info("Studio web assets mounted at /studio")
-
-    # ── Dedicated Studio port (optional) ───────────────────────────
-    # When STUDIO_PORT is set (and differs from the main port), the Studio
-    # web UI + its REST routes are also served on that port by a standalone
-    # app, so agents and the browser UI use separate ports.
-    studio_ui_port = getattr(config, "studio_port", 0)
-    if getattr(config, "studio_enabled", True) and studio_ui_port and studio_ui_port != config.port:
-        from starlette.applications import Starlette
-        from starlette.routing import Mount
-        from starlette.staticfiles import StaticFiles
-
-        studio_app = Starlette(routes=[])
-        if getattr(config, "studio_enabled", True):
-            mount_studio_routes(studio_app)
-        if os.path.isdir(web_dir):
-            studio_app.routes.insert(
-                0, Mount("/studio", StaticFiles(directory=web_dir, html=True))
-            )
-
-        def _run_studio_ui() -> None:
-            uvicorn.run(
-                studio_app,
-                host=config.host,
-                port=studio_ui_port,
-                log_level="debug" if config.debug else "info",
-                access_log=config.debug,
-            )
-
-        threading.Thread(target=_run_studio_ui, name="studio-ui-server", daemon=True).start()
-        logger.info(
-            "Studio web UI served on dedicated port http://%s:%s",
-            config.host,
-            studio_ui_port,
-        )
-
-    # ── Start the HTTP server ──────────────────────────────────────
-    # Production entry point: bind to host:port and serve forever.
-    # main() previously built the app and returned, so kmcp start / python
-    # -m kali_mcp.server did nothing. uvicorn.run blocks here until shutdown.
-    logger.info(
-        "Starting kali-mcp server on %s:%s (transport=%s, debug=%s)",
-        config.host,
-        config.port,
-        config.transport,
-        config.debug,
-    )
-    uvicorn.run(
-        app,
-        host=config.host,
-        port=config.port,
-        log_level="debug" if config.debug else "info",
-        access_log=config.debug,
-    )
+    return JSONResponse({"status": "cancelled"})
 
 
-if __name__ == "__main__":
-    main()
+async def resume_execution(request: Request) -> JSONResponse:
+    """Resume execution."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    from kali_mcp.studio import service_executions
+
+    execution_id = request.path_params["id"]
+    try:
+        await service_executions.resume_execution(db, execution_id)
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    return JSONResponse({"status": "resumed"})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# mount_studio_routes — mounts all studio routes on a Starlette app
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def mount_studio_routes(app) -> None:
+    """Mount all Studio REST routes on the given Starlette app."""
+
+    # Playbook routes
+    app.add_route("/api/playbooks", list_playbooks, methods=["GET"])
+    app.add_route("/api/playbooks", import_playbook, methods=["POST"])
+    app.add_route("/api/playbooks/{id}", get_playbook, methods=["GET"])
+    app.add_route("/api/playbooks/{id}", delete_playbook, methods=["DELETE"])
+    app.add_route("/api/playbooks/{id}/definition", put_definition, methods=["PUT"])
+    app.add_route("/api/playbooks/{id}/publish", put_definition_publish, methods=["POST"])
+    app.add_route("/api/playbooks/{id}/validate-definition", put_definition, methods=["POST"])
+    app.add_route("/api/playbooks/{id}/versions", list_versions, methods=["GET"])
+    app.add_route("/api/playbooks/{id}/rollback", rollback_playbook, methods=["POST"])
+    app.add_route("/api/playbooks/{id}/export", export_playbook, methods=["GET"])
+
+    # Execution routes
+    app.add_route("/api/executions", list_executions, methods=["GET"])
+    app.add_route("/api/executions", start_execution, methods=["POST"])
+    app.add_route("/api/executions/{id}", get_execution, methods=["GET"])
+    app.add_route("/api/executions/{id}/cancel", cancel_execution, methods=["POST"])
+    app.add_route("/api/executions/{id}/resume", resume_execution, methods=["POST"])
