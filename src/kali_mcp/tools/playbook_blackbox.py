@@ -100,11 +100,14 @@ class PlaybookRunTool(BaseTool):
             "  - scope_id: optional scope identifier for the authorization boundary.\n"
             "  - profile: safe_active | aggressive | passive (default safe_active).\n"
             "  - detail: summary | normal | full (default normal).\n"
+            "  - inputs: named playbook inputs (Studio playbooks).\n"
             "  - background: run as a background job and return job_id (default auto).\n\n"
             "Returns:\n"
-            "  - assessment_id, job_id, status, assets, findings, correlated findings,\n"
-            "    asset_graph, next_actions, execution summary.\n\n"
-            "Does not: return raw tool stdout (use playbook_result or vault)."
+            "  - assessment_id, job_id, execution_id (Studio), status, assets, findings,\n"
+            "    correlated findings, asset_graph, next_actions, execution summary.\n\n"
+            "Does not: return raw tool stdout (use playbook_result or vault).\n"
+            "Studio playbooks require assignment to the agent profile "
+            "(deny-by-default) when the request carries an agent profile context."
         )
 
     @property
@@ -279,11 +282,154 @@ class PlaybookRunTool(BaseTool):
         result["assessment_run"] = payload
         return result
 
+    # ── Studio (DB) playbook execution (Phase 6) ─────────────────────
+
+    async def _execute_studio(
+        self, arguments: dict[str, Any], playbook: str
+    ) -> dict[str, Any]:
+        """Run a published Studio playbook through the DAG engine.
+
+        Enforcement (06_MCP_ARCHITECTURE §6): when the request resolves to an
+        agent profile, the playbook must be assigned via
+        ``agent_playbook_assignments`` (deny-by-default) before execution.
+        The run is recorded durably in ``workflow_executions`` /
+        ``workflow_step_executions`` and returns the same result contract as
+        the black-box path.
+        """
+        target = arguments.get("target") or ""
+        route_inputs: dict[str, Any] = {}
+
+        # Compose module inputs from explicit inputs, then options, then target
+        for source in ("inputs", "options"):
+            val = arguments.get(source)
+            if isinstance(val, dict):
+                route_inputs.update(val)
+        if target:
+            route_inputs.setdefault("target", target)
+            route_inputs.setdefault("targets", target)
+
+        profile = get_current_profile()
+        from kali_mcp.db import manager as dbm
+
+        db = dbm.get_db()
+        execution_id = _new_id("wexec")
+        job_id = _new_id("job")
+        assessment_id = _new_id("assessment")
+        if profile is not None and not agent_context.is_playbook_assigned(
+            profile, playbook
+        ):
+            return _error_payload_text(
+                forbidden_playbook_payload(playbook, profile)
+            )
+
+        try:
+            defn, meta = _studio_run_definition(playbook, route_inputs)
+        except ValueError as exc:
+            return error_response(
+                ToolError(error=exc.args[0] if exc.args else str(exc))
+            )
+
+        if db is not None:
+            try:
+                _record_studio_execution(
+                    db, execution_id, playbook, meta["version_id"], job_id,
+                    assessment_id, profile,
+                    {k: v for k, v in defn.inputs.items()
+                     if v == route_inputs.get(k)},
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("workflow_execution record failed")
+
+        from kali_mcp.workflow.dag_executor import run_playbook_async
+        from kali_mcp.workflow.scope_gate import ScopeViolationError
+
+        try:
+            res = await run_playbook_async(defn)
+        except ScopeViolationError as exc:
+            if db is not None:
+                db.update_workflow_execution(
+                    execution_id, status="failed", error=str(exc),
+                    completed_at=utc_now_iso(),
+                )
+            return error_response(ToolError(error=f"scope violation: {exc}"))
+        except Exception as exc:  # noqa: BLE001
+            if db is not None:
+                db.update_workflow_execution(
+                    execution_id, status="failed", error=str(exc),
+                    completed_at=utc_now_iso(),
+                )
+            logger.exception("studio playbook run failed: %s", playbook)
+            return error_response(ToolError(error=str(exc)))
+
+        try:
+            payload = json.loads(res.stdout or "{}") or {}
+        except json.JSONDecodeError:
+            payload = {
+                "status": "completed" if res.success else "failed",
+                "results": [],
+                "step_results": {},
+            }
+        payload.setdefault("status", "completed" if res.success else "failed")
+        payload["playbook"] = playbook
+        payload["target"] = target
+        payload["version"] = meta.get("version")
+        payload["summary"] = payload.get("summary") or {
+            "steps": payload.get("steps", []),
+            "completed_steps": payload.get("completed_steps", 0),
+        }
+
+        if db is not None:
+            _persist_studio_result(db, execution_id, payload, res.success)
+
+        # Keep the in-memory registry coherent for playbook_result polling
+        JOB_REGISTRY[job_id] = {
+            "job_id": job_id,
+            "assessment_id": assessment_id,
+            "execution_id": execution_id,
+            "tool": self.name,
+            "playbook": playbook,
+            "target": target,
+            "status": payload.get("status", "completed"),
+            "engine": "studio_dag",
+            "started_at": utc_now_iso(),
+            "finished_at": utc_now_iso(),
+            "result": {
+                "summary": payload.get("summary"),
+                "results": payload.get("results"),
+                "steps": payload.get("steps"),
+            },
+        }
+
+        out = {
+            "job_id": job_id,
+            "assessment_id": assessment_id,
+            "execution_id": execution_id,
+            "playbook": playbook,
+            "target": target,
+            "status": payload.get("status", "completed"),
+            "version": meta.get("version"),
+            "summary": payload.get("summary") or {},
+            "results": payload.get("results", []),
+            "next_actions": [
+                "Use playbook_result with the job_id to re-read the full result.",
+            ],
+        }
+        if arguments.get("detail") == "full":
+            out["step_results"] = payload.get("step_results", {})
+        result = _success_tool_result(self.name, out)
+        result["assessment_run"] = {
+            "job_id": job_id,
+            "assessment_id": assessment_id,
+            "status": out["status"],
+        }
+        return result
+
 
 async def _run_background(job_id: str, coroutine_factory) -> None:
     """Run a background playbook task and keep the registry entry updated."""
     try:
         await coroutine_factory()
+    except Exception as e:  # noqa: BLE001
         STATUS = JOB_REGISTRY.get(job_id)
         if STATUS is not None:
             STATUS["status"] = "failed"
@@ -455,10 +601,11 @@ class StudioForbidden(Exception):
         )
 
 
-def _error_payload_text(payload: dict[str, Any]) -> dict[str, Any]:
+def _error_payload_text(payload: dict[str, Any] | str) -> dict[str, Any]:
     """Tool-result shape carrying a JSON error payload (MCP text content)."""
+    text = payload if isinstance(payload, str) else json.dumps(payload, indent=2)
     return {
-        "content": [{"type": "text", "text": json.dumps(payload, indent=2)}],
+        "content": [{"type": "text", "text": text}],
         "isError": True,
     }
 
@@ -508,8 +655,61 @@ class PlaybookCatalogTool(BaseTool):
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         from kali_mcp.playbooks.registry import list_playbooks
 
-        playbooks = list_playbooks()
         detail = arguments.get("detail", "compact")
+
+        # ── Studio path: agent profile context → assigned playbooks only
+        profile = get_current_profile()
+        if profile:
+            from kali_mcp.db import manager as dbm
+
+            db = dbm.get_db()
+            assigned = agent_context.assigned_playbooks(profile) if db else []
+            playbooks = []
+            for pb in assigned:
+                if pb.get("status") != "published":
+                    continue
+                entry: dict[str, Any] = {
+                    "id": pb["playbook_id"],
+                    "name": pb.get("name", pb["playbook_id"]),
+                    "source": "studio",
+                }
+                vid = pb.get("current_version_id")
+                if db is not None and vid is not None:
+                    try:
+                        version = db.get_playbook_version(vid)
+                        definition = version.get("definition") if version else None
+                        if isinstance(definition, str):
+                            definition = json.loads(definition)
+                        if isinstance(definition, dict):
+                            entry["description"] = definition.get("description", "")
+                            if detail == "compact":
+                                entry["inputs"] = sorted(
+                                    (definition.get("inputs") or {}).keys()
+                                )
+                                entry["outputs"] = sorted(
+                                    (definition.get("outputs") or {}).keys()
+                                )
+                            else:
+                                entry["definition"] = definition
+                            entry["estimated_duration"] = (
+                                (definition.get("execution") or {}).get("timeout", 300)
+                            )
+                    except Exception:  # noqa: BLE001
+                        pass
+                playbooks.append(entry)
+            playbooks.sort(key=lambda p: p["id"])
+            payload = {
+                "profile_id": profile,
+                "playbooks": playbooks,
+                "count": len(playbooks),
+                "next_actions": [
+                    "Use playbook_run with one of these playbook ids and its declared inputs.",
+                ],
+            }
+            return _success_tool_result(self.name, payload)
+
+        # ── Legacy black-box path (no agent profile context) ──
+        playbooks = list_playbooks()
         if detail == "compact":
             playbooks = [
                 {"id": p["id"], "name": p["name"], "description": p["description"],
@@ -571,6 +771,55 @@ class PlaybookResultTool(BaseTool):
         assessment_id = arguments.get("assessment_id") or ""
         job_id = arguments.get("job_id") or ""
         key = job_id or assessment_id
+
+        # 0. Studio durable executions (Phase 6 workflow_executions) — job_id key
+        from kali_mcp.db import manager as dbm
+
+        db = dbm.get_db()
+        if db is not None:
+            try:
+                rows = db.list_workflow_executions(job_id=key) if job_id else []
+            except Exception:  # noqa: BLE001
+                rows = []
+            if rows:
+                row = rows[0]
+                try:
+                    steps = db.list_step_executions(row["execution_id"])
+                except Exception:  # noqa: BLE001
+                    steps = []
+                outputs = row.get("outputs")
+                if isinstance(outputs, str):
+                    try:
+                        outputs = json.loads(outputs)
+                    except json.JSONDecodeError:
+                        outputs = {"raw": outputs}
+                running = row.get("status") == "running"
+                payload = {
+                    "job_id": row.get("job_id") or key,
+                    "assessment_id": row.get("assessment_id"),
+                    "execution_id": row.get("execution_id"),
+                    "playbook": row.get("playbook_id"),
+                    "version_id": row.get("version_id"),
+                    "status": row.get("status"),
+                    "engine": "studio_dag",
+                    "result": None if running else (outputs or {}),
+                    "steps": [
+                        {
+                            "step_id": s.get("step_id"),
+                            "status": s.get("status"),
+                            "error": s.get("error"),
+                            "duration_ms": s.get("duration_ms"),
+                        }
+                        for s in steps
+                    ],
+                }
+                if row.get("error"):
+                    payload["error"] = row["error"]
+                if running:
+                    payload["next_actions"] = [
+                        "Execution still running — call playbook_result again.",
+                    ]
+                return _success_tool_result(self.name, payload)
 
         # 1. In-memory registry (running / completed this session)
         for _, status in JOB_REGISTRY.items():
