@@ -440,6 +440,56 @@ async def discover_connection_api(request: Request) -> JSONResponse:
     return JSONResponse({"imported_tools": imported, "count": len(imported)})
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Tool Registry handlers
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+async def list_tools_api(request: Request) -> JSONResponse:
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    limit = int(request.query_params.get("limit", 500))
+    visibility = request.query_params.get("visibility")
+    enabled = request.query_params.get("enabled")
+    enabled_bool = None
+    if enabled is not None:
+        enabled_bool = enabled.lower() == "true"
+    rows = db.list_tool_definitions(
+        visibility=visibility, enabled=enabled_bool,
+    )
+    tools = []
+    for r in rows[:limit]:
+        tools.append({
+            "tool_id": r["tool_id"],
+            "name": r["name"],
+            "description": r["description"],
+            "provider": r["provider"],
+            "visibility": r["visibility"],
+            "enabled": bool(r["enabled"]),
+            "input_schema": r["input_schema"],
+        })
+    return JSONResponse({"tools": tools, "count": len(tools)})
+
+
+async def set_tool_visibility_api(request: Request) -> JSONResponse:
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    tool_id = request.path_params["id"]
+    body = await request.json()
+    visibility = body.get("visibility")
+    if not visibility:
+        return JSONResponse({"error": "visibility required"}, status_code=400)
+    db.upsert_tool_definition(
+        tool_id=tool_id, name=tool_id, description=None, provider="native",
+        visibility=visibility, enabled=True,
+    )
+    from kali_mcp.registry import registry as global_registry
+    global_registry.set_visibility(tool_id, visibility)
+    return JSONResponse({"tool_id": tool_id, "visibility": visibility})
+
+
 def mount_studio_routes(app) -> None:
     """Mount all Studio REST routes on the given Starlette app."""
 
@@ -465,6 +515,10 @@ def mount_studio_routes(app) -> None:
     app.add_route("/api/connections/{id}", delete_connection_api, methods=["DELETE"])
     app.add_route("/api/connections/{id}/test", test_connection_api, methods=["POST"])
     app.add_route("/api/connections/{id}/discover", discover_connection_api, methods=["POST"])
+
+    # Tool Registry routes
+    app.add_route("/api/tools", list_tools_api, methods=["GET"])
+    app.add_route("/api/tools/{id}/visibility", set_tool_visibility_api, methods=["PUT"])
 
     # Execution routes
     app.add_route("/api/executions", list_executions, methods=["GET"])
