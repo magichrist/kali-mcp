@@ -171,7 +171,7 @@ async function pageOverview() {
     </div>`;
 }
 
-/* ── route: playbook studio ────────────────────────────────────────── */
+/* ── route: playbook studio (library + editor) ─────────────────────── */
 
 let selectedId = null;
 let playbooksCache = [];
@@ -179,50 +179,1324 @@ let playbooksCache = [];
 async function refreshPlaybooks() {
   const d = await api("/playbooks?limit=200");
   playbooksCache = d.playbooks || [];
-  renderPlaybookList();
-  if (!selectedId && playbooksCache.length) await selectPlaybook(playbooksCache[0].playbook_id);
-  if (!playbooksCache.length) {
-    $("#dslCode") && ($("#dslCode").value = "");
-    $("#editorTitle") && ($("#editorTitle").textContent = "No playbooks yet");
-  }
+  if ($("#pbGrid")) renderPlaybookGrid();
 }
 
-function renderPlaybookList() {
-  const el = $("#playbookList");
+function pbFiltered() {
+  const q = ($("#pbSearch")?.value || "").toLowerCase().trim();
+  const st = $("#pbStatusFilter")?.value || "";
+  const cat = $("#pbCategoryFilter")?.value || "";
+  let rows = playbooksCache.filter((p) =>
+    (!q || `${p.name} ${p.playbook_id} ${p.description || ""}`.toLowerCase().includes(q)) &&
+    (!st || (p.status || "") === st) &&
+    (!cat || (p.category || "custom") === cat));
+  const sort = $("#pbSort")?.value || "newest";
+  if (sort === "name") rows = rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  else if (sort === "oldest") rows = rows.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+  else rows = rows.sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
+  return rows;
+}
+
+function renderPlaybookGrid() {
+  const el = $("#pbGrid");
   if (!el) return;
-  el.innerHTML = playbooksCache.length
-    ? playbooksCache.map((p) => `
-      <button class="playbook-item ${p.playbook_id === selectedId ? "active" : ""}" data-pb="${esc(p.playbook_id)}">
-        <strong>${esc(p.name)}</strong><br/>
-        <small>${esc(p.playbook_id)}</small> ${BADGE(p.status)}
-      </button>`).join("")
-    : `<p class="empty">No playbooks yet.</p>`;
-  $$("#playbookList .playbook-item").forEach((btn) =>
-    btn.addEventListener("click", () => selectPlaybook(btn.dataset.pb)));
+  const rows = pbFiltered();
+  if (!playbooksCache.length) {
+    el.innerHTML = `
+      <div class="lib-empty">
+        <div class="lib-empty-glyph">⌘</div>
+        <h2>Create your first playbook</h2>
+        <p>Build a security workflow out of registered tools, shell commands and internal stages — visually on the graph, in the DSL, or both.</p>
+        <div class="lib-empty-actions">
+          <button class="btn primary" id="pbNewBtn2">＋ Create playbook</button>
+          <button class="btn" id="pbImportBtn2">↙ Import playbook</button>
+        </div>
+      </div>`;
+    $("#pbNewBtn2")?.addEventListener("click", newPlaybook);
+    $("#pbImportBtn2")?.addEventListener("click", importPlaybook);
+    return;
+  }
+  if (!rows.length) {
+    el.innerHTML = `<p class="empty">No playbooks match this filter.</p>`;
+    return;
+  }
+  el.innerHTML = rows.map((p) => `
+    <a class="pb-card ${p.playbook_id === selectedId ? "active" : ""}" href="#/playbooks/${esc(p.playbook_id)}">
+      <div class="pb-card-top">
+        <span class="pb-card-name">${esc(p.name)}</span>${BADGE(p.status)}
+      </div>
+      <p class="pb-card-desc">${esc(p.description || "No description yet.")}</p>
+      <div class="pb-card-meta">
+        <span class="chip">${esc(p.category || "custom")}</span>
+        <span class="chip mono">${esc(p.playbook_id)}</span>
+        <span class="dim">v ${esc(p.current_version_id || "—")}</span>
+        <span class="dim">${esc((p.created_at || "").slice(0, 10))}</span>
+      </div>
+    </a>`).join("");
 }
 
-async function selectPlaybook(id) {
+async function pagePlaybooks() {
+  selectedId = null;
+  setPageMeta({ crumb: "Playbook Studio" });
+  $("#pageHeadInfo").innerHTML = `
+    <div class="eyebrow">PLAYBOOK STUDIO</div><h1>Playbooks</h1>
+    <div class="subtitle">Create, manage and organize security workflows. Open one to edit it on the graph or in the DSL.</div>`;
+  $("#pageHeadActions").innerHTML = headActionsHtml([
+    { id: "pbImportBtn", label: "↙ Import" },
+    { id: "pbNewBtn", label: "＋ New playbook", cls: "primary" },
+  ]);
+  $("#pageBody").innerHTML = `
+    <div class="filterbar lib-filter">
+      <input class="select" id="pbSearch" placeholder="Search playbooks…" style="flex:1;min-width:220px">
+      <select class="select" id="pbStatusFilter">
+        <option value="">All statuses</option><option value="draft">draft</option><option value="published">published</option>
+      </select>
+      <select class="select" id="pbCategoryFilter"><option value="">All categories</option></select>
+      <select class="select" id="pbSort">
+        <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name A–Z</option>
+      </select>
+    </div>
+    <div class="lib-grid" id="pbGrid"><p class="empty">Loading…</p></div>`;
+  $("#pbNewBtn").addEventListener("click", newPlaybook);
+  $("#pbImportBtn").addEventListener("click", importPlaybook);
+  ["input", "change"].forEach((ev) => {
+    $("#pbSearch").addEventListener(ev, renderPlaybookGrid);
+    $("#pbStatusFilter").addEventListener(ev, renderPlaybookGrid);
+    $("#pbCategoryFilter").addEventListener(ev, renderPlaybookGrid);
+    $("#pbSort").addEventListener(ev, renderPlaybookGrid);
+  });
+  await refreshPlaybooks();
+  const cats = [...new Set(playbooksCache.map((p) => p.category || "custom"))].sort();
+  $("#pbCategoryFilter").innerHTML =
+    `<option value="">All categories</option>` + cats.map((c) => `<option>${esc(c)}</option>`).join("");
+}
+
+async function pagePlaybookEditor(id) {
   selectedId = id;
-  renderPlaybookList();
+  builderView = "graph";
+  graphDef = null; graphSel = null; graphPos = {};
+  graphZoom = 1; graphPan = { x: 0, y: 0 };
+  historyStack = []; futureStack = [];
+  inspectTab = "general";
+  runStatus = {};
+  if (runStatusTimer) { clearInterval(runStatusTimer); runStatusTimer = null; }
+
+  const crumbEl = $("#crumbPage");
+  if (crumbEl) crumbEl.textContent = id;
+  $("#pageHeadInfo").innerHTML = "";
+  $("#pageHeadActions").innerHTML = "";
+  const ph = $(".pagehead");
+  if (ph) ph.classList.add("hide");
+  $("#pageBody").className = "pagebody editor-body";
+
+  $("#pageBody").innerHTML = `
+  <section class="editor-shell" id="editorShell">
+    <header class="pb-head">
+      <div class="pb-head-l">
+        <a class="btn ghost back-btn" href="#/playbooks" title="Back to playbooks">↩ Playbooks</a>
+        <div class="pb-title">
+          <h2 id="pbName">…</h2>
+          <div class="pb-meta" id="pbMeta"></div>
+        </div>
+      </div>
+      <div class="pb-head-r">
+        <button class="btn" id="pbValidate">Validate</button>
+        <button class="btn" id="pbSave" title="Save draft">Save draft</button>
+        <button class="btn accent" id="pbRun" title="Run published version with test inputs">▶ Run test</button>
+        <button class="btn primary" id="pbPublish">Publish</button>
+        <div class="menu" id="pbMenuWrap">
+          <button class="btn ghost" id="pbMore" title="More actions">⋯</button>
+          <div class="menu-list" id="pbMenuList" hidden>
+            <button data-mact="versions">Versions &amp; rollback</button>
+            <button data-mact="export">Export JSON</button>
+            <button data-mact="import">Import over…</button>
+            <button data-mact="delete" class="danger">Delete playbook</button>
+          </div>
+        </div>
+      </div>
+    </header>
+    <div class="pb-bar">
+      <div class="segmented" id="builderSwitch">
+        <button data-view="graph" class="active">Graph</button>
+        <button data-view="dsl">DSL</button>
+      </div>
+      <span class="pb-hint dim" id="pbHint"></span>
+    </div>
+    <div class="editor-grid" id="editorGrid">
+      <aside class="palette" id="palette" hidden></aside>
+      <div class="canvas-col">
+        <div class="graph-toolbar" id="graphToolbar">
+          <button class="btn icon" id="paletteBtn" title="Toggle node palette">☰</button>
+          <span class="tool-sep"></span>
+          <button class="btn icon" id="undoBtn" title="Undo">↶</button>
+          <button class="btn icon" id="redoBtn" title="Redo">↷</button>
+          <span class="tool-sep"></span>
+          <button class="btn" id="addToolBtn" title="Add a registered-tool step">＋ Tool</button>
+          <button class="btn" id="addShellBtn" title="Add a shell-command node (inputs → command → filter)">＋ Shell</button>
+          <span class="tool-sep"></span>
+          <button class="btn icon" id="resetLayoutBtn" title="Auto-layout">⇋</button>
+          <button class="btn icon" id="zoomOut" title="Zoom out">−</button>
+          <button class="btn icon" id="zoomReset" title="Fit to screen">⛶</button>
+          <button class="btn icon" id="zoomIn" title="Zoom in">＋</button>
+          <button class="btn icon" id="delSelBtn" title="Delete selected node">✕</button>
+          <span class="tool-sep"></span>
+          <span class="count" id="graphCount">0 steps</span>
+        </div>
+        <div class="canvas-area" id="canvasArea">
+          <div class="canvas-inner" id="canvasInner">
+            <svg class="edges" id="edgeLayer" width="6000" height="4000" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+          <div class="canvas-legend">
+            <span><i class="legend-dot" style="background:#edc57c"></i>tool</span>
+            <span><i class="legend-dot" style="background:#f09685"></i>shell</span>
+            <span><i class="legend-dot" style="background:#92dbad"></i>scope / report</span>
+            <span><i class="legend-dot" style="background:#aabaff"></i>correlation</span>
+          </div>
+          <div class="canvas-empty" id="canvasEmpty" hidden>
+            <div class="ce-glyph">⌘</div>
+            <h3>Your workflow starts here</h3>
+            <p>Add a step to begin — pick one from the palette, or use the ＋ buttons in the graph toolbar.</p>
+            <button class="btn primary" id="firstStepBtn">Add first step</button>
+          </div>
+        </div>
+      </div>
+      <div class="ins-resizer" id="insResizer" title="Drag to resize the inspector"></div>
+      <div class="ins-col" id="insCol">
+        <aside class="inspector" id="inspector"></aside>
+      </div>
+    </div>
+    <div class="dsl-panel" id="dslPanel" hidden>
+      <textarea class="code-area" id="dslCode" spellcheck="false" placeholder="Playbook definition (JSON as returned by /definition)…"></textarea>
+      <div class="dsl-bar"><span class="dim">Canonical model — the graph above edits this same JSON. Graph ⇄ DSL is always in sync.</span></div>
+    </div>
+    <div class="result-wrap"><pre class="result" id="editorResult" hidden></pre></div>
+  </section>`;
+
+  /* ── load playbook meta + definition ── */
   try {
     const [d, defn] = await Promise.all([
       api(`/playbooks/${encodeURIComponent(id)}`),
       api(`/playbooks/${encodeURIComponent(id)}/definition`).catch(() => ({ definition: null })),
     ]);
     const def = defn.definition;
+    $("#pbName").textContent = d.name || id;
+    if (crumbEl) crumbEl.textContent = d.name || id;
+    $("#pbMeta").innerHTML = `${BADGE(d.status)} <span class="version">v ${esc(d.current_version_id || "no version")}</span><span class="dim mono">${esc(id)}</span>`;
     $("#dslCode").value = def ? JSON.stringify(def, null, 2) : "";
-    $("#editorTitle").textContent = `${d.name} — ${id}`;
-    $("#editorStatus").innerHTML = `${BADGE(d.status)} <span class="version">${esc(d.current_version_id || "no version")}</span>`;
-    if (builderView === "graph") {
-      if (loadGraphFromDSL()) renderBuilder();
-    }
   } catch (err) {
+    $("#pbName").textContent = id;
+    $("#pbMeta").innerHTML = `<span class="error">${esc(err.message)}</span>`;
+  }
+
+  $("#editorShell").style.setProperty("--ins-w", "380px");
+
+  $("#paletteBtn").addEventListener("click", () => togglePalette());
+  $("#firstStepBtn").addEventListener("click", () => { togglePalette(true); addToolStep(); });
+  $("#undoBtn").addEventListener("click", undoGraph);
+  $("#redoBtn").addEventListener("click", redoGraph);
+  $("#addToolBtn").addEventListener("click", () => addToolStep());
+  $("#addShellBtn").addEventListener("click", () => addShellStep());
+  $("#resetLayoutBtn").addEventListener("click", resetGraphLayout);
+  $("#zoomIn").addEventListener("click", () => nudgeZoom(+0.2));
+  $("#zoomOut").addEventListener("click", () => nudgeZoom(-0.2));
+  $("#zoomReset").addEventListener("click", fitToScreen);
+  $("#delSelBtn").addEventListener("click", () => { if (graphSel) deleteGraphStep(graphSel); else toast("Select a node on the canvas first"); });
+
+  $$("#builderSwitch button").forEach((btn) =>
+    btn.addEventListener("click", () => switchBuilderView(btn.dataset.view)));
+
+  $("#pbValidate").addEventListener("click", validateDefinition);
+  $("#pbSave").addEventListener("click", saveDraft);
+  $("#pbPublish").addEventListener("click", publish);
+  $("#pbRun").addEventListener("click", () => runPlaybook(selectedId));
+  $("#pbMore").addEventListener("click", () => {
+    const l = $("#pbMenuList");
+    if (l) l.hidden = !l.hidden;
+  });
+  $$("#pbMenuList button").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      $("#pbMenuList").hidden = true;
+      const act = btn.dataset.mact;
+      if (act === "versions") showVersions();
+      else if (act === "export") exportPlaybook();
+      else if (act === "import") importPlaybook();
+      else if (act === "delete") deletePlaybook();
+    }));
+  document.addEventListener("click", pbCloseMenuOnOutside);
+
+  initInspectorResizer();
+  refreshTools().then(() => renderPalette()).catch(() => renderPalette());
+  loadRunStatus(selectedId).catch(() => {});
+  switchBuilderView("graph");
+  // keep large graphs fully visible on entry — the user should never land
+  // on a canvas where the last step is off-screen.
+  if (getGraphSteps().length >= 3) {
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => fitToScreen());
+    else fitToScreen();
+  }
+}
+
+function pbCloseMenuOnOutside(e) {
+  const wrap = $("#pbMenuWrap");
+  if (!wrap) { document.removeEventListener("click", pbCloseMenuOnOutside); return; }
+  if (!wrap.contains(e.target)) { const l = $("#pbMenuList"); if (l) l.hidden = true; }
+}
+
+function initInspectorResizer() {
+  const handle = $("#insResizer");
+  const shell = $("#editorShell");
+  if (!handle || !shell) return;
+  let startX = 0, startW = 0, dragging = false;
+  const move = (ev) => {
+    if (!dragging) return;
+    const w = Math.min(640, Math.max(300, Math.round(startW + (startX - ev.clientX))));
+    shell.style.setProperty("--ins-w", `${w}px`);
+  };
+  const up = () => {
+    dragging = false;
+    document.body.classList.remove("resizing");
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+  };
+  handle.addEventListener("mousedown", (e) => {
+    dragging = true;
+    document.body.classList.add("resizing");
+    startX = e.clientX;
+    startW = parseInt(getComputedStyle($("#insCol")).width, 10) || 380;
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", move);
+  document.addEventListener("mouseup", up);
+}
+
+function togglePalette(forceOpen) {
+  const pal = $("#palette");
+  if (!pal) return;
+  const open = forceOpen === true ? true : (forceOpen === false ? false : pal.hidden);
+  pal.hidden = !open;
+  $("#paletteBtn")?.classList.toggle("active", open);
+}
+
+/* ── canonical model: graphDef ⇄ DSL — a single source of truth ────── */
+
+const NODE_W = 280, NODE_H = 140, X_GAP = 360, Y_GAP = 200;
+let builderView = "graph";
+let graphDef = null;          // canonical definition object while editing
+let graphSel = null;          // selected step id
+let graphPos = {};            // {stepId:{x,y}} drag overrides
+let graphZoom = 1;
+let graphPan = { x: 0, y: 0 };
+let historyStack = [];
+let futureStack = [];
+let inspectTab = "general";
+let runStatus = {};           // {stepId: status} from the latest execution
+let runStatusTimer = null;
+
+const TYPE_ICONS = {
+  tool: { cls: "scan", glyph: "◎" },
+  shell: { cls: "cmd", glyph: "❯" },
+  scope_check: { cls: "dns", glyph: "✓" },
+  finding_correlation: { cls: "web", glyph: "⇄" },
+  assessment_report: { cls: "out", glyph: "▤" },
+  custom: { cls: "mod", glyph: "▣" },
+};
+const iconFor = (s) => TYPE_ICONS[s?.type] || { cls: "scan", glyph: "◈" };
+
+function getGraphSteps() { return Array.isArray(graphDef?.steps) ? graphDef.steps : []; }
+
+function stepById(id) { return getGraphSteps().find((s) => s.id === id); }
+
+function emptyDefinition(name) {
+  return { name: name || "draft", version: "1.0.0", inputs: {}, steps: [], execution: { timeout: 900, max_parallel: 4 } };
+}
+
+function loadGraphFromDSL() {
+  const raw = $("#dslCode")?.value?.trim();
+  if (raw) {
+    try {
+      graphDef = JSON.parse(raw);
+    } catch (err) {
+      toast("DSL is not valid JSON — fix the DSL before opening the graph: " + err.message, true);
+      return false;
+    }
+  } else {
+    graphDef = emptyDefinition(selectedId);
+  }
+  if (!Array.isArray(graphDef.steps)) graphDef.steps = [];
+  graphSel = null;
+  graphPos = {};
+  return true;
+}
+
+function captureGraphToDSL() {
+  if (builderView !== "graph" || !graphDef) return;
+  const t = $("#dslCode");
+  if (t) t.value = JSON.stringify(graphDef, null, 2);
+}
+
+function switchBuilderView(view) {
+  if (view === builderView && view === "graph") { renderBuilder(); return; }
+  if (builderView === "graph") captureGraphToDSL();
+  if (view === "graph") {
+    if (!loadGraphFromDSL()) return;   // invalid JSON: stay in DSL with a toast
+  }
+  builderView = view;
+  const dv = $("#dslPanel"), gr = $("#editorGrid");
+  if (dv) dv.hidden = view !== "dsl";
+  if (gr) gr.hidden = view !== "graph";
+  $$("#builderSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  if (view === "graph") renderBuilder();
+}
+
+/* ── undo / redo (JSON snapshots of the canonical model) ───────────── */
+
+function pushHistory() {
+  if (builderView !== "graph" || !graphDef) return;
+  historyStack.push(JSON.stringify(graphDef));
+  if (historyStack.length > 40) historyStack.shift();
+  futureStack = [];
+}
+
+function undoGraph() {
+  if (!historyStack.length) return toast("Nothing to undo");
+  if (builderView !== "graph") return;
+  futureStack.push(JSON.stringify(graphDef));
+  graphDef = JSON.parse(historyStack.pop());
+  graphSel = null;
+  captureGraphToDSL();
+  renderBuilder();
+}
+
+function redoGraph() {
+  if (!futureStack.length) return toast("Nothing to redo");
+  if (builderView !== "graph") return;
+  historyStack.push(JSON.stringify(graphDef));
+  graphDef = JSON.parse(futureStack.pop());
+  graphSel = null;
+  captureGraphToDSL();
+  renderBuilder();
+}
+
+/* ── layout: layering + positions ─────────────────────────────────── */
+
+/* cycle-safe longest-path layering (iterative relaxation) */
+function graphLayout(depths) {
+  const steps = getGraphSteps();
+  const ids = new Set(steps.map((s) => s.id));
+  steps.forEach((s) => { depths[s.id] = 0; });
+  for (let iter = 0; iter < steps.length + 1; iter++) {
+    let changed = false;
+    for (const s of steps) {
+      const deps = (s.depends_on || []).filter((d) => ids.has(d) && d !== s.id);
+      const d = deps.length ? Math.max(...deps.map((x) => (depths[x] ?? 0) + 1)) : 0;
+      if (d > depths[s.id]) { depths[s.id] = d; changed = true; }
+    }
+    if (!changed) break;
+  }
+}
+
+function nodePos(id, depths) {
+  if (graphPos[id]) return graphPos[id];
+  const depth = depths[id] ?? 0;
+  const sameLane = getGraphSteps().filter((s) => (depths[s.id] ?? 0) === depth);
+  const yIdx = sameLane.findIndex((s) => s.id === id);
+  return { x: 40 + depth * X_GAP, y: 40 + yIdx * Y_GAP };
+}
+
+function applyZoom() {
+  const inner = $("#canvasInner");
+  if (inner) inner.style.transform = `translate(${graphPan.x}px,${graphPan.y}px) scale(${graphZoom})`;
+}
+
+function nudgeZoom(delta) {
+  const area = $("#canvasArea");
+  const old = graphZoom;
+  graphZoom = Math.min(2, Math.max(0.25, Math.round((graphZoom + delta) * 100) / 100));
+  if (area && old !== graphZoom) {
+    const k = graphZoom / old;
+    const cx = area.clientWidth / 2, cy = area.clientHeight / 2;
+    graphPan = { x: Math.round(cx - (cx - graphPan.x) * k), y: Math.round(cy - (cy - graphPan.y) * k) };
+  }
+  applyZoom();
+}
+
+function fitToScreen() {
+  const steps = getGraphSteps();
+  if (!steps.length || builderView !== "graph") { graphZoom = 1; graphPan = { x: 0, y: 0 }; applyZoom(); return; }
+  const area = $("#canvasArea");
+  if (!area) return;
+  const depths = {};
+  graphLayout(depths);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const s of steps) {
+    const p = nodePos(s.id, depths);
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x + NODE_W); maxY = Math.max(maxY, p.y + NODE_H);
+  }
+  const pad = 48;
+  const w = Math.max(1, area.clientWidth - 2 * pad), h = Math.max(1, area.clientHeight - 2 * pad);
+  const z = Math.max(0.25, Math.min(1.25, w / (maxX - minX), h / (maxY - minY)));
+  graphZoom = Math.round(z * 100) / 100;
+  graphPan = {
+    x: Math.round((w - (maxX - minX) * graphZoom) / 2 - minX * graphZoom + pad),
+    y: Math.round((h - (maxY - minY) * graphZoom) / 2 - minY * graphZoom + pad),
+  };
+  applyZoom();
+}
+
+function resetGraphLayout() { pushHistory(); graphPos = {}; graphZoom = 1; graphPan = { x: 0, y: 0 }; renderBuilder(); toast("Layout reset"); }
+
+/* ── node rendering ────────────────────────────────────────────────── */
+
+function runStatusClass(id) {
+  const st = runStatus[id];
+  if (!st) return "";
+  if (st === "completed" || st === "ok") return "ok";
+  if (st === "failed" || st === "cancelled") return "failed";
+  if (st === "running" || st === "pending") return "run";
+  return "";
+}
+
+function renderBuilder() {
+  const inner = $("#canvasInner");
+  if (!inner) return;
+  if (!graphDef) loadGraphFromDSL();
+  const steps = getGraphSteps();
+  const depths = {};
+  graphLayout(depths);
+
+  $$(".node", inner).forEach((n) => n.remove());
+  applyZoom();
+  const empty = $("#canvasEmpty");
+  if (empty) empty.hidden = steps.length > 0;
+  const legend = $(".canvas-legend", inner);
+  if (legend) legend.style.display = steps.length ? "" : "none";
+
+  for (const s of steps) {
+    const p = nodePos(s.id, depths);
+    const ic = iconFor(s);
+    let bodyHtml = "";
+    if (s.type === "shell") {
+      const inRows = Object.entries(s.inputs || {})
+        .filter(([k]) => k)
+        .map(([k, v]) => `<div class="shell-line in"><i>in</i><b>${esc(k)}</b><span>${esc(String(v))}</span></div>`)
+        .join("") || `<div class="shell-line in"><i>in</i><span class="dim">no inputs</span></div>`;
+      const cmd = s.command ? esc(s.command) : '<span class="dim">no command</span>';
+      const f = s.filter && s.filter.type !== "none" ? s.filter : null;
+      const fLine = f
+        ? `<div class="shell-line flt"><i>⌕</i><b>${esc(f.type || "grep")}</b><span>${esc(String(f.pattern || "").slice(0, 46))}</span></div>`
+        : `<div class="shell-line flt"><i>⌕</i><span class="dim">no filter</span></div>`;
+      bodyHtml = `${inRows}<div class="shell-line cmd"><i>❯</i><span class="cmd-txt">${cmd}</span></div>${fLine}`;
+    } else {
+      const isTool = s.type === "tool";
+      const argSummary = isTool
+        ? `tool: ${s.tool || "?"} · ${Object.keys(s.args || {}).length} arg(s)`
+        : Object.keys(s.args || {}).length ? `${Object.keys(s.args || {}).length} arg(s)` : "internal stage";
+      bodyHtml = esc(argSummary) + (s.when ? `<br/>when: ${esc(s.when)}` : "");
+    }
+    const stCls = runStatusClass(s.id);
+    const stTxt = runStatus[s.id] ? `run status: ${runStatus[s.id]}` : "";
+    const el = document.createElement("div");
+    el.className = `node ${s.type === "shell" ? "shell " : ""}${graphSel === s.id ? "selected" : ""}`;
+    el.style.left = `${p.x}px`; el.style.top = `${p.y}px`;
+    el.dataset.step = s.id;
+    el.innerHTML = `
+      <div class="node-top">
+        <div class="node-icon ${ic.cls}">${ic.glyph}</div>
+        <div class="node-names"><div class="node-title">${esc(s.id)}</div>
+          <div class="node-kind">${esc(s.type || "step")}${s.tool ? ` · ${esc(s.tool)}` : ""}</div></div>
+        <span class="node-status ${stCls}" title="${esc(stTxt)}"></span>
+      </div>
+      <div class="node-body">${bodyHtml}</div>
+      <div class="node-foot">
+        <span class="chip">${(s.depends_on || []).length} in</span>
+        ${Object.keys(s.inputs || {}).length ? `<span class="chip">${Object.keys(s.inputs || {}).length} inputs</span>` : ""}
+        ${s.filter && s.filter.type !== "none" ? `<span class="chip accent">⌕ out</span>` : ""}
+        ${s.checkpoint ? '<span class="chip ck">checkpoint</span>' : ""}
+      </div>
+      <span class="port left" title="input port"></span><span class="port right" title="drag or click to connect"></span>`;
+    el.addEventListener("mousedown", (e) => startNodeDrag(e, s.id, p));
+    const rightPort = el.querySelector(".port.right");
+    if (rightPort) rightPort.addEventListener("mousedown", (e) => startPortConnect(e, s.id));
+    inner.appendChild(el);
+  }
+
+  // edges
+  const svg = $("#edgeLayer");
+  let edges = "";
+  for (const s of steps) {
+    for (const dep of s.depends_on || []) {
+      if (!depths.hasOwnProperty(dep) || dep === s.id) continue;
+      const a = nodePos(dep, depths), b = nodePos(s.id, depths);
+      const y1 = a.y + NODE_H / 2, y2 = b.y + NODE_H / 2;
+      const hot = graphSel === dep || graphSel === s.id ? " hot" : "";
+      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}"/>`;
+    }
+  }
+  svg.innerHTML = edges;
+
+  // toolbar state
+  const cnt = $("#graphCount");
+  if (cnt) cnt.textContent = `${steps.length} step${steps.length === 1 ? "" : "s"}`;
+  const ub = $("#undoBtn"), rb = $("#redoBtn"), db = $("#delSelBtn");
+  if (ub) ub.disabled = !historyStack.length;
+  if (rb) rb.disabled = !futureStack.length;
+  if (db) db.disabled = !graphSel;
+
+  renderInspector();
+}
+
+/* ── inspector (tabbed, type-aware) ────────────────────────────────── */
+
+const INS_TABS = ["general", "inputs", "outputs", "advanced"];
+const INS_TAB_LABELS = { general: "General", inputs: "Inputs", outputs: "Outputs", advanced: "Advanced" };
+
+function parseRef(v) {
+  const t = String(v ?? "").trim();
+  const m = t.match(/^\{\{(\w+)\}\}$/);
+  if (m) return { mode: "run", name: m[1] };
+  const u = t.match(/^\{\{(\w+)\.(\w+)\}\}$/);
+  if (u) return { mode: "upstream", step: u[1], field: u[2] };
+  return { mode: "literal", val: t };
+}
+
+function defInputs(def) {
+  const raw = def?.inputs;
+  if (Array.isArray(raw)) return raw.filter((x) => typeof x === "object" && x?.name).map((x) => ({ name: x.name, spec: x }));
+  if (raw && typeof raw === "object") return Object.entries(raw).map(([name, spec]) => ({ name, spec: typeof spec === "object" && spec ? spec : {} }));
+  return [];
+}
+
+function namedGroups(pattern) {
+  const out = [];
+  const re = /\(\?P<([A-Za-z_]\w*)>/g;
+  let m;
+  while ((m = re.exec(String(pattern || "")))) out.push(m[1]);
+  return out;
+}
+
+function upstreamOutFields(stepId) {
+  const s = stepById(stepId);
+  if (!s) return [];
+  return namedGroups(s.filter?.pattern);
+}
+
+function insLabel(text, control, hint) {
+  return `<label class="ins-field">
+    <span class="ins-flabel">${esc(text)}${hint ? `<em class="dim">${esc(hint)}</em>` : ""}</span>${control}</label>`;
+}
+
+function insDependsField(s) {
+  return insLabel("Depends on", `<input class="select" id="insDeps" value="${esc((s.depends_on || []).join(", "))}" placeholder="comma separated upstream step ids">`, "upstream steps that must finish first");
+}
+
+function insGeneralTab(s) {
+  const typeFixed = `
+    <div class="ins-field">
+      <span class="ins-flabel">Step type</span>
+      <div class="type-static"><span class="node-icon cmd">❯</span> shell command <span class="dim">(inputs → command → output filter)</span></div>
+    </div>`;
+  const typeSel = insLabel("Step type", `
+    <select class="select" id="insType">
+      ${["tool", "shell", "scope_check", "finding_correlation", "assessment_report", "custom"]
+        .map((v) => `<option value="${v}" ${v === (s.type || "tool") ? "selected" : ""}>${v}</option>`).join("")}
+    </select>`);
+  const toolSel = s.type === "tool" ? insLabel("Tool", `
+    <input class="select" id="insTool" value="${esc(s.tool || "")}" placeholder="e.g. nuclei" list="dlTools">` +
+    `<datalist id="dlTools">${(toolsCache || []).map((t) => `<option value="${esc(t.name)}"></option>`).join("")}</datalist>`,
+    "registered in the tool registry") : "";
+  const cmdField = s.type === "shell" ? insLabel("Shell command", `
+    <textarea class="select area mono" id="insCommand" style="min-height:64px" spellcheck="false" placeholder="nmap {ip} -sn — {name} placeholders fill from the Inputs tab">${esc(s.command || "")}</textarea>`,
+    "supports {name} placeholders filled from the inputs you map on the Inputs tab") : "";
+  return `
+    ${insLabel("Step id", `<input class="select mono" id="insId" value="${esc(s.id)}">`)}
+    ${s.type === "shell" ? typeFixed : typeSel}
+    ${toolSel}
+    ${cmdField}
+    ${insDependsField(s)}
+    <div class="checkline">${insLabel("Checkpoint", `<input type="checkbox" id="insCheckpoint" ${s.checkpoint ? "checked" : ""}>`, "persist state so the run can resume here")}</div>`;
+}
+
+function insInputsTab(s) {
+  if (s.type === "shell") {
+    const rows = Object.entries(s.inputs || {}).map(([k, v], i) => mapRowHtml(i, k, v, s)).join("");
+    return `
+      <div class="ins-note dim"><code>{{name}}</code> = run input · <code>{{step.field}}</code> = previous step output · bare text = literal. Use the source selector so you don't have to type references.</div>
+      <div class="ins-subhead">Input parameters <button class="btn icon" id="insAddInput" title="Add input parameter">＋</button></div>
+      <div id="insInputRows">${rows || `<p class="dim map-none">No inputs mapped yet — add one below.</p>`}</div>`;
+  }
+  const isTool = s.type === "tool";
+  return `
+    <div class="ins-subhead">${isTool ? "Tool arguments" : "Module arguments"} <span class="dim">(JSON object)</span></div>
+    <textarea class="select area" id="insArgs" style="min-height:150px;font-family:ui-monospace,Menlo,monospace" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea>
+    ${isTool ? `<div class="ins-note dim">Argument names should match the tool's input schema (see Tool Registry).</div>` : ""}`;
+}
+
+function insOutputsTab(s) {
+  if (s.type === "shell") {
+    const f = s.filter && s.filter.type !== "none" ? s.filter : { type: "grep", pattern: "" };
+    const fields = namedGroups(f.pattern);
+    return `
+      <div class="ins-subhead">Output extraction</div>
+      <div class="ins-note dim">Extract structured fields from the command output. Named capture groups <code>(?P<field>…)</code> become output fields the next step can map with <code>{{thisid.field}}</code>.</div>
+      <div class="ins-filter-row">
+        <select class="select" id="insFilterType">
+          ${["grep", "regex", "none"].map((v) => `<option value="${v}" ${v === (s.filter?.type || "grep") ? "selected" : ""}>${v}</option>`).join("")}
+        </select>
+        <label class="checkline sm">first match only <input type="checkbox" id="insFilterFirst" ${s.filter?.first_only ? "checked" : ""}></label>
+      </div>
+      ${insLabel("Pattern", `<input class="select mono" id="insFilterPattern" value="${esc(f.pattern || "")}" placeholder='(?P<ip>[0-9]+\\.[0-9.]+)'>`)}
+      <div class="ins-subhead">Extracted fields</div>
+      ${fields.length ? `<div class="chip-row">${fields.map((x) => `<span class="chip accent mono">${esc(s.id)}.${esc(x)}</span>`).join("")}</div>` : `<p class="dim">No named fields — downstream steps will only see raw text unless you add (?P&lt;name&gt;…) groups.</p>`}`;
+  }
+  return `<div class="ins-note">This step type produces its outputs internally (findings, correlations, scope checks or the assessment report) — no manual output extraction to configure.</div>`;
+}
+
+function insAdvancedTab(s) {
+  return `
+    <div class="ins-subhead">Execution arguments</div>
+    <textarea class="select area" id="insArgs" style="min-height:130px;font-family:ui-monospace,Menlo,monospace" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea>
+    <div class="ins-note dim">Shell nodes: <code>{name}</code> placeholders fill from the Inputs tab · extra JSON keys (e.g. <code>timeout</code>) act as execution settings.</div>
+    ${insLabel("Condition (when)", `<input class="select mono" id="insWhen" value="${esc(s.when || "")}" placeholder="e.g. outputs? no match => skip">`, "skip this step when the expression is falsy")}`;
+}
+
+function insTabsHtml(s) {
+  return `
+    <div class="ins-head">
+      <div class="ins-idline"><span class="mono">${esc(s.id)}</span><span class="chip">${esc(s.type || "step")}</span>
+        <button class="btn ghost icon ins-close" id="insClose" title="Close inspector">×</button></div>
+      <div class="ins-tabs" role="tablist">
+        ${INS_TABS.map((t) => `<button class="${t === inspectTab ? "active" : ""}" data-tab="${t}" role="tab">${INS_TAB_LABELS[t]}</button>`).join("")}
+      </div>
+    </div>
+    <div class="ins-body" id="insBody">${
+      inspectTab === "general" ? insGeneralTab(s)
+      : inspectTab === "inputs" ? insInputsTab(s)
+      : inspectTab === "outputs" ? insOutputsTab(s)
+      : insAdvancedTab(s)}</div>
+    <div class="ins-foot">
+      <span class="dim" id="insNote"></span>
+      <div class="ins-foot-btns">
+        <button class="btn danger" id="insDel">Delete node</button>
+        <button class="btn primary" id="insApply">Apply</button>
+      </div>
+    </div>`;
+}
+
+function renderInspector() {
+  const inj = $("#inspector");
+  if (!inj) return;
+  const s = graphSel ? stepById(graphSel) : null;
+  if (!s) {
+    inj.innerHTML = `
+      <div class="ins-empty">
+        <div class="eyebrow">INSPECTOR</div>
+        <p class="empty">Select a step on the canvas to edit its configuration. Graph and DSL always edit the same canonical model.</p>
+      </div>`;
+    return;
+  }
+  inj.innerHTML = insTabsHtml(s);
+
+  $$("#inspector .ins-tabs button").forEach((btn) =>
+    btn.addEventListener("click", () => { inspectTab = btn.dataset.tab; renderInspector(); }));
+
+  $("#insApply")?.addEventListener("click", () => applyNodeInspector());
+  $("#insDel")?.addEventListener("click", () => deleteGraphStep(graphSel));
+  $("#insClose")?.addEventListener("click", () => $("#insCol")?.classList.remove("ins-open"));
+  $("#insAddInput")?.addEventListener("click", () => addMapRow());
+
+  // mapper wiring
+  $$("#insBody .map-row").forEach((row) => {
+    row.querySelectorAll(".map-mode").forEach((sel) => sel.addEventListener("change", () => {
+      row.dataset.mode = sel.value;
+    }));
+    const stepSel = row.querySelector(".map-step");
+    const fieldInp = row.querySelector(".map-field");
+    if (stepSel && fieldInp) stepSel.addEventListener("change", () => {
+      const dl = row.querySelector("datalist");
+      if (dl) dl.innerHTML = upstreamOutFields(stepSel.value).map((x) => `<option value="${esc(x)}"></option>`).join("");
+      fieldInp.value = "";
+    });
+    const whole = row.querySelector(".map-field-whole");
+    if (whole && stepSel) {
+      whole.addEventListener("change", () => {
+        const m = whole.value.match(/^(\w+)\.(\w+)$/);
+        if (m) { stepSel.value = m[1]; fieldInp.value = m[2]; }
+      });
+    }
+    row.querySelector(".map-del")?.addEventListener("click", () => row.remove());
+  });
+}
+
+function mapRowHtml(i, key, rawVal, s) {
+  const ref = parseRef(rawVal);
+  const upstreamSteps = getGraphSteps().filter((x) => x.id !== s.id);
+  const preferred = ref.mode === "upstream" ? ref.step
+    : ((s.depends_on || []).find((d) => stepById(d)) || upstreamSteps[0]?.id || "");
+  const fields = upstreamOutFields(preferred);
+  return `
+    <div class="map-row" data-mode="${ref.mode}">
+      <div class="map-k"><input class="select inp map-key" value="${esc(key)}" placeholder="parameter name"></div>
+      <div class="map-src">
+        <select class="select map-mode" title="Where is the value coming from?">
+          <option value="run" ${ref.mode === "run" ? "selected" : ""}>Run input</option>
+          <option value="upstream" ${ref.mode === "upstream" ? "selected" : ""}>Previous step</option>
+          <option value="literal" ${ref.mode === "literal" ? "selected" : ""}>Literal value</option>
+        </select>
+      </div>
+      <div class="map-arg">
+        <div class="mf mf-run"><input class="select map-run" list="dlRunInputs" value="${ref.mode === "run" ? esc(ref.name) : ""}" placeholder="run input name"></div>
+        <div class="mf mf-up">
+          <select class="select map-step">
+            <option value="">— step —</option>
+            ${upstreamSteps.map((x) => `<option value="${esc(x.id)}" ${x.id === preferred ? "selected" : ""}>${esc(x.id)}</option>`).join("")}
+          </select>
+          <input class="select map-field" list="dlFields_${i}" value="${ref.mode === "upstream" ? esc(ref.field) : ""}" placeholder="output field">
+          <datalist id="dlFields_${i}">${fields.map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist>
+        </div>
+        <div class="mf mf-lit"><input class="select map-lit" value="${ref.mode === "literal" ? esc(ref.val) : ""}" placeholder="literal value"></div>
+      </div>
+      <button class="btn danger icon map-del" title="Remove input">×</button>
+    </div>`;
+}
+
+function addMapRow() {
+  const rows = $("#insInputRows");
+  if (!rows || !graphSel) return;
+  const s = stepById(graphSel);
+  const none = rows.querySelector(".map-none");
+  if (none) none.remove();
+  const wrap = document.createElement("div");
+  wrap.innerHTML = mapRowHtml(999, "", "", s).replace(/999/g, `n${Date.now().toString(36)}`);
+  const row = wrap.firstElementChild;
+  rows.appendChild(row);
+  row.querySelector(".map-mode").addEventListener("change", () => { row.dataset.mode = row.querySelector(".map-mode").value; });
+  const stepSel = row.querySelector(".map-step");
+  const fieldInp = row.querySelector(".map-field");
+  if (stepSel) stepSel.addEventListener("change", () => {
+    const dl = row.querySelector("datalist");
+    if (dl) dl.innerHTML = upstreamOutFields(stepSel.value).map((x) => `<option value="${esc(x)}"></option>`).join("");
+    fieldInp.value = "";
+  });
+  row.querySelector(".map-del").addEventListener("click", () => row.remove());
+  row.querySelector(".map-key").focus();
+}
+
+/* apply: merges whichever fields are present in the current tab */
+function applyNodeInspector() {
+  const s = stepById(graphSel);
+  if (!s) return;
+  const oldId = s.id;
+  const ids = new Set(getGraphSteps().map((x) => x.id).filter((x) => x !== oldId));
+
+  const idEl = $("#insId");
+  if (idEl) {
+    const newId = (idEl.value || "").trim();
+    if (!newId) return toast("Step id required", true);
+    if (newId !== oldId && ids.has(newId)) return toast(`Step id "${newId}" already used`, true);
+    if (newId !== oldId) {
+      getGraphSteps().forEach((x) => {
+        if (Array.isArray(x.depends_on)) x.depends_on = x.depends_on.map((d) => (d === oldId ? newId : d));
+      });
+      delete graphPos[oldId];
+    }
+    s.id = newId;
+  }
+
+  const depsEl = $("#insDeps");
+  if (depsEl) {
+    s.depends_on = depsEl.value.split(",").map((d) => d.trim()).filter(Boolean) || [];
+  }
+
+  const typeEl = $("#insType");
+  if (typeEl && typeEl.value !== s.type) {
+    s.type = typeEl.value;
+    if (s.type !== "tool") delete s.tool;
+  } else if (s.type === "shell" && !typeEl) {
+    s.type = "shell";
+  }
+
+  const toolEl = $("#insTool");
+  if (toolEl && s.type === "tool") {
+    const t = toolEl.value.trim();
+    if (t) s.tool = t; else delete s.tool;
+  }
+
+  const rowsEl = $("#insInputRows");
+  if (rowsEl) {
+    const inputs = {};
+    $$("#insInputRows .map-row").forEach((row) => {
+      const k = (row.querySelector(".map-key")?.value || "").trim();
+      if (!k) return;
+      const mode = row.querySelector(".map-mode")?.value || "literal";
+      let v = "";
+      if (mode === "run") v = `{{${(row.querySelector(".map-run")?.value || "").trim()}}}`;
+      else if (mode === "upstream") {
+        const st = (row.querySelector(".map-step")?.value || "").trim();
+        const fl = (row.querySelector(".map-field")?.value || "").trim();
+        if (!st || !fl) { toast(`${k}: pick a step and an output field`, true); return; }
+        v = `{{${st}.${fl}}}`;
+      } else v = (row.querySelector(".map-lit")?.value || "").trim();
+      if (v) inputs[k] = v;
+    });
+    if (Object.keys(inputs).length) s.inputs = inputs; else delete s.inputs;
+  }
+
+  const cmdEl = $("#insCommand");
+  if (cmdEl) {
+    const cmd = (cmdEl.value || "").trim();
+    if (cmd) s.command = cmd; else delete s.command;
+    s.type = "shell";
+  }
+
+  const ftypeEl = $("#insFilterType");
+  if (ftypeEl) {
+    const ftype = ftypeEl.value || "none";
+    const fpat = ($("#insFilterPattern")?.value || "").trim();
+    if (ftype && ftype !== "none" && fpat) {
+      s.filter = { type: ftype, pattern: fpat };
+      if ($("#insFilterFirst")?.checked) s.filter.first_only = true;
+    } else delete s.filter;
+  }
+
+  const argsEl = $("#insArgs");
+  if (argsEl) {
+    try {
+      const parsed = JSON.parse(argsEl.value || "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        if (Object.keys(parsed).length) s.args = parsed; else delete s.args;
+      } else toast("args must be a JSON object — kept previous value", true);
+    } catch { return toast("args is not valid JSON — nothing applied for args", true); }
+  }
+
+  const whenEl = $("#insWhen");
+  if (whenEl) {
+    const when = whenEl.value.trim();
+    if (when) s.when = when; else delete s.when;
+  }
+
+  const ckEl = $("#insCheckpoint");
+  if (ckEl && ckEl.checked) s.checkpoint = true; else if (ckEl) delete s.checkpoint;
+
+  graphSel = s.id;
+  captureGraphToDSL();
+  renderBuilder();
+  toast(`Step ${s.id} updated`);
+}
+
+/* compat wrappers (graph engine kept API-compatible for tooling) */
+function applyShellInspector() { applyNodeInspector(); }
+function applyInspector() { applyNodeInspector(); }
+
+/* ── node mutations ────────────────────────────────────────────────── */
+
+function deleteGraphStep(id) {
+  pushHistory();
+  graphDef.steps = getGraphSteps().filter((s) => s.id !== id);
+  getGraphSteps().forEach((s) => {
+    if (Array.isArray(s.depends_on)) s.depends_on = s.depends_on.filter((d) => d !== id);
+  });
+  graphSel = null;
+  captureGraphToDSL();
+  renderBuilder();
+  toast(`Step ${id} deleted`);
+}
+
+function nextId(prefix) {
+  let n = 1, id;
+  do { id = `${prefix}_${n++}`; } while (stepById(id));
+  return id;
+}
+
+function addGraphStep() {
+  if (builderView !== "graph") { if (!loadGraphFromDSL()) return; }
+  pushHistory();
+  getGraphSteps().push({ id: nextId("step"), type: "tool", depends_on: [] });
+  graphSel = getGraphSteps().slice(-1)[0].id;
+  captureGraphToDSL();
+  renderBuilder();
+}
+
+function addToolStep(toolName, forcedType) {
+  if (builderView !== "graph") { if (!loadGraphFromDSL()) return; }
+  pushHistory();
+  const base = (toolName || "tool").replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 24) || "tool";
+  const s = { id: nextId(base), type: forcedType || "tool", depends_on: [] };
+  if (toolName && (forcedType || "tool") === "tool") s.tool = toolName;
+  getGraphSteps().push(s);
+  graphSel = s.id;
+  captureGraphToDSL();
+  renderBuilder();
+  toast(`Added ${s.id}`);
+}
+
+function addShellStep() {
+  if (builderView !== "graph") { if (!loadGraphFromDSL()) return; }
+  pushHistory();
+  const id = nextId("shell");
+  getGraphSteps().push({
+    id, type: "shell", command: "", inputs: {},
+    filter: { type: "grep", pattern: "" }, depends_on: [],
+  });
+  graphSel = id;
+  captureGraphToDSL();
+  renderBuilder();
+  toast(`Added shell node ${id} — configure inputs, command and filter in the inspector`);
+}
+
+/* ── node dragging ────────────────────────────────────────────────── */
+
+let dragCtx = null;
+function startNodeDrag(e, id, origin) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  const ox = origin.x, oy = origin.y;
+  let moved = false;
+  const move = (ev) => {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    if (!moved && Math.hypot(dx, dy) < 4) return;
+    moved = true;
+    const x = Math.max(0, Math.round(ox + dx / graphZoom)), y = Math.max(0, Math.round(oy + dy / graphZoom));
+    graphPos[id] = { x, y };
+    const el = $(`.node[data-step="${CSS.escape(id)}"]`);
+    if (el) { el.style.left = `${x}px`; el.style.top = `${y}px`; }
+    redrawEdges();
+  };
+  const up = (ev) => {
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+    if (!moved) {
+      const isPort = ev.target instanceof Element && ev.target.classList.contains("port");
+      if (pendingConnect && isPort && pendingConnect !== id) { disarmConnect(); completeConnect(pendingConnect, id); return; }
+      const sel = getGraphSteps().find((x) => x.id === id);
+      graphSel = id;
+      if (sel) inspectTab = "general";
+      renderBuilder();
+      if (window.matchMedia("(max-width: 1023px)").matches) $("#insCol")?.classList.add("ins-open");
+    }
+  };
+  document.addEventListener("mousemove", move);
+  document.addEventListener("mouseup", up);
+}
+
+/* ── edge creation ────────────────────────────────────────────────── */
+
+let connectCtx = null;
+function wouldCreateCycle(srcId, tgtId) {
+  if (srcId === tgtId) return true;
+  const seen = new Set();
+  const stack = [srcId];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (cur === tgtId) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    const s = stepById(cur);
+    (s?.depends_on || []).forEach((d) => stack.push(d));
+  }
+  return false;
+}
+
+let pendingConnect = null;
+
+function armConnect(srcId) {
+  pendingConnect = srcId;
+  $$(".port").forEach((p) => p.classList.remove("armed"));
+  const el = $(`.node[data-step="${CSS.escape(srcId)}"] .port.right`);
+  if (el) el.classList.add("armed");
+  toast(`Connect: click the target node's ○ left port (Esc to cancel)`);
+}
+
+function disarmConnect() {
+  pendingConnect = null;
+  $$(".port").forEach((p) => p.classList.remove("armed"));
+}
+
+function completeConnect(srcId, tgtId) {
+  if (tgtId === srcId) { toast("A step cannot depend on itself", true); disarmConnect(); return; }
+  if (wouldCreateCycle(srcId, tgtId)) { toast(`Wire ${srcId} → ${tgtId} would create a cycle`, true); disarmConnect(); return; }
+  const s = stepById(tgtId);
+  if (!s) { disarmConnect(); return; }
+  s.depends_on = Array.isArray(s.depends_on) ? s.depends_on : [];
+  if (s.depends_on.includes(srcId)) { toast(`${tgtId} already depends on ${srcId}`); disarmConnect(); return; }
+  pushHistory();
+  s.depends_on.push(srcId);
+  disarmConnect();
+  captureGraphToDSL();
+  renderBuilder();
+  toast(`Connected ${srcId} → ${tgtId}`);
+}
+
+function clearConnectPreview() {
+  const p = $("#connectPreview");
+  if (p) p.remove();
+}
+
+function startPortConnect(e, srcId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const startX = e.clientX, startY = e.clientY;
+  const depths = {};
+  graphLayout(depths);
+  const a = nodePos(srcId, depths);
+  const x1 = a.x + NODE_W, y1 = a.y + NODE_H / 2;
+  connectCtx = { srcId, depths };
+  const inner = $("#canvasInner");
+  const toCanvas = (ev) => {
+    const r = inner.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) / graphZoom, y: (ev.clientY - r.top) / graphZoom };
+  };
+  const move = (ev) => {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    if (Math.hypot(dx, dy) < 4) return;
+    disarmConnect();
+    const m = toCanvas(ev);
+    const mx = (x1 + m.x) / 2;
+    clearConnectPreview();
+    const svg = $("#edgeLayer");
+    if (!svg) return;
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.id = "connectPreview";
+    path.setAttribute("class", "edge");
+    path.setAttribute("d", `M${x1},${y1} C${mx},${y1} ${mx},${m.y} ${m.x},${m.y}`);
+    svg.appendChild(path);
+  };
+  const up = (ev) => {
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+    clearConnectPreview();
+    connectCtx = null;
+    if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) { disarmConnect(); armConnect(srcId); return; }
+    const hit = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".node");
+    if (!hit) return;
+    const tgtId = hit.dataset.step;
+    if (!tgtId) return;
+    completeConnect(srcId, tgtId);
+  };
+  document.addEventListener("mousemove", move);
+  document.addEventListener("mouseup", up);
+}
+
+/* Esc cancels an armed click-connect */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && pendingConnect) {
+    disarmConnect();
+    const col = $("#insCol");
+    if (col) col.classList.remove("ins-open");
+  }
+});
+
+function redrawEdges() {
+  const depths = {};
+  graphLayout(depths);
+  const svg = $("#edgeLayer");
+  if (!svg) return;
+  let edges = "";
+  for (const s of getGraphSteps()) {
+    for (const dep of s.depends_on || []) {
+      if (!depths.hasOwnProperty(dep) || dep === s.id) continue;
+      const a = nodePos(dep, depths), b = nodePos(s.id, depths);
+      const y1 = a.y + NODE_H / 2, y2 = b.y + NODE_H / 2;
+      const hot = graphSel === dep || graphSel === s.id ? " hot" : "";
+      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}"/>`;
+    }
+  }
+  svg.innerHTML = edges;
+}
+
+/* ── node palette (tools come from the live registry) ──────────────── */
+
+async function renderPalette() {
+  const pal = $("#palette");
+  if (!pal) return;
+  paletteFns = [];
+  const tools = (toolsCache || []).map((t) => t);
+  pal.innerHTML = `
+    <div class="palette-head">
+      <span>Node palette</span>
+      <button class="btn ghost icon" id="paletteClose" title="Collapse palette">×</button>
+    </div>
+    <div class="palette-search"><input class="select" id="palSearch" placeholder="Search nodes & tools…"></div>
+    <div class="palette-scroll">
+      <div class="palette-group" data-g="steps">
+        <div class="palette-label">Steps</div>
+        ${paletteItem("tool-step", "◎ scan", "Tool step", "Run a registered security tool", () => addToolStep())}
+        ${paletteItem("shell-step", "❯ cmd", "Shell command", "inputs → command → output filter", () => addShellStep())}
+        ${paletteItem("custom-step", "▣ mod", "Custom module", "Internal module stage", () => addToolStep(null, "custom"))}
+      </div>
+      <div class="palette-group" data-g="stages">
+        <div class="palette-label">Stages</div>
+        ${paletteItem("st-scope", "✓ dns", "Scope check", "Verify targets stay in scope", () => addStage("scope_check"))}
+        ${paletteItem("st-corr", "⇄ web", "Finding correlation", "Correlate findings into context", () => addStage("finding_correlation"))}
+        ${paletteItem("st-report", "▤ out", "Assessment report", "Produce the final report", () => addStage("assessment_report"))}
+      </div>
+      <div class="palette-group" data-g="tools">
+        <div class="palette-label">Security tools <span class="dim">(${tools.length})</span></div>
+        ${tools.length ? tools.map((t) => paletteItem(
+          `pt-${esc(t.name)}`, "◎ scan", esc(t.name),
+          esc((t.description || "").slice(0, 60)),
+          () => addToolStep(t.name))).join("")
+          : `<p class="dim" style="padding:8px">No tools registered yet.</p>`}
+      </div>
+    </div>`;
+  $("#paletteClose").addEventListener("click", () => togglePalette(false));
+  $("#palSearch").addEventListener("input", () => {
+    const q = $("#palSearch").value.toLowerCase().trim();
+    $$("#palette .palette-item").forEach((it) => {
+      it.hidden = q && !it.textContent.toLowerCase().includes(q);
+    });
+  });
+  bindPaletteItems();
+}
+
+let paletteFns = [];
+
+function paletteItem(cls, glyph, title, hint, fn) {
+  paletteFns.push(fn);
+  const idx = paletteFns.length - 1;
+  return `
+    <button class="palette-item ${cls}" title="${esc(title)} — ${esc(hint)}" data-hint="${esc(hint)}" data-fn="${idx}">
+      <span class="palette-glyph">${glyph}</span>
+      <span class="palette-txt"><b>${title}</b><small>${hint}</small></span>
+    </button>`;
+}
+function bindPaletteItems() {
+  $$("#palette .palette-item").forEach((it) =>
+    it.addEventListener("click", () => paletteFns[Number(it.dataset.fn || "-1")]?.()));
+}
+
+function addStage(type) {
+  if (builderView !== "graph") { if (!loadGraphFromDSL()) return; }
+  pushHistory();
+  const id = nextId(type === "scope_check" ? "scope" : type === "finding_correlation" ? "corr" : "report");
+  getGraphSteps().push({ id, type, depends_on: [] });
+  graphSel = id;
+  captureGraphToDSL();
+  renderBuilder();
+  toast(`Added ${id} (${type})`);
+}
+
+/* ── run: input modal built from the playbook's input specs ────────── */
+
+async function runModal(id) {
+  let def = null;
+  try { def = (await api(`/playbooks/${encodeURIComponent(id)}/definition`)).definition; } catch { /* not saved yet */ }
+  const specs = defInputs(def);
+  const rows = specs.map((sp) => {
+    const type = String(sp.spec?.type || "string");
+    const required = sp.spec?.required ? "required" : "optional";
+    let field;
+    if (type === "boolean") {
+      field = `<select class="select run-in" data-name="${esc(sp.name)}"><option value="true">true</option><option value="false">false</option></select>`;
+    } else if (type === "integer" || type === "number") {
+      field = `<input class="select run-in" data-name="${esc(sp.name)}" type="number" value="${sp.spec?.default ?? ""}">`;
+    } else if (type === "array" || type === "object") {
+      field = `<textarea class="select area run-in" data-name="${esc(sp.name)}" spellcheck="false" style="min-height:56px;font-family:ui-monospace,Menlo,monospace" placeholder="JSON ${type}">${esc(JSON.stringify(sp.spec?.default ?? (type === "array" ? [] : {})))}</textarea>`;
+    } else {
+      field = `<input class="select run-in" data-name="${esc(sp.name)}" value="${esc(String(sp.spec?.default ?? ""))}">`;
+    }
+    return `
+      <div class="run-row">
+        <div class="run-row-head"><b class="mono">${esc(sp.name)}</b>
+          <span class="chip ${sp.spec?.required ? "ck" : ""}">${esc(type)} · ${esc(required)}</span></div>
+        ${field}
+      </div>`;
+  }).join("");
+  const bd = document.createElement("div");
+  bd.className = "modal-backdrop show";
+  bd.innerHTML = `
+    <div class="modal run-modal">
+      <h3>Run “${esc(id)}”</h3>
+      <p class="dim">Runs the published version. This playbook takes ${specs.length} input${specs.length === 1 ? "" : "s"} — anything omitted falls back to its default.</p>
+      ${rows || `<p class="dim">No declared inputs — start a run directly, or add extra ones as JSON below.</p>`}
+      <div class="run-row">
+        <div class="run-row-head"><b>Extra inputs</b><span class="chip">JSON · optional</span></div>
+        <textarea class="select area" id="runExtra" spellcheck="false" style="min-height:64px;font-family:ui-monospace,Menlo,monospace">{}</textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="runCancel">Cancel</button>
+        <button class="btn primary" id="runStart">▶ Start run</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bd);
+  bd.querySelector("#runCancel").addEventListener("click", () => bd.remove());
+  bd.addEventListener("mousedown", (e) => { if (e.target === bd) bd.remove(); });
+  bd.querySelector("#runStart").addEventListener("click", async () => {
+    const inputs = {};
+    let ok = true;
+    bd.querySelectorAll(".run-in").forEach((f) => {
+      const k = f.dataset.name;
+      if (f.tagName === "TEXTAREA") {
+        const raw = (f.value || "").trim();
+        if (!raw) return;
+        try { inputs[k] = JSON.parse(raw); }
+        catch { toast(`Input ${k} must be valid JSON`, true); ok = false; }
+        return;
+      }
+      if (f.value === "") return;
+      inputs[k] = f.getAttribute("type") === "number" ? Number(f.value) : f.value;
+    });
+    let extra = {};
+    const rawExtra = (bd.querySelector("#runExtra").value || "").trim();
+    if (rawExtra) {
+      try { extra = JSON.parse(rawExtra); }
+      catch { toast("Extra inputs must be valid JSON", true); ok = false; }
+    }
+    if (!ok) return;
+    Object.assign(inputs, extra || {});
+    bd.remove();
+    await startRun(id, inputs);
+  });
+}
+
+async function startRun(id, inputs) {
+  toast(`Starting ${id}…`);
+  try {
+    const r = await api("/executions", { method: "POST", body: JSON.stringify({ playbook_id: id, inputs }) });
+    const execId = r?.execution?.execution_id || r?.execution_id || "";
+    toast(`Run started${execId ? `: ${execId}` : ""}`);
+    location.hash = execId ? `#/executions/${encodeURIComponent(execId)}` : "#/executions";
+  } catch (err) { toast(err.message, true); }
+}
+
+/* surface the latest execution's per-step status on the graph */
+async function loadRunStatus(id) {
+  try {
+    const d = await api("/executions?limit=25");
+    const mine = (d.executions || []).filter((e) => e.playbook_id === id);
+    if (!mine.length) return;
+    const det = await api(`/executions/${encodeURIComponent(mine[0].execution_id)}`);
+    const map = {};
+    for (const s of det.steps || []) map[s.step_id] = s.status;
+    runStatus = map;
+    if (builderView === "graph" && $("#canvasInner")) renderBuilder();
+  } catch { /* best-effort only */ }
+}
+
+/* ── playbook-level actions ────────────────────────────────────────── */
+
+async function validateDefinition() {
+  const out = $("#editorResult");
+  if (!selectedId) return toast("Select a playbook first", true);
+  if (builderView === "graph") captureGraphToDSL();
+  try {
+    const r = await api(`/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
+      method: "POST", body: JSON.stringify({ definition: JSON.parse($("#dslCode").value) }),
+    });
+    out.hidden = false;
+    out.textContent = JSON.stringify(r, null, 2);
+    toast(r.valid ? "Definition valid" : "Validation failed", !r.valid);
+  } catch (err) {
+    out.hidden = false;
+    out.textContent = String(err);
     toast(err.message, true);
   }
 }
 
 async function saveDraft() {
   if (!selectedId) return toast("Select a playbook first", true);
+  if (builderView === "graph") captureGraphToDSL();
   try {
     const body = { definition: JSON.parse($("#dslCode").value) };
     await api(`/playbooks/${encodeURIComponent(selectedId)}/definition`, {
@@ -236,7 +1510,7 @@ async function saveDraft() {
 
 async function publish() {
   if (!selectedId) return toast("Select a playbook first", true);
-  await saveDraft();
+  if (builderView === "graph") captureGraphToDSL();
   try {
     const def = JSON.parse($("#dslCode").value);
     const version = def.version || "1.0.0";
@@ -261,13 +1535,15 @@ async function publish() {
 }
 
 async function newPlaybook() {
-  const name = prompt("Playbook name:");
+  const name = prompt("Playbook name:", "");
   if (!name) return;
+  let pid = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48);
+  if (!pid) pid = `pb_${Date.now().toString(36)}`;
   try {
-    await api("/playbooks", { method: "POST", body: JSON.stringify({ name, category: "custom" }) });
+    await api("/playbooks", { method: "POST", body: JSON.stringify({ playbook_id: pid, name, category: "custom" }) });
   } catch (err) { return toast(err.message, true); }
-  await refreshPlaybooks();
-  toast("Playbook created");
+  toast("Playbook created — opening the editor");
+  location.hash = `#/playbooks/${encodeURIComponent(pid)}`;
 }
 
 async function deletePlaybook() {
@@ -275,9 +1551,8 @@ async function deletePlaybook() {
   if (!confirm(`Delete playbook ${selectedId}? This cannot be undone.`)) return;
   try {
     await api(`/playbooks/${encodeURIComponent(selectedId)}`, { method: "DELETE" });
-    selectedId = null;
-    await refreshPlaybooks();
     toast("Playbook deleted");
+    location.hash = "#/playbooks";
   } catch (err) { toast(err.message, true); }
 }
 
@@ -287,16 +1562,14 @@ async function showVersions() {
     const d = await api(`/playbooks/${encodeURIComponent(selectedId)}/versions`);
     const list = d.versions || [];
     if (!list.length) return toast("No versions published yet");
-    const pick = list
-      .map((v) => `${v.version_id}. ${v.version}`)
-      .join("\n");
+    const pick = list.map((v) => `${v.version_id}. ${v.version}`).join("\n");
     const choice = prompt(`Versions:\n${pick}\n\nEnter version_id to roll back:`, "");
     if (!choice) return;
     await api(`/playbooks/${encodeURIComponent(selectedId)}/rollback`, {
       method: "POST", body: JSON.stringify({ version_id: choice }),
     });
     toast("Rolled back");
-    await selectPlaybook(selectedId);
+    await pagePlaybookEditor(selectedId);
   } catch (err) { toast(err.message, true); }
 }
 
@@ -327,709 +1600,6 @@ async function importPlaybook() {
     } catch (err) { toast(err.message, true); }
   };
   file.click();
-}
-
-async function pagePlaybooks() {
-  builderView = "dsl"; graphDef = null; graphSel = null; graphPos = {}; graphZoom = 1;
-  setPageMeta({
-    crumb: "Playbook Studio", subtitle: "Plan & edit playbooks",
-    actions: [{ label: "New", fn: newPlaybook }, { label: "Refresh", fn: refreshPlaybooks }],
-  });
-  $("#pageHeadInfo").innerHTML = `
-    <div class="eyebrow">PLAYBOOK STUDIO</div><h1>Playbooks</h1>
-    <div class="subtitle">Select a playbook and edit it in the DSL editor or visually in the graph builder. Save drafts, publish versions, roll back or export.</div>`;
-  $("#pageHeadActions").innerHTML = headActionsHtml([
-    { id: "refreshBtn", label: "↻ Refresh" },
-    { id: "newPlaybookBtn", label: "＋ New", cls: "primary" },
-  ]);
-  $("#pageBody").innerHTML = `
-  <section class="studio-grid">
-    <aside class="playbook-list" id="playbookList">Loading…</aside>
-    <section class="editor">
-      <div class="panel-head">
-        <span id="editorTitle">Select a playbook</span>
-        <div class="mode-switch" id="builderSwitch">
-          <button data-view="dsl" class="active">DSL editor</button>
-          <button data-view="graph">Graph builder</button>
-        </div>
-        <span id="editorStatus"></span>
-      </div>
-      <div id="dslView">
-        <textarea class="code-area" id="dslCode" spellcheck="false" placeholder="Playbook definition (JSON as returned by /definition)…"></textarea>
-        <div class="editor-actions">
-          <button class="btn" id="validateBtn">✓ Validate</button>
-          <button class="btn" id="saveDraftBtn">Save draft</button>
-          <button class="btn primary" id="publishBtn">Publish</button>
-          <button class="btn" id="runBtn">▶ Run</button>
-          <span style="flex:1"></span>
-          <button class="btn ghost" id="versionsBtn">Versions / rollback</button>
-          <button class="btn ghost" id="exportBtn">↗ Export</button>
-          <button class="btn ghost" id="importBtn">↙ Import</button>
-          <button class="btn danger" id="deleteBtn">Delete</button>
-        </div>
-      </div>
-      <div id="graphView" class="builder" hidden>
-        <div class="workarea">
-          <div class="canvas-toolbar">
-            <div class="mode-switch" id="graphCount">graph builder</div>
-            <div class="canvas-tools">
-              <button class="btn" id="addShellBtn" title="Add a shell-command node (inputs → command → filter)">＋ Shell node</button>
-              <button class="btn" id="addStepBtn">＋ Step</button>
-              <button class="btn" id="resetLayoutBtn">Reset layout</button>
-              <button class="btn" id="graphSaveBtn">Save draft</button>
-              <button class="btn" id="graphValidateBtn">✓ Validate</button>
-              <button class="btn" id="graphRunBtn">▶ Run</button>
-            </div>
-          </div>
-          <div class="canvas-area" id="canvasArea">
-            <div class="canvas-inner" id="canvasInner">
-              <span class="canvas-label">EXECUTION GRAPH</span>
-              <span class="canvas-hint">click a step to edit · drag <b>●</b> from a right port onto a step to connect · click a <b>○</b> port then the target port</span>
-              <svg class="edges" id="edgeLayer"></svg>
-              <div class="canvas-legend">
-                <span><i class="legend-dot" style="background:#edc57c"></i>tool</span>
-                <span><i class="legend-dot" style="background:#f09685"></i>shell</span>
-                <span><i class="legend-dot" style="background:#92dbad"></i>scope / report</span>
-                <span><i class="legend-dot" style="background:#aabaff"></i>correlation</span>
-              </div>
-              <div class="add-node" id="addNodeTile" title="Add a step">＋ Add step</div>
-              <div class="zoom" id="zoomCtl" title="Zoom">
-                <button id="zoomOut" title="Zoom out">−</button>
-                <button id="zoomReset" title="Reset zoom">⌂</button>
-                <button id="zoomIn" title="Zoom in">＋</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <aside class="inspector" id="inspector"></aside>
-      </div>
-      <pre class="result" id="editorResult" hidden></pre>
-    </section>
-  </section>`;
-  $("#refreshBtn").addEventListener("click", () => refreshPlaybooks());
-  $("#newPlaybookBtn").addEventListener("click", newPlaybook);
-
-  $$("#builderSwitch button").forEach((btn) =>
-    btn.addEventListener("click", () => switchBuilderView(btn.dataset.view)));
-
-  $("#validateBtn").addEventListener("click", async () => {
-    const out = $("#editorResult");
-    if (!selectedId) return toast("Select a playbook first", true);
-    try {
-      const r = await api(`/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
-        method: "POST", body: JSON.stringify({ definition: JSON.parse($("#dslCode").value) }),
-      });
-      out.hidden = false;
-      out.textContent = JSON.stringify(r, null, 2);
-      toast(r.valid ? "Definition valid" : "Validation failed", !r.valid);
-    } catch (err) {
-      out.hidden = false;
-      out.textContent = String(err);
-      toast(err.message, true);
-    }
-  });
-  $("#saveDraftBtn").addEventListener("click", saveDraft);
-  $("#publishBtn").addEventListener("click", publish);
-  $("#runBtn").addEventListener("click", () => runPlaybook(selectedId));
-  $("#versionsBtn").addEventListener("click", showVersions);
-  $("#exportBtn").addEventListener("click", exportPlaybook);
-  $("#importBtn").addEventListener("click", importPlaybook);
-  $("#deleteBtn").addEventListener("click", deletePlaybook);
-
-  $("#addStepBtn").addEventListener("click", addGraphStep);
-  $("#addShellBtn").addEventListener("click", () => addShellStep());
-  $("#resetLayoutBtn").addEventListener("click", resetGraphLayout);  $("#graphSaveBtn").addEventListener("click", () => { captureGraphToDSL(); saveDraft(); });
-  $("#graphValidateBtn").addEventListener("click", async () => {
-    captureGraphToDSL();
-    const out = $("#editorResult");
-    if (!selectedId) return toast("Select a playbook first", true);
-    try {
-      const r = await api(`/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
-        method: "POST", body: JSON.stringify({ definition: JSON.parse($("#dslCode").value) }),
-      });
-      out.hidden = false;
-      out.textContent = JSON.stringify(r, null, 2);
-      toast(r.valid ? "Definition valid" : r.findings?.length + " validation finding(s)", !r.valid);
-    } catch (err) { toast(err.message, true); }
-  });
-  $("#graphRunBtn").addEventListener("click", () => runPlaybook(selectedId));
-
-  /* static canvas chrome: on-canvas ＋ tile + zoom controls (visual builder) */
-  const addTile = $("#addNodeTile");
-  if (addTile) addTile.addEventListener("click", (e) => { e.stopPropagation(); addGraphStep(); });
-  const zi = $("#zoomIn"), zo = $("#zoomOut"), zr = $("#zoomReset");
-  if (zi) zi.addEventListener("click", () => nudgeZoom(+0.25));
-  if (zo) zo.addEventListener("click", () => nudgeZoom(-0.25));
-  if (zr) zr.addEventListener("click", () => { graphZoom = 1; applyZoom(); });
-
-  await refreshPlaybooks();
-}
-
-/* ── graph (visual) builder ────────────────────────────────────────── */
-
-const NODE_W = 190, NODE_H = 111, X_GAP = 260, Y_GAP = 150;
-let builderView = "dsl";
-let graphDef = null;          // definition object while in graph view
-let graphSel = null;          // selected step id
-let graphPos = {};            // {stepId:{x,y}} drag overrides
-let graphZoom = 1;
-
-const TYPE_ICONS = {
-  tool: { cls: "scan", glyph: "◎" },
-  shell: { cls: "cmd", glyph: "❯" },
-  scope_check: { cls: "dns", glyph: "✓" },
-  finding_correlation: { cls: "web", glyph: "⇄" },
-  assessment_report: { cls: "out", glyph: "▤" },
-};
-const iconFor = (s) => TYPE_ICONS[s?.type] || { cls: "scan", glyph: "◈" };
-
-function getGraphSteps() { return Array.isArray(graphDef?.steps) ? graphDef.steps : []; }
-
-function loadGraphFromDSL() {
-  const raw = $("#dslCode")?.value?.trim();
-  if (raw) {
-    try {
-      graphDef = JSON.parse(raw);
-    } catch (err) {
-      toast("DSL is not valid JSON — fix the DSL before opening the graph: " + err.message, true);
-      return false;
-    }
-  } else {
-    graphDef = { name: selectedId || "empty", steps: [] };
-  }
-  if (!Array.isArray(graphDef.steps)) graphDef.steps = [];
-  graphSel = null;
-  graphPos = {};
-  return true;
-}
-
-function captureGraphToDSL() {
-  if (builderView !== "graph" || !graphDef) return;
-  const t = $("#dslCode");
-  if (t) t.value = JSON.stringify(graphDef, null, 2);
-}
-
-function switchBuilderView(view) {
-  if (view === builderView && view === "graph") { renderBuilder(); return; }
-  if (view === "graph") {
-    if (!loadGraphFromDSL()) return;
-  } else {
-    captureGraphToDSL();
-  }
-  builderView = view;
-  const dv = $("#dslView"), gv = $("#graphView");
-  if (dv) dv.hidden = view !== "dsl";
-  if (gv) gv.hidden = view !== "graph";
-  $$("#builderSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
-  if (view === "graph") { renderBuilder(); } else { const inj = $("#inspector"); if (inj) inj.innerHTML = ""; }
-}
-
-function stepById(id) { return getGraphSteps().find((s) => s.id === id); }
-
-/* cycle-safe longest-path layering (iterative relaxation) */
-function graphLayout(depths) {
-  const steps = getGraphSteps();
-  const ids = new Set(steps.map((s) => s.id));
-  steps.forEach((s) => { depths[s.id] = 0; });
-  for (let iter = 0; iter < steps.length + 1; iter++) {
-    let changed = false;
-    for (const s of steps) {
-      const deps = (s.depends_on || []).filter((d) => ids.has(d) && d !== s.id);
-      const d = deps.length ? Math.max(...deps.map((x) => (depths[x] ?? 0) + 1)) : 0;
-      if (d > depths[s.id]) { depths[s.id] = d; changed = true; }
-    }
-    if (!changed) break;
-  }
-}
-
-function nodePos(id, depths) {
-  if (graphPos[id]) return graphPos[id];
-  const depth = depths[id] ?? 0;
-  const sameLane = getGraphSteps().filter((s) => (depths[s.id] ?? 0) === depth);
-  const yIdx = sameLane.findIndex((s) => s.id === id);
-  return { x: 40 + depth * X_GAP, y: 193 + yIdx * Y_GAP };
-}
-
-function renderBuilder() {
-  const inner = $("#canvasInner");
-  if (!inner) return;
-  const steps = getGraphSteps();
-  const countEl = $("#graphCount");
-  if (countEl) countEl.innerHTML = `<span>${steps.length} step${steps.length === 1 ? "" : "s"}</span>`;
-  const depths = {};
-  graphLayout(depths);
-
-  // remove previous nodes, keep static chrome
-  $$(".node", inner).forEach((n) => n.remove());
-  inner.style.transform = `scale(${graphZoom})`;
-
-  for (const s of steps) {
-    const p = nodePos(s.id, depths);
-    const ic = iconFor(s);
-    let bodyHtml = "";
-    if (s.type === "shell") {
-      const inRows = Object.entries(s.inputs || {})
-        .filter(([k]) => k)
-        .map(([k, v]) => `<div class="shell-line in"><i>in</i><b>${esc(k)}</b><span>${esc(String(v))}</span></div>`)
-        .join("") || `<div class="shell-line in"><i>in</i><span class="dim">no inputs</span></div>`;
-      const cmd = s.command ? esc(s.command) : "<span class=\"dim\">no command</span>";
-      const f = s.filter && s.filter.type !== "none" ? s.filter : null;
-      const fLine = f
-        ? `<div class="shell-line flt"><i>⌕</i><b>${esc(f.type || "grep")}</b><span>${esc(String(f.pattern || "").slice(0, 46))}</span></div>`
-        : `<div class="shell-line flt"><i>⌕</i><span class="dim">no filter</span></div>`;
-      bodyHtml = `${inRows}<div class="shell-line cmd"><i>❯</i><b class="cmd-txt">${cmd}</b></div>${fLine}`;
-    } else {
-      const isTool = s.type === "tool";
-      const argSummary = isTool
-        ? `tool: ${s.tool || "?"} · ${Object.keys(s.args || {}).length} arg(s)`
-        : Object.keys(s.args || {}).length ? `${Object.keys(s.args || {}).length} arg(s)` : "internal stage";
-      bodyHtml = esc(argSummary) + (s.when ? `<br/>when: ${esc(s.when)}` : "");
-    }
-    const el = document.createElement("div");
-    el.className = `node ${s.type === "shell" ? "shell " : ""}${graphSel === s.id ? "selected" : ""}`;
-    el.style.left = `${p.x}px`; el.style.top = `${p.y}px`;
-    el.dataset.step = s.id;
-    el.innerHTML = `
-      <div class="node-top"><div class="node-icon ${ic.cls}">${ic.glyph}</div>
-        <div><div class="node-title">${esc(s.id)}</div><div class="node-kind">${esc(s.type || "step")}</div></div>
-        <span class="node-status ${(s.done || s.checkpoint) ? "done" : ""}"></span></div>
-      <div class="node-body">${bodyHtml}</div>
-      <div class="node-foot"><span class="chip">${esc((s.depends_on || []).length + " dep(s)")}</span>${s.checkpoint ? '<span class="chip">checkpoint</span>' : ""}</div>
-      <span class="port left"></span><span class="port right"></span>`;
-    el.addEventListener("mousedown", (e) => startNodeDrag(e, s.id, p));
-    const rightPort = el.querySelector(".port.right");
-    if (rightPort) {
-      rightPort.addEventListener("mousedown", (e) => startPortConnect(e, s.id));
-    }
-    inner.appendChild(el);
-  }
-
-  // edges
-  const svg = $("#edgeLayer");
-  let edges = "";
-  for (const s of steps) {
-    for (const dep of s.depends_on || []) {
-      if (!depths.hasOwnProperty(dep) || dep === s.id) continue;
-      const a = nodePos(dep, depths), b = nodePos(s.id, depths);
-      const x1 = a.x + NODE_W, y1 = a.y + 51, x2 = b.x, y2 = b.y + 51;
-      const mx = (x1 + x2) / 2;
-      edges += `<path class="edge" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
-    }
-  }
-  svg.innerHTML = edges;
-  renderInspector();
-}
-
-function renderInspector() {
-  const inj = $("#inspector");
-  const s = graphSel ? stepById(graphSel) : null;
-  if (!s) {
-    inj.innerHTML = `<div style="padding:14px"><div class="eyebrow">INSPECTOR</div>
-      <p class="empty" style="padding:8px 0">Select a step on the canvas to edit id, type, tool, dependencies and args. Use ＋ Step / ＋ Shell node to add one.</p></div>`;
-    return;
-  }
-  const allTypes = ["tool", "shell", "scope_check", "finding_correlation", "assessment_report", "custom"];
-  const typeOpts = allTypes
-    .map((v) => `<option value="${v}" ${v === (s.type || "tool") ? "selected" : ""}>${v}</option>`).join("");
-
-  if (s.type === "shell") {
-    const inRows = Object.entries(s.inputs || {}).map(([k, v], i) =>
-      `<div class="ins-row">
-        <input class="select inp-key" data-i="${i}" value="${esc(k)}" placeholder="name">
-        <input class="select inp-val" data-i="${i}" value="${esc(typeof v === "string" ? v : JSON.stringify(v))}" placeholder='{{target}} or {{step.field}}'>
-        <button class="btn danger inp-del" data-i="${i}" title="Remove input">×</button>
-      </div>`).join("");
-    inj.innerHTML = `<div style="padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto">
-    <div class="eyebrow">INSPECTOR — SHELL NODE</div>
-    <label class="dim" style="font-size:10px">Step id<input class="select" id="insId" value="${esc(s.id)}"></label>
-    <label class="dim" style="font-size:10px">depends_on (comma separated)<input class="select" id="insDeps" value="${esc((s.depends_on || []).join(", "))}"></label>
-    <div>
-      <div class="dim" style="font-size:10px;margin-bottom:5px">1 · inputs
-        <span style="color:#5b6b80"> — name → value; <code>{{name}}</code> = run input (agent/operator), <code>{{step.field}}</code> = upstream node output, bare text = literal</span>
-      </div>
-      <div id="insInputRows">${inRows}</div>
-      <button class="btn" id="insAddInput" style="margin-top:6px">＋ input</button>
-    </div>
-    <div>
-      <div class="dim" style="font-size:10px;margin-bottom:5px">2 · command
-        <span style="color:#5b6b80"> — <code>{name}</code> placeholders fill from the inputs above</span>
-      </div>
-      <input class="select" id="insCommand" value="${esc(s.command || "")}" placeholder="nmap {ip} -sn -p80" style="font-family:ui-monospace,Menlo,monospace">
-    </div>
-    <div>
-      <div class="dim" style="font-size:10px;margin-bottom:5px">3 · filter
-        <span style="color:#5b6b80"> — extract data from the output; named capture <code>(?P&lt;ip&gt;…)</code> → output field <code>ip</code></span>
-      </div>
-      <div class="ins-filter-row">
-        <select class="select" id="insFilterType">
-          ${["grep", "regex", "none"].map((v) => `<option value="${v}" ${v === (s.filter?.type || "grep") ? "selected" : ""}>${v}</option>`).join("")}
-        </select>
-        <label class="dim" style="font-size:10px;white-space:nowrap">first only<input type="checkbox" id="insFilterFirst" ${s.filter?.first_only ? "checked" : ""}></label>
-      </div>
-      <input class="select" id="insFilterPattern" value="${esc(s.filter?.pattern || "")}" placeholder='(?P<ip>[0-9]+\.[0-9.]+)' style="margin-top:5px;font-family:ui-monospace,Menlo,monospace">
-    </div>
-    <label class="dim" style="font-size:10px" style="display:flex;gap:6px;align-items:center">checkpoint
-      <input type="checkbox" id="insCheckpoint" ${s.checkpoint ? "checked" : ""}></label>
-    <div class="dim" style="font-size:10px">args (JSON) — e.g. {"timeout": 600}<textarea class="select" id="insArgs" style="min-height:64px;font-family:ui-monospace,Menlo,monospace;font-size:11px" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn primary" id="insApply">Apply</button>
-      <button class="btn danger" id="insDel">Delete node</button>
-    </div>
-  </div>`;
-    bindShellInspector(s);
-    return;
-  }
-
-  inj.innerHTML = `<div style="padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto">
-    <div class="eyebrow">INSPECTOR</div>
-    <label class="dim" style="font-size:10px">Step id<input class="select" id="insId" value="${esc(s.id)}"></label>
-    <label class="dim" style="font-size:10px">Type
-      <select class="select" id="insType">${typeOpts}</select></label>
-    <label class="dim" style="font-size:10px">Tool (type=tool)<input class="select" id="insTool" value="${esc(s.tool || "")}" placeholder="e.g. nuclei"></label>
-    <label class="dim" style="font-size:10px">depends_on (comma separated)<input class="select" id="insDeps" value="${esc((s.depends_on || []).join(", "))}"></label>
-    <label class="dim" style="font-size:10px">when (optional condition)<input class="select" id="insWhen" value="${esc(s.when || "")}"></label>
-    <label class="dim" style="font-size:10px" style="display:flex;gap:6px;align-items:center">checkpoint
-      <input type="checkbox" id="insCheckpoint" ${s.checkpoint ? "checked" : ""}></label>
-    <label class="dim" style="font-size:10px">args (JSON)<textarea class="select" id="insArgs" style="min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:11px" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea></label>
-    <div style="display:flex;gap:8px">
-      <button class="btn primary" id="insApply">Apply</button>
-      <button class="btn danger" id="insDel">Delete step</button>
-    </div>
-  </div>`;
-  $("#insApply").addEventListener("click", applyInspector);
-  $("#insDel").addEventListener("click", () => deleteGraphStep(graphSel));
-  bindShellInspector(s);
-}
-
-/* shell-inspector wiring: add/remove input rows + apply */
-function bindShellInspector(s) {
-  const addBtn = $("#insAddInput");
-  if (!addBtn) return;
-  const rows = $("#insInputRows");
-  addBtn.addEventListener("click", () => {
-    const i = rows.children.length;
-    const row = document.createElement("div");
-    row.className = "ins-row";
-    row.innerHTML = `<input class="select inp-key" data-i="${i}" placeholder="name">
-      <input class="select inp-val" data-i="${i}" placeholder='{{target}} or {{step.field}}'>
-      <button class="btn danger inp-del" data-i="${i}" title="Remove input">×</button>`;
-    rows.appendChild(row);
-    bindRowDel(row, rows);
-    row.querySelector(".inp-key").focus();
-  });
-  $$(".inp-del", rows).forEach((b) => bindRowDel(b.closest(".ins-row"), rows));
-  $("#insApply").addEventListener("click", applyShellInspector);
-  $("#insDel").addEventListener("click", () => deleteGraphStep(graphSel));
-}
-
-function bindRowDel(row, rows) {
-  row.querySelector(".inp-del").addEventListener("click", () => { row.remove(); });
-}
-
-function applyShellInspector() {
-  const s = stepById(graphSel);
-  if (!s || s.type !== "shell") return;
-  const oldId = s.id;
-  const newId = ($("#insId").value || "").trim();
-  const ids = new Set(getGraphSteps().map((x) => x.id).filter((x) => x !== oldId));
-  if (!newId) return toast("Step id required", true);
-  if (newId !== oldId && ids.has(newId)) return toast(`Step id "${newId}" already used`, true);
-  if (newId !== oldId) {
-    getGraphSteps().forEach((x) => {
-      if (Array.isArray(x.depends_on)) x.depends_on = x.depends_on.map((d) => (d === oldId ? newId : d));
-    });
-    delete graphPos[oldId];
-  }
-  s.id = newId;
-  s.depends_on = $("#insDeps").value.split(",").map((d) => d.trim()).filter(Boolean);
-  if (!Array.isArray(s.depends_on)) s.depends_on = [];
-
-  // 1 · inputs
-  const inputs = {};
-  $$("#insInputRows .ins-row").forEach((row) => {
-    const k = (row.querySelector(".inp-key")?.value || "").trim();
-    if (!k) return;
-    let v = (row.querySelector(".inp-val")?.value || "").trim();
-    if (v === "#REMOVE#") return;
-    inputs[k] = v;
-  });
-  if (Object.keys(inputs).length) s.inputs = inputs; else delete s.inputs;
-
-  // 2 · command
-  const cmd = ($("#insCommand").value || "").trim();
-  if (cmd) s.command = cmd; else delete s.command;
-  s.type = "shell";
-
-  // 3 · filter
-  const ftype = $("#insFilterType")?.value || "none";
-  const fpat = ($("#insFilterPattern")?.value || "").trim();
-  if (ftype && ftype !== "none" && fpat) {
-    s.filter = { type: ftype, pattern: fpat };
-    if ($("#insFilterFirst")?.checked) s.filter.first_only = true;
-  } else {
-    delete s.filter;
-  }
-
-  if ($("#insCheckpoint").checked) s.checkpoint = true; else delete s.checkpoint;
-  try {
-    const parsed = JSON.parse($("#insArgs").value || "{}");
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      if (Object.keys(parsed).length) s.args = parsed; else delete s.args;
-    } else { toast("args must be a JSON object — kept previous value", true); }
-  } catch { return toast("args is not valid JSON — nothing applied for args", true); }
-
-  graphSel = s.id;
-  renderBuilder();
-  captureGraphToDSL();
-  toast(`Shell node ${s.id} updated`);
-}
-
-function applyInspector() {
-  const s = stepById(graphSel);
-  if (!s) return;
-  const oldId = s.id;
-  const newId = ($("#insId").value || "").trim();
-  const ids = new Set(getGraphSteps().map((x) => x.id).filter((x) => x !== oldId));
-  if (!newId) return toast("Step id required", true);
-  if (newId !== oldId && ids.has(newId)) return toast(`Step id "${newId}" already used`, true);
-  if (newId !== oldId) {
-    getGraphSteps().forEach((x) => {
-      if (Array.isArray(x.depends_on)) x.depends_on = x.depends_on.map((d) => (d === oldId ? newId : d));
-    });
-    delete graphPos[oldId];
-  }
-  s.id = newId;
-  s.type = $("#insType").value;
-  const tool = $("#insTool").value.trim();
-  if (s.type === "tool") { if (tool) s.tool = tool; else delete s.tool; }
-  else delete s.tool;
-  s.depends_on = $("#insDeps").value.split(",").map((d) => d.trim()).filter(Boolean);
-  if (!Array.isArray(s.depends_on)) s.depends_on = [];
-  const when = $("#insWhen").value.trim();
-  if (when) s.when = when; else delete s.when;
-  if ($("#insCheckpoint").checked) s.checkpoint = true; else delete s.checkpoint;
-  try {
-    const parsed = JSON.parse($("#insArgs").value || "{}");
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      if (Object.keys(parsed).length) s.args = parsed; else delete s.args;
-    } else { toast("args must be a JSON object — kept previous value", true); }
-  } catch { return toast("args is not valid JSON — nothing applied for args", true); }
-
-  graphSel = s.id;
-  renderBuilder();
-  captureGraphToDSL();
-  toast(`Step ${s.id} updated`);
-}
-
-function deleteGraphStep(id) {
-  graphDef.steps = getGraphSteps().filter((s) => s.id !== id);
-  getGraphSteps().forEach((s) => {
-    if (Array.isArray(s.depends_on)) s.depends_on = s.depends_on.filter((d) => d !== id);
-  });
-  graphSel = null;
-  captureGraphToDSL();
-  renderBuilder();
-  toast(`Step ${id} deleted`);
-}
-
-function addGraphStep() {
-  if (builderView !== "graph") {
-    if (!loadGraphFromDSL()) return;
-  }
-  let n = 1, id;
-  do { id = `step_${n++}`; } while (stepById(id));
-  getGraphSteps().push({ id, type: "tool", depends_on: [] });
-  graphSel = id;
-  renderBuilder();
-  captureGraphToDSL();
-  toast(`Added ${id}`);
-}
-
-function addShellStep() {
-  if (builderView !== "graph") {
-    if (!loadGraphFromDSL()) return;
-  }
-  let n = 1, id;
-  do { id = `shell_${n++}`; } while (stepById(id));
-  getGraphSteps().push({
-    id, type: "shell", command: "", inputs: {},
-    filter: { type: "grep", pattern: "" }, depends_on: [],
-  });
-  graphSel = id;
-  renderBuilder();
-  captureGraphToDSL();
-  toast(`Added shell node ${id} — configure inputs, command and filter in the inspector`);
-}
-
-function resetGraphLayout() { graphPos = {}; graphZoom = 1; renderBuilder(); toast("Layout reset"); }
-
-/* node dragging: pointer capture on .node */
-let dragCtx = null;
-function startNodeDrag(e, id, origin) {
-  e.preventDefault();
-  const startX = e.clientX, startY = e.clientY;
-  const ox = origin.x, oy = origin.y;
-  let moved = false;
-  const move = (ev) => {
-    const dx = ev.clientX - startX, dy = ev.clientY - startY;
-    if (!moved && Math.hypot(dx, dy) < 4) return;
-    moved = true;
-    const x = Math.max(0, Math.round(ox + dx / graphZoom)), y = Math.max(0, Math.round(oy + dy / graphZoom));
-    graphPos[id] = { x, y };
-    const el = $(`.node[data-step="${CSS.escape(id)}"]`);
-    if (el) { el.style.left = `${x}px`; el.style.top = `${y}px`; }
-    redrawEdges();
-  };
-  const up = (ev) => {
-    document.removeEventListener("mousemove", move);
-    document.removeEventListener("mouseup", up);
-    if (!moved) {
-      // plain click: if a connection is armed and this was a port click,
-      // complete the wire; otherwise select the node
-      const isPort = ev.target instanceof Element && ev.target.classList.contains("port");
-      if (pendingConnect && isPort && pendingConnect !== id) { disarmConnect(); completeConnect(pendingConnect, id); return; }
-      graphSel = id; renderBuilder();
-    }
-  };
-  document.addEventListener("mousemove", move);
-  document.addEventListener("mouseup", up);
-}
-
-/* edge creation: drag from a node's right port onto another node
-   (adds srcId to the target step's depends_on, cycle-checked) */
-let connectCtx = null;
-
-function wouldCreateCycle(srcId, tgtId) {
-  // Adding src as a dependency of tgt closes a loop only if src already
-  // depends (transitively) on tgt.
-  if (srcId === tgtId) return true;
-  const seen = new Set();
-  const stack = [srcId];
-  while (stack.length) {
-    const cur = stack.pop();
-    if (cur === tgtId) return true;
-    if (seen.has(cur)) continue;
-    seen.add(cur);
-    const s = stepById(cur);
-    (s?.depends_on || []).forEach((d) => stack.push(d));
-  }
-  return false;
-}
-
-/* click-connect: click a right port to arm a connection, then click the
-   target node's left port (or right port of source first via drag as well) */
-let pendingConnect = null;
-
-function armConnect(srcId) {
-  pendingConnect = srcId;
-  $$(".port").forEach((p) => p.classList.remove("armed"));
-  const el = $(`.node[data-step="${CSS.escape(srcId)}"] .port.right`);
-  if (el) el.classList.add("armed");
-  toast(`Connect: click the target node's ○ left port (Esc to cancel)`);
-}
-
-function disarmConnect() {
-  pendingConnect = null;
-  $$(".port").forEach((p) => p.classList.remove("armed"));
-}
-
-function completeConnect(srcId, tgtId) {
-  if (tgtId === srcId) { toast("A step cannot depend on itself", true); disarmConnect(); return; }
-  if (wouldCreateCycle(srcId, tgtId)) { toast(`Wire ${srcId} → ${tgtId} would create a cycle`, true); disarmConnect(); return; }
-  const s = stepById(tgtId);
-  if (!s) { disarmConnect(); return; }
-  s.depends_on = Array.isArray(s.depends_on) ? s.depends_on : [];
-  if (s.depends_on.includes(srcId)) { toast(`${tgtId} already depends on ${srcId}`); disarmConnect(); return; }
-  s.depends_on.push(srcId);
-  disarmConnect();
-  renderBuilder();
-  captureGraphToDSL();
-  toast(`Connected ${srcId} → ${tgtId}`);
-}
-
-function clearConnectPreview() {
-  const p = $("#connectPreview");
-  if (p) p.remove();
-}
-
-function startPortConnect(e, srcId) {
-  e.preventDefault();
-  e.stopPropagation();
-  const startX = e.clientX, startY = e.clientY;
-  const depths = {};
-  graphLayout(depths);
-  const a = nodePos(srcId, depths);
-  const x1 = a.x + NODE_W, y1 = a.y + 51;
-  connectCtx = { srcId, depths };
-  const inner = $("#canvasInner");
-  const toCanvas = (ev) => {
-    const r = inner.getBoundingClientRect();
-    return { x: (ev.clientX - r.left) / graphZoom, y: (ev.clientY - r.top) / graphZoom };
-  };
-  const move = (ev) => {
-    const dx = ev.clientX - startX, dy = ev.clientY - startY;
-    if (Math.hypot(dx, dy) < 4) return;
-    disarmConnect();
-    const m = toCanvas(ev);
-    const mx = (x1 + m.x) / 2;
-    clearConnectPreview();
-    const svg = $("#edgeLayer");
-    if (!svg) return;
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.id = "connectPreview";
-    path.setAttribute("class", "edge");
-    path.setAttribute("d", `M${x1},${y1} C${mx},${y1} ${mx},${m.y} ${m.x},${m.y}`);
-    svg.appendChild(path);
-  };
-  const up = (ev) => {
-    document.removeEventListener("mousemove", move);
-    document.removeEventListener("mouseup", up);
-    clearConnectPreview();
-    connectCtx = null;
-    // no real drag: arm click-connect instead of wiring blind
-    if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) { disarmConnect(); armConnect(srcId); return; }
-    const hit = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".node");
-    if (!hit) return;
-    const tgtId = hit.dataset.step;
-    if (!tgtId) return;
-    completeConnect(srcId, tgtId);
-  };
-  document.addEventListener("mousemove", move);
-  document.addEventListener("mouseup", up);
-}
-
-/* Esc cancels an armed click-connect */
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && pendingConnect) disarmConnect();
-});
-
-/* zoom: 0.25x – 2x on the canvas inner */
-function applyZoom() {
-  const inner = $("#canvasInner");
-  if (inner) inner.style.transform = `scale(${graphZoom})`;
-}
-
-function nudgeZoom(delta) {
-  graphZoom = Math.min(2, Math.max(0.25, Math.round((graphZoom + delta) * 100) / 100));
-  applyZoom();
-}
-
-function redrawEdges() {
-  const inner = $("#canvasInner");
-  const depths = {};
-  graphLayout(depths);
-  const svg = $("#edgeLayer");
-  let edges = "";
-  for (const s of getGraphSteps()) {
-    for (const dep of s.depends_on || []) {
-      if (!depths.hasOwnProperty(dep) || dep === s.id) continue;
-      const a = nodePos(dep, depths), b = nodePos(s.id, depths);
-      const x1 = a.x + NODE_W, y1 = a.y + 51, x2 = b.x, y2 = b.y + 51;
-      const mx = (x1 + x2) / 2;
-      edges += `<path class="edge" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
-    }
-  }
-  svg.innerHTML = edges;
 }
 
 /* ── route: executions ─────────────────────────────────────────────── */
@@ -1577,6 +2147,7 @@ async function route() {
     if (name === "executions" && id) await pageExecutionDetail(decodeURIComponent(id));
     else if (name === "connections" && id) await pageConnectionDetail(decodeURIComponent(id));
     else if (name === "agents" && id) await pageAgentDetail(decodeURIComponent(id));
+    else if (name === "playbooks" && id) await pagePlaybookEditor(decodeURIComponent(id));
     else await ROUTES[name].render();
   } catch (err) {
     $("#pageBody").insertAdjacentHTML("beforeend", `<p class="error" style="padding:20px">${esc(err.message)}</p>`);
