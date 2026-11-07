@@ -591,7 +591,7 @@ function captureGraphToDSL() {
 
 function switchBuilderView(view) {
   if (view === builderView && view === "graph") { renderBuilder(); return; }
-  if (builderView === "graph") captureGraphToDSL();
+  if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   if (view === "graph") {
     if (!loadGraphFromDSL()) return;   // invalid JSON: stay in DSL with a toast
   }
@@ -829,6 +829,22 @@ function defInputs(def) {
   if (Array.isArray(raw)) return raw.filter((x) => typeof x === "object" && x?.name).map((x) => ({ name: x.name, spec: x }));
   if (raw && typeof raw === "object") return Object.entries(raw).map(([name, spec]) => ({ name, spec: typeof spec === "object" && spec ? spec : {} }));
   return [];
+}
+
+/* collect run-input names referenced as {{name}} across step inputs, args and
+   shell commands — these are the inputs a playbook actually takes at launch */
+function collectRunInputs(def) {
+  const names = new Set();
+  const add = (v) => {
+    if (typeof v !== "string") return;
+    for (const m of v.matchAll(/\{\{\s*([a-zA-Z_][\w]*)\s*\}\}/g)) names.add(m[1]);
+  };
+  for (const s of def?.steps || []) {
+    if (s.inputs) for (const v of Object.values(s.inputs)) add(v);
+    if (s.command) add(s.command);
+    if (s.args) for (const v of Object.values(s.args)) add(v);
+  }
+  return [...names].map((name) => ({ name, spec: { type: "string", required: true } }));
 }
 
 function namedGroups(pattern) {
@@ -1647,7 +1663,18 @@ function addStage(type) {
 async function runModal(id) {
   let def = null;
   try { def = (await api(`/playbooks/${encodeURIComponent(id)}/definition`)).definition; } catch { /* not saved yet */ }
-  const specs = defInputs(def);
+  // The server returns null for unsaved drafts (until restarted); fall back to
+  // the live editor graph so the run modal still shows the inputs the steps
+  // reference ({{name}} run inputs, step.inputs mappings, shell command refs).
+  if (!def && graphDef) {
+    applyTabFields(stepById(graphSel));
+    def = graphDef;
+  }
+  const declared = defInputs(def);
+  const stepDerived = collectRunInputs(def);
+  const byName = new Map();
+  for (const sp of [...stepDerived, ...declared]) byName.set(sp.name, sp); // declared overrides step-derived
+  const specs = [...byName.values()];
   const rows = specs.map((sp) => {
     const type = String(sp.spec?.type || "string");
     const required = sp.spec?.required ? "required" : "optional";
@@ -1751,7 +1778,7 @@ async function loadRunStatus(id) {
 async function validateDefinition() {
   const out = $("#editorResult");
   if (!selectedId) return toast("Select a playbook first", true);
-  if (builderView === "graph") captureGraphToDSL();
+  if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   try {
     const r = await api(`/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
       method: "POST", body: JSON.stringify({ definition: JSON.parse($("#dslCode").value) }),
@@ -1768,7 +1795,7 @@ async function validateDefinition() {
 
 async function saveDraft() {
   if (!selectedId) return toast("Select a playbook first", true);
-  if (builderView === "graph") captureGraphToDSL();
+  if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   try {
     const body = { definition: JSON.parse($("#dslCode").value) };
     await api(`/playbooks/${encodeURIComponent(selectedId)}/definition`, {
@@ -1782,7 +1809,7 @@ async function saveDraft() {
 
 async function publish() {
   if (!selectedId) return toast("Select a playbook first", true);
-  if (builderView === "graph") captureGraphToDSL();
+  if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   try {
     const def = JSON.parse($("#dslCode").value);
     const version = def.version || "1.0.0";
