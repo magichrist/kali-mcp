@@ -38,6 +38,7 @@ class SseClient:
         self._queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=max_queue)
         self._task: asyncio.Task | None = None
         self._closed = False
+        self._last_error: str | None = None
 
     async def connect(self) -> None:
         """Connect to the SSE stream and start reading in the background."""
@@ -51,6 +52,7 @@ class SseClient:
                     http.stream("GET", self.url) as response,
                 ):
                     response.raise_for_status()
+                    self._last_error = None  # successful connection cleared any error
                     async for line in response.aiter_lines():
                         if self._closed:
                             return
@@ -71,13 +73,19 @@ class SseClient:
                                 self._queue.put_nowait(payload)
             except (httpx.ConnectError, httpx.ReadError, OSError):
                 # Server went down — retry after a short pause
+                self._last_error = "Connection refused — is the server running?"
                 await asyncio.sleep(2.0)
             except httpx.HTTPStatusError as exc:
                 # 401/403 etc — auth problem, keep retrying so a token change
                 # or server restart recovers without restarting the TUI.
+                self._last_error = f"HTTP {exc.response.status_code} — check your MCP_API_TOKEN"
                 await asyncio.sleep(2.0)
             except asyncio.CancelledError:
                 return
+
+    @property
+    def last_error(self) -> str | None:
+        return self._last_error
 
     async def next_snapshot(self) -> dict[str, Any] | None:
         """Wait for and return the next snapshot from the stream."""

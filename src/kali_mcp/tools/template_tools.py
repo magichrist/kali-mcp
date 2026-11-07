@@ -112,7 +112,7 @@ class TemplateListTool(BaseTool):
             "properties": {
                 "detail": {
                     "type": "string",
-                    "description": "Output detail level: compact (default) or full",
+                    "description": "verbosity: compact | full (default compact)",
                     "default": "compact",
                 }
             },
@@ -120,7 +120,6 @@ class TemplateListTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        # No inputs required — accept anything or nothing.
         pass
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:

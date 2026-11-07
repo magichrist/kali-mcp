@@ -313,10 +313,14 @@ async def run(url: str, token: str | None = None) -> None:
     DOUBLE_TAP_WINDOW = 0.5  # seconds
 
     snapshot = client.get_latest_snapshot() or {}
+    # Show connection error if the SSE stream is failing
+    conn_err = client.last_error
     status_msg = (
-        "q: quit · r: refresh · f: force cleanup · k k: kill selected · "
-        "←→: switch panel · ↑↓: move selection"
+        f"q: quit · r: refresh · f: force cleanup · k k: kill selected · "
+        f"←→: switch panel · ↑↓: move selection"
     )
+    if conn_err:
+        status_msg = f"Connection error: {conn_err} · q: quit · r: retry"
     layout = build_layout(snapshot, status_msg, panel, index)
 
     # Old-style kill-by-id mode (single k then type ID)
@@ -341,6 +345,13 @@ async def run(url: str, token: str | None = None) -> None:
                 # ── New snapshot from SSE ──────────────────────────────
                 if isinstance(result, dict):
                     snapshot = result
+                    # Clear connection error once data flows again
+                    conn_err = client.last_error
+                    if conn_err:
+                        status_msg = (
+                            "q: quit · r: refresh · f: force cleanup · k k: kill selected · "
+                            "←→: switch panel · ↑↓: move selection"
+                        )
                     layout = build_layout(
                         snapshot,
                         status_msg,
@@ -486,6 +497,10 @@ async def run(url: str, token: str | None = None) -> None:
                 elif key == "r":
                     latest = client.get_latest_snapshot() or {}
                     snapshot = latest
+                    # Refresh connection error status on manual refresh
+                    conn_err = client.last_error
+                    if conn_err:
+                        status_msg = f"Connection error: {conn_err} · q: quit · r: retry"
                     layout = build_layout(
                         latest,
                         status_msg,
