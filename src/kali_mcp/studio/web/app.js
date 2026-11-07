@@ -405,7 +405,7 @@ async function pagePlaybookEditor(id) {
   $("#pbValidate").addEventListener("click", validateDefinition);
   $("#pbSave").addEventListener("click", saveDraft);
   $("#pbPublish").addEventListener("click", publish);
-  $("#pbRun").addEventListener("click", () => runPlaybook(selectedId));
+  $("#pbRun").addEventListener("click", () => runModal(selectedId));
   $("#pbMore").addEventListener("click", () => {
     const l = $("#pbMenuList");
     if (l) l.hidden = !l.hidden;
@@ -423,7 +423,7 @@ async function pagePlaybookEditor(id) {
 
   initInspectorResizer();
   initCanvasGestures();
-  refreshTools().then(() => renderPalette()).catch(() => renderPalette());
+  refreshTools().catch(() => {});
   loadRunStatus(selectedId).catch(() => {});
   switchBuilderView("graph");
   // keep large graphs fully visible on entry — the user should never land
@@ -530,15 +530,6 @@ function initInspectorResizer() {
   });
   document.addEventListener("mousemove", move);
   document.addEventListener("mouseup", up);
-}
-
-function togglePalette(forceOpen) {
-  const pal = $("#palette");
-  if (!pal) return;
-  const open = forceOpen === true ? true : (forceOpen === false ? false : pal.hidden);
-  pal.hidden = !open;
-  $("#editorGrid")?.classList.toggle("pal-open", open);
-  $("#paletteBtn")?.classList.toggle("active", open);
 }
 
 /* ── canonical model: graphDef ⇄ DSL — a single source of truth ────── */
@@ -1397,6 +1388,8 @@ function addToolStep(toolName, forcedType) {
   graphSel = s.id;
   captureGraphToDSL();
   renderBuilder();
+  inspectTab = "inputs";
+  renderInspector();
   toast(`Added ${s.id}`);
 }
 
@@ -1411,6 +1404,8 @@ function addShellStep() {
   graphSel = id;
   captureGraphToDSL();
   renderBuilder();
+  inspectTab = "inputs";
+  renderInspector();
   toast(`Added shell node ${id} — configure inputs, command and filter in the inspector`);
 }
 
@@ -1575,67 +1570,6 @@ function redrawEdges() {
   svg.innerHTML = edges;
 }
 
-/* ── node palette (tools come from the live registry) ──────────────── */
-
-async function renderPalette() {
-  const pal = $("#palette");
-  if (!pal) return;
-  paletteFns = [];
-  const tools = (toolsCache || []).map((t) => t);
-  pal.innerHTML = `
-    <div class="palette-head">
-      <span>Node palette</span>
-      <button class="btn ghost icon" id="paletteClose" title="Collapse palette">×</button>
-    </div>
-    <div class="palette-search"><input class="select" id="palSearch" placeholder="Search nodes & tools…"></div>
-    <div class="palette-scroll">
-      <div class="palette-group" data-g="steps">
-        <div class="palette-label">Steps</div>
-        ${paletteItem("tool-step", "◎ scan", "Tool step", "Run a registered security tool", () => addToolStep())}
-        ${paletteItem("shell-step", "❯ cmd", "Shell command", "inputs → command → output filter", () => addShellStep())}
-        ${paletteItem("custom-step", "▣ mod", "Custom module", "Internal module stage", () => addToolStep(null, "custom"))}
-      </div>
-      <div class="palette-group" data-g="stages">
-        <div class="palette-label">Stages</div>
-        ${paletteItem("st-scope", "✓ dns", "Scope check", "Verify targets stay in scope", () => addStage("scope_check"))}
-        ${paletteItem("st-corr", "⇄ web", "Finding correlation", "Correlate findings into context", () => addStage("finding_correlation"))}
-        ${paletteItem("st-report", "▤ out", "Assessment report", "Produce the final report", () => addStage("assessment_report"))}
-      </div>
-      <div class="palette-group" data-g="tools">
-        <div class="palette-label">Security tools <span class="dim">(${tools.length})</span></div>
-        ${tools.length ? tools.map((t) => paletteItem(
-          `pt-${esc(t.name)}`, "◎ scan", esc(t.name),
-          esc((t.description || "").slice(0, 60)),
-          () => addToolStep(t.name))).join("")
-          : `<p class="dim" style="padding:8px">No tools registered yet.</p>`}
-      </div>
-    </div>`;
-  $("#paletteClose").addEventListener("click", () => togglePalette(false));
-  $("#palSearch").addEventListener("input", () => {
-    const q = $("#palSearch").value.toLowerCase().trim();
-    $$("#palette .palette-item").forEach((it) => {
-      it.hidden = q && !it.textContent.toLowerCase().includes(q);
-    });
-  });
-  bindPaletteItems();
-}
-
-let paletteFns = [];
-
-function paletteItem(cls, glyph, title, hint, fn) {
-  paletteFns.push(fn);
-  const idx = paletteFns.length - 1;
-  return `
-    <button class="palette-item ${cls}" title="${esc(title)} — ${esc(hint)}" data-hint="${esc(hint)}" data-fn="${idx}">
-      <span class="palette-glyph">${glyph}</span>
-      <span class="palette-txt"><b>${title}</b><small>${hint}</small></span>
-    </button>`;
-}
-function bindPaletteItems() {
-  $$("#palette .palette-item").forEach((it) =>
-    it.addEventListener("click", () => paletteFns[Number(it.dataset.fn || "-1")]?.()));
-}
-
 function addStage(type) {
   if (builderView !== "graph") { if (!loadGraphFromDSL()) return; }
   pushHistory();
@@ -1684,6 +1618,12 @@ async function runModal(id) {
         <div class="run-row-head"><b>Extra inputs</b><span class="chip">JSON · optional</span></div>
         <textarea class="select area" id="runExtra" spellcheck="false" style="min-height:64px;font-family:ui-monospace,Menlo,monospace">{}</textarea>
       </div>
+      <div class="run-row">
+        <label class="checkline" style="margin:0">
+          <input type="checkbox" id="runDebug" checked />
+          Debug run (marks this execution as a manual debug run)
+        </label>
+      </div>
       <div class="modal-actions">
         <button class="btn" id="runCancel">Cancel</button>
         <button class="btn primary" id="runStart">▶ Start run</button>
@@ -1716,14 +1656,15 @@ async function runModal(id) {
     if (!ok) return;
     Object.assign(inputs, extra || {});
     bd.remove();
-    await startRun(id, inputs);
+    const debug = bd.querySelector("#runDebug")?.checked === true;
+    await startRun(id, inputs, { debug: true, trigger: "studio" });
   });
 }
 
-async function startRun(id, inputs) {
-  toast(`Starting ${id}…`);
+async function startRun(id, inputs, opts = {}) {
+  toast(`Starting ${id}${opts.debug ? " (debug)" : ""}…`);
   try {
-    const r = await api("/executions", { method: "POST", body: JSON.stringify({ playbook_id: id, inputs }) });
+    const r = await api("/executions", { method: "POST", body: JSON.stringify({ playbook_id: id, inputs, debug: !!opts.debug, trigger: opts.trigger || "studio" }) });
     const execId = r?.execution?.execution_id || r?.execution_id || "";
     toast(`Run started${execId ? `: ${execId}` : ""}`);
     location.hash = execId ? `#/executions/${encodeURIComponent(execId)}` : "#/executions";
@@ -1976,11 +1917,13 @@ async function refreshExecutions(status) {
   const list = d.executions || [];
   const el = $("#execTable");
   if (!el) return;
-  el.innerHTML = table(["Execution", "Playbook", "Status", "Started", "Completed"],
+  el.innerHTML = table(["Execution", "Playbook", "Trigger", "Status", "Started", "Completed"],
     list.map((e) => ({
       cells: [
         `<a href="#/executions/${esc(e.execution_id)}">${esc(e.execution_id)}</a>`,
-        esc(e.playbook_id || "—"), BADGE(e.status),
+        esc(e.playbook_id || "—"),
+        `${esc(e.trigger || "—")}${Number(e.debug) ? " <span class=\"chip ck\">debug</span>" : ""}`,
+        BADGE(e.status),
         esc((e.started_at || "").slice(0, 19)),
         esc((e.completed_at || "").slice(0, 19) || "—"),
       ],
@@ -2042,7 +1985,10 @@ async function pageExecutionDetail(id) {
   const e = d.execution;
   $("#pageHeadInfo").innerHTML = `
     <div class="eyebrow">EXECUTIONS</div><h1>${esc(id)}</h1>
-    <div class="subtitle">${esc(e.playbook_id || "")} <span style="margin-left:8px">${BADGE(e.status)}</span></div>`;
+    <div class="subtitle">${esc(e.playbook_id || "")} <span style="margin-left:8px">${BADGE(e.status)}</span>
+      ${e.trigger ? ` <span style="margin-left:8px">trigger: <b class="mono">${esc(e.trigger)}</b></span>` : ""}
+      ${Number(e.debug) ? ` <span class="chip ck" style="margin-left:8px">debug</span>` : ""}
+    </div>`;
   $("#pageBody").innerHTML = `
     <div class="detail-actions">
       <button class="btn" id="cancelExecBtn">Cancel</button>
