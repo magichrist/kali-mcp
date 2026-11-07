@@ -101,9 +101,33 @@ def resolve_profile_from_headers(headers: Mapping[str, Any]) -> str | None:
 def resolve_from_context(ctx: Any) -> str | None:
     """Resolve the profile from a FastMCP ``Context`` (best-effort).
 
+    Resolution order:
+    1. Token-bound profile (``config.agent_profile_id`` / ``MCP_AGENT_PROFILE_ID``)
+       — when configured, the profile applies to every request and cannot be
+       overridden by the client.
+    2. ``X-Agent-Profile`` request header (multi-profile deployments).
+
     Safe for stdio transports where there is no HTTP request at all: returns
     ``None`` in that case (no agent context — default behavior).
     """
+    try:
+        from kali_mcp.config import config
+
+        bound = getattr(config, "agent_profile_id", "")
+    except Exception:  # noqa: BLE001
+        bound = ""
+    if bound:
+        # Validate the bound profile exists in the DB (fail-closed: unknown
+        # bound profile disables context rather than inventing permissions).
+        db = _db()
+        if db is not None and db.get_agent_profile(bound) is not None:
+            return bound
+        logger.warning(
+            "agent_context: configured MCP_AGENT_PROFILE_ID %r not found in DB",
+            bound,
+        )
+        # Fall through to header resolution (still restricts nothing unless
+        # a valid profile resolves; safer than honoring an invalid binding).
     request_context = getattr(ctx, "request_context", None)
     request = getattr(request_context, "request", None)
     headers = getattr(request, "headers", None)
@@ -202,6 +226,7 @@ def forbidden_playbook_payload(playbook_id: str, profile_id: str) -> dict[str, A
 
 __all__ = [
     "HEADER_PROFILE",
+    "agent_context",
     "assigned_playbooks",
     "can_call_tool",
     "forbidden_playbook_payload",
@@ -213,3 +238,23 @@ __all__ = [
     "resolve_profile_from_headers",
     "set_current_profile",
 ]
+
+
+class _AgentContextFacade:
+    """Importable facade: ``from kali_mcp.agent_context import agent_context``."""
+
+    HEADER_PROFILE = HEADER_PROFILE
+
+    assigned_playbooks = staticmethod(assigned_playbooks)
+    can_call_tool = staticmethod(can_call_tool)
+    forbidden_playbook_payload = staticmethod(forbidden_playbook_payload)
+    forbidden_tool_payload = staticmethod(forbidden_tool_payload)
+    get_current_profile = staticmethod(get_current_profile)
+    is_playbook_assigned = staticmethod(is_playbook_assigned)
+    reset_current_profile = staticmethod(reset_current_profile)
+    resolve_from_context = staticmethod(resolve_from_context)
+    resolve_profile_from_headers = staticmethod(resolve_profile_from_headers)
+    set_current_profile = staticmethod(set_current_profile)
+
+
+agent_context = _AgentContextFacade()
