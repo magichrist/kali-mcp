@@ -17,6 +17,7 @@ import yaml
 # Allowed step types
 VALID_STEP_TYPES = {
     "tool",
+    "shell",
     "scope_check",
     "finding_correlation",
     "assessment_report",
@@ -53,6 +54,16 @@ class StepDefinition:
     checkpoint: bool = False
     budget: dict[str, Any] = field(default_factory=dict)
     args: dict[str, Any] = field(default_factory=dict)
+    # Shell-node fields (type="shell"):
+    #   command — shell template, ``{name}`` placeholders filled from ``inputs``
+    #   inputs  — placeholder name → literal, playbook input name (``{{target}}``
+    #             or bare name), or upstream output ref (``step.field``)
+    #   filter  — output extraction: {"type": "grep", "pattern": ...,
+    #             "first_only": bool}; extracted fields land in the step result
+    #             so downstream refs (``step.field``) and output_mapping work
+    command: str | None = None
+    inputs: dict[str, Any] = field(default_factory=dict)
+    filter: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.type not in VALID_STEP_TYPES:
@@ -172,7 +183,11 @@ def load_playbook(source: str | dict[str, Any]) -> PlaybookDefinition:
             checkpoint=bool(step_raw.get("checkpoint", False)),
             budget=step_raw.get("budget", {}) or {},
             args=step_raw.get("args", {}) or {},
+            command=step_raw.get("command"),
+            inputs=step_raw.get("inputs", {}) or {},
+            filter=step_raw.get("filter", {}) or {},
         )
+
         steps.append(step)
 
     return PlaybookDefinition(

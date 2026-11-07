@@ -43,6 +43,24 @@ def _get_registry():
 
     return registry
 
+
+def _has_placeholder(command: str, name: str) -> bool:
+    """True when ``command`` still references placeholder ``{name}``/``{{name}}``."""
+    if not command or not name:
+        return False
+    return bool(
+        re.search(r"\{\{?\s*%s\s*\}?\}" % re.escape(name), command)
+    )
+
+
+def _fmt_value(value: Any) -> str:
+    """Render a placeholder value for shell substitution."""
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (list, tuple)):
+        return " ".join(str(_fmt_value(v)) for v in value)
+    return str(value)
+
 # Global run-state registry: {playbook_name: status_dict}
 RUN_STATUS: dict[str, dict[str, Any]] = {}
 
@@ -81,6 +99,20 @@ class PlaybookEngine:
         steps = playbook.steps
         subst_target = playbook.inputs.get("targets")
         self._subst_target = subst_target
+        # Concrete run inputs: scalar values provided at run time (merged by
+        # the studio service) or declared defaults from the input specs.
+        # Dict specs without defaults stay out — they are not values.
+        resolved_inputs: dict[str, Any] = {}
+        for k, v in playbook.inputs.items():
+            if isinstance(v, dict):
+                default = v.get("default")
+                if isinstance(default, (str, int, float)) or (
+                    isinstance(default, list) and default
+                ):
+                    resolved_inputs[k] = default
+            elif isinstance(v, (str, int, float, list)):
+                resolved_inputs[k] = v
+        self._playbook_inputs = resolved_inputs
 
         # Resume: determine which step indices to skip
         skip_indices: set[int] = set()
@@ -275,6 +307,8 @@ class PlaybookEngine:
 
         if step.module:
             return await self._run_module_step(step, state)
+        if step.type == "shell":
+            return await self._run_shell_step(step, state)
         if step.type == "tool":
             return await self._run_tool_step(step, state)
         if step.type == "scope_check":
@@ -304,6 +338,207 @@ class PlaybookEngine:
                 args[out_key] = value
 
         return await tool.safe_execute(args)
+
+    # ── shell nodes ─────────────────────────────────────────────────────
+
+    async def _run_shell_step(self, step: StepDefinition, state: dict) -> Any:
+        """Execute a shell node: command template + placeholders + filter.
+
+        Definition shape (Studio graph builder):
+
+            {"id": "http_probe", "type": "shell",
+             "command": "nmap {ip} -sn -p80",
+             "inputs": {"ip": "{{target}}"},     # agent/LLM or playbook input
+             "filter": {"type": "grep",
+                        "pattern": "Nmap scan report for (?P<ip>[0-9.]+)",
+                        "first_only": false},
+             "depends_on": ["nmap_scan"]}
+
+        Placeholder values may be:
+        - ``{{name}}`` where ``name`` is a playbook/run input (``ip``,
+          ``domainName`` — supplied by the agent LLM or the operator),
+        - ``{{step.field}}`` referencing a prior node's structured output,
+        - or a literal value.
+
+        Named capture groups in the filter pattern become output fields on
+        the step result so downstream nodes reference them as
+        ``<step_id>.<field>`` in their inputs or ``output_mapping``.
+        """
+        resolved, unresolved = self._resolve_shell_inputs(step)
+        if unresolved:
+            return {
+                "step": step.id,
+                "type": "shell",
+                "error": (
+                    f"unresolved placeholder(s) {unresolved} — provide them via "
+                    "run inputs, a playbook input, or a prior node's outputs"
+                ),
+            }
+
+        try:
+            # Substitution pool: playbook/run inputs (scalars) + this node's
+            # resolved inputs — node inputs win.
+            pool = {
+                **{k: v for k, v in (self._playbook_inputs or {}).items()
+                   if isinstance(v, (str, int, float, list))},
+                **resolved,
+            }
+            final_cmd = self._subst_placeholders(step.command or "", pool)
+        except ValueError as exc:
+            return {"step": step.id, "type": "shell", "error": str(exc)}
+
+        if not final_cmd.strip():
+            return {"step": step.id, "type": "shell", "error": "shell step declares no command"}
+
+        # Scope gate on the *resolved* values (placeholder keys such as
+        # ip/hosts/domain are checked against the active scope policy).
+        try:
+            gate_step_args(resolved, step_id=step.id, tool_name="shell")
+        except ScopeViolationError:
+            raise
+
+        timeout = 300
+        if isinstance(step.args, dict) and step.args.get("timeout"):
+            try:
+                timeout = int(step.args["timeout"])
+            except (TypeError, ValueError):
+                timeout = 300
+
+        from kali_mcp.execution import engine as _engine
+
+        started = now_iso()
+        result = await _engine.execute(
+            final_cmd, tool="shell_command", timeout=timeout,
+        )
+        stdout = result.stdout or ""
+        filtered: dict[str, Any] = {}
+        if step.filter:
+            filtered = self._apply_filter(stdout, step.filter)
+
+        payload: dict[str, Any] = {
+            "step": step.id,
+            "type": "shell",
+            "tool": "shell_command",
+            "command": final_cmd,
+            "exit_code": result.exit_code,
+            "duration": result.duration,
+            "stdout": stdout,
+            "stderr": result.stderr or "",
+            "started_at": started,
+        }
+        if result.timed_out:
+            payload["error"] = "command timed out"
+        elif result.success is False:
+            payload["error"] = f"exit code {result.exit_code}: {(result.stderr or stdout).strip()[:300]}"
+        payload.update(filtered)
+        return payload
+
+    def _resolve_shell_inputs(
+        self, step: StepDefinition
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Resolve shell-node placeholder inputs.
+
+        Returns ``(resolved, unresolved)`` where ``resolved`` contains the
+        node's declared inputs (checked against the scope gate), and
+        ``unresolved`` lists placeholder names that could not be filled
+        before command substitution (the run-playbook-level inputs are also
+        merged into the substitution pool by :meth:`_run_shell_step`).
+        """
+        resolved: dict[str, Any] = {}
+        unresolved: list[str] = []
+        cmd = step.command or ""
+        for name, raw in dict(step.inputs or {}).items():
+            value = self._resolve_input_value(raw, self._playbook_inputs or {})
+            if value is None and _has_placeholder(cmd, name):
+                unresolved.append(name)
+                continue
+            resolved[name] = value
+        return resolved, unresolved
+
+    def _resolve_input_value(self, raw: Any, playbook_inputs: dict[str, Any]) -> Any:
+        """Resolve one input declaration.
+
+        Explicit refs use double braces: ``{{target}}``, ``{{domainName}}``
+        (playbook/run inputs), ``{{step.field}}`` (upstream node output).
+        Bare strings are treated as literal values — keeping ``{ip}``
+        placeholders inside a *literal* input value intact.
+        """
+        if not isinstance(raw, str):
+            return raw
+        text = raw.strip()
+        if text.startswith("{{") and text.endswith("}}"):
+            inner = text[2:-2].strip()
+            if "." in inner:
+                return self._resolve_ref(inner)
+            play = playbook_inputs.get(inner)
+            if isinstance(play, (str, int, float, list)):
+                return play
+            if inner == "target" and self._subst_target:
+                return self._subst_target
+            return None
+        return raw
+
+    def _subst_placeholders(self, command: str, values: dict[str, Any]) -> str:
+        """Fill ``{name}`` and ``{{name}}`` placeholders in a command template."""
+        out = command
+
+        def repl(m: re.Match) -> str:
+            name = m.group(1)
+            if name not in values:
+                return m.group(0)
+            return _fmt_value(values[name])
+
+        out = re.sub(r"\{\{?([A-Za-z_][A-Za-z0-9_]*)\}?\}", repl, out)
+        missing = [
+            tok for tok in re.findall(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})", out)
+        ]
+        if missing:
+            raise ValueError(
+                f"unresolved placeholder(s) {missing} in command — "
+                "declare matching node inputs (agent LLM or upstream nodes)"
+            )
+        return out
+
+    def _apply_filter(self, stdout: str, flt: dict[str, Any]) -> dict[str, Any]:
+        """Extract structured fields from command output (post-execution).
+
+        Supported: ``{"type": "grep", "pattern": ..., "first_only": bool}``
+        (Python ``re`` over the command's stdout). Named capture groups
+        become output fields; unnamed capture groups become ``match_n``.
+        """
+        if not isinstance(flt, dict):
+            return {}
+        ftype = str(flt.get("type") or "grep")
+        if ftype in ("none", "", "raw"):
+            return {}
+        if ftype not in ("grep", "regex"):
+            return {}
+        pattern = flt.get("pattern")
+        if not pattern or not isinstance(pattern, str):
+            return {}
+        try:
+            rx = re.compile(pattern, re.MULTILINE)
+        except re.error as exc:
+            return {"filter_error": f"invalid filter pattern: {exc}"}
+        matches = list(rx.finditer(stdout))
+        first_only = bool(flt.get("first_only"))
+
+        out: dict[str, Any] = {
+            "filtered_lines": [m.group(0) for m in matches],
+            "match_count": len(matches),
+        }
+        named_groups = list(rx.groupindex.keys())
+        for name in named_groups:
+            g = rx.groupindex[name]
+            vals = [m.group(g) for m in matches if m.group(g) is not None]
+            out[name] = vals[0] if (first_only and vals) else vals
+        for i in range(1, (rx.groups or 0) + 1):
+            key = f"match_{i}"
+            vals = [m.group(i) for m in matches if m.group(i) is not None]
+            out[key] = vals[0] if (first_only and vals) else vals
+        if matches and "stdout_excerpt" not in out:
+            out["stdout_excerpt"] = "\n".join(out["filtered_lines"][:20])
+        return out
 
     def _merge_module_args(self, step: StepDefinition, mod: dict[str, Any]) -> dict[str, Any]:
         """Merge module-declared input defaults with step args (step args win).

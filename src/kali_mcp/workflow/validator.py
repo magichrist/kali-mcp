@@ -619,6 +619,51 @@ def _validate_step_type(
                     "custom step does not declare a module reference",
                 )
             )
+    if step.type == "shell":
+        if not isinstance(step.command, str) or not step.command.strip():
+            findings.append(
+                _finding(
+                    "error",
+                    step.id,
+                    "command",
+                    "shell step must declare a non-empty command",
+                )
+            )
+        flt = step.filter if isinstance(step.filter, Mapping) else None
+        if flt:
+            ftype = str(flt.get("type") or "grep")
+            if ftype not in ("", "none", "raw", "grep", "regex"):
+                findings.append(
+                    _finding(
+                        "error",
+                        step.id,
+                        "filter.type",
+                        f"unknown filter type {ftype!r} (allowed: grep, regex, none)",
+                    )
+                )
+            elif ftype in ("grep", "regex"):
+                pattern = flt.get("pattern")
+                if not isinstance(pattern, str) or not pattern.strip():
+                    findings.append(
+                        _finding(
+                            "error",
+                            step.id,
+                            "filter.pattern",
+                            "filter pattern must be a non-empty string",
+                        )
+                    )
+                else:
+                    try:
+                        re.compile(pattern)
+                    except re.error as exc:
+                        findings.append(
+                            _finding(
+                                "error",
+                                step.id,
+                                "filter.pattern",
+                                f"invalid filter pattern: {exc}",
+                            )
+                        )
 
 
 def _validate_tool_reference(

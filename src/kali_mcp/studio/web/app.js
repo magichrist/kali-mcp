@@ -373,6 +373,7 @@ async function pagePlaybooks() {
           <div class="canvas-toolbar">
             <div class="mode-switch" id="graphCount">graph builder</div>
             <div class="canvas-tools">
+              <button class="btn" id="addShellBtn" title="Add a shell-command node (inputs → command → filter)">＋ Shell node</button>
               <button class="btn" id="addStepBtn">＋ Step</button>
               <button class="btn" id="resetLayoutBtn">Reset layout</button>
               <button class="btn" id="graphSaveBtn">Save draft</button>
@@ -383,10 +384,11 @@ async function pagePlaybooks() {
           <div class="canvas-area" id="canvasArea">
             <div class="canvas-inner" id="canvasInner">
               <span class="canvas-label">EXECUTION GRAPH</span>
-              <span class="canvas-hint">click a step to edit · drag to rearrange · drag <b>●</b> from a port onto another step to connect</span>
+              <span class="canvas-hint">click a step to edit · drag <b>●</b> from a right port onto a step to connect · click a <b>○</b> port then the target port</span>
               <svg class="edges" id="edgeLayer"></svg>
               <div class="canvas-legend">
                 <span><i class="legend-dot" style="background:#edc57c"></i>tool</span>
+                <span><i class="legend-dot" style="background:#f09685"></i>shell</span>
                 <span><i class="legend-dot" style="background:#92dbad"></i>scope / report</span>
                 <span><i class="legend-dot" style="background:#aabaff"></i>correlation</span>
               </div>
@@ -435,6 +437,7 @@ async function pagePlaybooks() {
   $("#deleteBtn").addEventListener("click", deletePlaybook);
 
   $("#addStepBtn").addEventListener("click", addGraphStep);
+  $("#addShellBtn").addEventListener("click", () => addShellStep());
   $("#resetLayoutBtn").addEventListener("click", resetGraphLayout);  $("#graphSaveBtn").addEventListener("click", () => { captureGraphToDSL(); saveDraft(); });
   $("#graphValidateBtn").addEventListener("click", async () => {
     captureGraphToDSL();
@@ -473,6 +476,7 @@ let graphZoom = 1;
 
 const TYPE_ICONS = {
   tool: { cls: "scan", glyph: "◎" },
+  shell: { cls: "cmd", glyph: "❯" },
   scope_check: { cls: "dns", glyph: "✓" },
   finding_correlation: { cls: "web", glyph: "⇄" },
   assessment_report: { cls: "out", glyph: "▤" },
@@ -562,19 +566,34 @@ function renderBuilder() {
   for (const s of steps) {
     const p = nodePos(s.id, depths);
     const ic = iconFor(s);
-    const isTool = s.type === "tool";
-    const argSummary = isTool
-      ? `tool: ${s.tool || "?"} · ${Object.keys(s.args || {}).length} arg(s)`
-      : Object.keys(s.args || {}).length ? `${Object.keys(s.args || {}).length} arg(s)` : "internal stage";
+    let bodyHtml = "";
+    if (s.type === "shell") {
+      const inRows = Object.entries(s.inputs || {})
+        .filter(([k]) => k)
+        .map(([k, v]) => `<div class="shell-line in"><i>in</i><b>${esc(k)}</b><span>${esc(String(v))}</span></div>`)
+        .join("") || `<div class="shell-line in"><i>in</i><span class="dim">no inputs</span></div>`;
+      const cmd = s.command ? esc(s.command) : "<span class=\"dim\">no command</span>";
+      const f = s.filter && s.filter.type !== "none" ? s.filter : null;
+      const fLine = f
+        ? `<div class="shell-line flt"><i>⌕</i><b>${esc(f.type || "grep")}</b><span>${esc(String(f.pattern || "").slice(0, 46))}</span></div>`
+        : `<div class="shell-line flt"><i>⌕</i><span class="dim">no filter</span></div>`;
+      bodyHtml = `${inRows}<div class="shell-line cmd"><i>❯</i><b class="cmd-txt">${cmd}</b></div>${fLine}`;
+    } else {
+      const isTool = s.type === "tool";
+      const argSummary = isTool
+        ? `tool: ${s.tool || "?"} · ${Object.keys(s.args || {}).length} arg(s)`
+        : Object.keys(s.args || {}).length ? `${Object.keys(s.args || {}).length} arg(s)` : "internal stage";
+      bodyHtml = esc(argSummary) + (s.when ? `<br/>when: ${esc(s.when)}` : "");
+    }
     const el = document.createElement("div");
-    el.className = `node ${graphSel === s.id ? "selected" : ""}`;
+    el.className = `node ${s.type === "shell" ? "shell " : ""}${graphSel === s.id ? "selected" : ""}`;
     el.style.left = `${p.x}px`; el.style.top = `${p.y}px`;
     el.dataset.step = s.id;
     el.innerHTML = `
       <div class="node-top"><div class="node-icon ${ic.cls}">${ic.glyph}</div>
         <div><div class="node-title">${esc(s.id)}</div><div class="node-kind">${esc(s.type || "step")}</div></div>
         <span class="node-status ${(s.done || s.checkpoint) ? "done" : ""}"></span></div>
-      <div class="node-body">${esc(argSummary)}${s.when ? `<br/>when: ${esc(s.when)}` : ""}</div>
+      <div class="node-body">${bodyHtml}</div>
       <div class="node-foot"><span class="chip">${esc((s.depends_on || []).length + " dep(s)")}</span>${s.checkpoint ? '<span class="chip">checkpoint</span>' : ""}</div>
       <span class="port left"></span><span class="port right"></span>`;
     el.addEventListener("mousedown", (e) => startNodeDrag(e, s.id, p));
@@ -606,17 +625,66 @@ function renderInspector() {
   const s = graphSel ? stepById(graphSel) : null;
   if (!s) {
     inj.innerHTML = `<div style="padding:14px"><div class="eyebrow">INSPECTOR</div>
-      <p class="empty" style="padding:8px 0">Select a step on the canvas to edit id, type, tool, dependencies and args. Use ＋ Step to add one.</p></div>`;
+      <p class="empty" style="padding:8px 0">Select a step on the canvas to edit id, type, tool, dependencies and args. Use ＋ Step / ＋ Shell node to add one.</p></div>`;
     return;
   }
+  const allTypes = ["tool", "shell", "scope_check", "finding_correlation", "assessment_report", "custom"];
+  const typeOpts = allTypes
+    .map((v) => `<option value="${v}" ${v === (s.type || "tool") ? "selected" : ""}>${v}</option>`).join("");
+
+  if (s.type === "shell") {
+    const inRows = Object.entries(s.inputs || {}).map(([k, v], i) =>
+      `<div class="ins-row">
+        <input class="select inp-key" data-i="${i}" value="${esc(k)}" placeholder="name">
+        <input class="select inp-val" data-i="${i}" value="${esc(typeof v === "string" ? v : JSON.stringify(v))}" placeholder='{{target}} or {{step.field}}'>
+        <button class="btn danger inp-del" data-i="${i}" title="Remove input">×</button>
+      </div>`).join("");
+    inj.innerHTML = `<div style="padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto">
+    <div class="eyebrow">INSPECTOR — SHELL NODE</div>
+    <label class="dim" style="font-size:10px">Step id<input class="select" id="insId" value="${esc(s.id)}"></label>
+    <label class="dim" style="font-size:10px">depends_on (comma separated)<input class="select" id="insDeps" value="${esc((s.depends_on || []).join(", "))}"></label>
+    <div>
+      <div class="dim" style="font-size:10px;margin-bottom:5px">1 · inputs
+        <span style="color:#5b6b80"> — name → value; <code>{{name}}</code> = run input (agent/operator), <code>{{step.field}}</code> = upstream node output, bare text = literal</span>
+      </div>
+      <div id="insInputRows">${inRows}</div>
+      <button class="btn" id="insAddInput" style="margin-top:6px">＋ input</button>
+    </div>
+    <div>
+      <div class="dim" style="font-size:10px;margin-bottom:5px">2 · command
+        <span style="color:#5b6b80"> — <code>{name}</code> placeholders fill from the inputs above</span>
+      </div>
+      <input class="select" id="insCommand" value="${esc(s.command || "")}" placeholder="nmap {ip} -sn -p80" style="font-family:ui-monospace,Menlo,monospace">
+    </div>
+    <div>
+      <div class="dim" style="font-size:10px;margin-bottom:5px">3 · filter
+        <span style="color:#5b6b80"> — extract data from the output; named capture <code>(?P&lt;ip&gt;…)</code> → output field <code>ip</code></span>
+      </div>
+      <div class="ins-filter-row">
+        <select class="select" id="insFilterType">
+          ${["grep", "regex", "none"].map((v) => `<option value="${v}" ${v === (s.filter?.type || "grep") ? "selected" : ""}>${v}</option>`).join("")}
+        </select>
+        <label class="dim" style="font-size:10px;white-space:nowrap">first only<input type="checkbox" id="insFilterFirst" ${s.filter?.first_only ? "checked" : ""}></label>
+      </div>
+      <input class="select" id="insFilterPattern" value="${esc(s.filter?.pattern || "")}" placeholder='(?P<ip>[0-9]+\.[0-9.]+)' style="margin-top:5px;font-family:ui-monospace,Menlo,monospace">
+    </div>
+    <label class="dim" style="font-size:10px" style="display:flex;gap:6px;align-items:center">checkpoint
+      <input type="checkbox" id="insCheckpoint" ${s.checkpoint ? "checked" : ""}></label>
+    <div class="dim" style="font-size:10px">args (JSON) — e.g. {"timeout": 600}<textarea class="select" id="insArgs" style="min-height:64px;font-family:ui-monospace,Menlo,monospace;font-size:11px" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" id="insApply">Apply</button>
+      <button class="btn danger" id="insDel">Delete node</button>
+    </div>
+  </div>`;
+    bindShellInspector(s);
+    return;
+  }
+
   inj.innerHTML = `<div style="padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto">
     <div class="eyebrow">INSPECTOR</div>
     <label class="dim" style="font-size:10px">Step id<input class="select" id="insId" value="${esc(s.id)}"></label>
     <label class="dim" style="font-size:10px">Type
-      <select class="select" id="insType">
-        ${["tool", "scope_check", "finding_correlation", "assessment_report", "custom"]
-          .map((v) => `<option value="${v}" ${v === (s.type || "tool") ? "selected" : ""}>${v}</option>`).join("")}
-      </select></label>
+      <select class="select" id="insType">${typeOpts}</select></label>
     <label class="dim" style="font-size:10px">Tool (type=tool)<input class="select" id="insTool" value="${esc(s.tool || "")}" placeholder="e.g. nuclei"></label>
     <label class="dim" style="font-size:10px">depends_on (comma separated)<input class="select" id="insDeps" value="${esc((s.depends_on || []).join(", "))}"></label>
     <label class="dim" style="font-size:10px">when (optional condition)<input class="select" id="insWhen" value="${esc(s.when || "")}"></label>
@@ -630,6 +698,90 @@ function renderInspector() {
   </div>`;
   $("#insApply").addEventListener("click", applyInspector);
   $("#insDel").addEventListener("click", () => deleteGraphStep(graphSel));
+  bindShellInspector(s);
+}
+
+/* shell-inspector wiring: add/remove input rows + apply */
+function bindShellInspector(s) {
+  const addBtn = $("#insAddInput");
+  if (!addBtn) return;
+  const rows = $("#insInputRows");
+  addBtn.addEventListener("click", () => {
+    const i = rows.children.length;
+    const row = document.createElement("div");
+    row.className = "ins-row";
+    row.innerHTML = `<input class="select inp-key" data-i="${i}" placeholder="name">
+      <input class="select inp-val" data-i="${i}" placeholder='{{target}} or {{step.field}}'>
+      <button class="btn danger inp-del" data-i="${i}" title="Remove input">×</button>`;
+    rows.appendChild(row);
+    bindRowDel(row, rows);
+    row.querySelector(".inp-key").focus();
+  });
+  $$(".inp-del", rows).forEach((b) => bindRowDel(b.closest(".ins-row"), rows));
+  $("#insApply").addEventListener("click", applyShellInspector);
+  $("#insDel").addEventListener("click", () => deleteGraphStep(graphSel));
+}
+
+function bindRowDel(row, rows) {
+  row.querySelector(".inp-del").addEventListener("click", () => { row.remove(); });
+}
+
+function applyShellInspector() {
+  const s = stepById(graphSel);
+  if (!s || s.type !== "shell") return;
+  const oldId = s.id;
+  const newId = ($("#insId").value || "").trim();
+  const ids = new Set(getGraphSteps().map((x) => x.id).filter((x) => x !== oldId));
+  if (!newId) return toast("Step id required", true);
+  if (newId !== oldId && ids.has(newId)) return toast(`Step id "${newId}" already used`, true);
+  if (newId !== oldId) {
+    getGraphSteps().forEach((x) => {
+      if (Array.isArray(x.depends_on)) x.depends_on = x.depends_on.map((d) => (d === oldId ? newId : d));
+    });
+    delete graphPos[oldId];
+  }
+  s.id = newId;
+  s.depends_on = $("#insDeps").value.split(",").map((d) => d.trim()).filter(Boolean);
+  if (!Array.isArray(s.depends_on)) s.depends_on = [];
+
+  // 1 · inputs
+  const inputs = {};
+  $$("#insInputRows .ins-row").forEach((row) => {
+    const k = (row.querySelector(".inp-key")?.value || "").trim();
+    if (!k) return;
+    let v = (row.querySelector(".inp-val")?.value || "").trim();
+    if (v === "#REMOVE#") return;
+    inputs[k] = v;
+  });
+  if (Object.keys(inputs).length) s.inputs = inputs; else delete s.inputs;
+
+  // 2 · command
+  const cmd = ($("#insCommand").value || "").trim();
+  if (cmd) s.command = cmd; else delete s.command;
+  s.type = "shell";
+
+  // 3 · filter
+  const ftype = $("#insFilterType")?.value || "none";
+  const fpat = ($("#insFilterPattern")?.value || "").trim();
+  if (ftype && ftype !== "none" && fpat) {
+    s.filter = { type: ftype, pattern: fpat };
+    if ($("#insFilterFirst")?.checked) s.filter.first_only = true;
+  } else {
+    delete s.filter;
+  }
+
+  if ($("#insCheckpoint").checked) s.checkpoint = true; else delete s.checkpoint;
+  try {
+    const parsed = JSON.parse($("#insArgs").value || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      if (Object.keys(parsed).length) s.args = parsed; else delete s.args;
+    } else { toast("args must be a JSON object — kept previous value", true); }
+  } catch { return toast("args is not valid JSON — nothing applied for args", true); }
+
+  graphSel = s.id;
+  renderBuilder();
+  captureGraphToDSL();
+  toast(`Shell node ${s.id} updated`);
 }
 
 function applyInspector() {
@@ -693,6 +845,22 @@ function addGraphStep() {
   toast(`Added ${id}`);
 }
 
+function addShellStep() {
+  if (builderView !== "graph") {
+    if (!loadGraphFromDSL()) return;
+  }
+  let n = 1, id;
+  do { id = `shell_${n++}`; } while (stepById(id));
+  getGraphSteps().push({
+    id, type: "shell", command: "", inputs: {},
+    filter: { type: "grep", pattern: "" }, depends_on: [],
+  });
+  graphSel = id;
+  renderBuilder();
+  captureGraphToDSL();
+  toast(`Added shell node ${id} — configure inputs, command and filter in the inspector`);
+}
+
 function resetGraphLayout() { graphPos = {}; graphZoom = 1; renderBuilder(); toast("Layout reset"); }
 
 /* node dragging: pointer capture on .node */
@@ -712,10 +880,16 @@ function startNodeDrag(e, id, origin) {
     if (el) { el.style.left = `${x}px`; el.style.top = `${y}px`; }
     redrawEdges();
   };
-  const up = () => {
+  const up = (ev) => {
     document.removeEventListener("mousemove", move);
     document.removeEventListener("mouseup", up);
-    if (!moved) { graphSel = id; renderBuilder(); }
+    if (!moved) {
+      // plain click: if a connection is armed and this was a port click,
+      // complete the wire; otherwise select the node
+      const isPort = ev.target instanceof Element && ev.target.classList.contains("port");
+      if (pendingConnect && isPort && pendingConnect !== id) { disarmConnect(); completeConnect(pendingConnect, id); return; }
+      graphSel = id; renderBuilder();
+    }
   };
   document.addEventListener("mousemove", move);
   document.addEventListener("mouseup", up);
@@ -742,6 +916,37 @@ function wouldCreateCycle(srcId, tgtId) {
   return false;
 }
 
+/* click-connect: click a right port to arm a connection, then click the
+   target node's left port (or right port of source first via drag as well) */
+let pendingConnect = null;
+
+function armConnect(srcId) {
+  pendingConnect = srcId;
+  $$(".port").forEach((p) => p.classList.remove("armed"));
+  const el = $(`.node[data-step="${CSS.escape(srcId)}"] .port.right`);
+  if (el) el.classList.add("armed");
+  toast(`Connect: click the target node's ○ left port (Esc to cancel)`);
+}
+
+function disarmConnect() {
+  pendingConnect = null;
+  $$(".port").forEach((p) => p.classList.remove("armed"));
+}
+
+function completeConnect(srcId, tgtId) {
+  if (tgtId === srcId) { toast("A step cannot depend on itself", true); disarmConnect(); return; }
+  if (wouldCreateCycle(srcId, tgtId)) { toast(`Wire ${srcId} → ${tgtId} would create a cycle`, true); disarmConnect(); return; }
+  const s = stepById(tgtId);
+  if (!s) { disarmConnect(); return; }
+  s.depends_on = Array.isArray(s.depends_on) ? s.depends_on : [];
+  if (s.depends_on.includes(srcId)) { toast(`${tgtId} already depends on ${srcId}`); disarmConnect(); return; }
+  s.depends_on.push(srcId);
+  disarmConnect();
+  renderBuilder();
+  captureGraphToDSL();
+  toast(`Connected ${srcId} → ${tgtId}`);
+}
+
 function clearConnectPreview() {
   const p = $("#connectPreview");
   if (p) p.remove();
@@ -750,6 +955,7 @@ function clearConnectPreview() {
 function startPortConnect(e, srcId) {
   e.preventDefault();
   e.stopPropagation();
+  const startX = e.clientX, startY = e.clientY;
   const depths = {};
   graphLayout(depths);
   const a = nodePos(srcId, depths);
@@ -761,6 +967,9 @@ function startPortConnect(e, srcId) {
     return { x: (ev.clientX - r.left) / graphZoom, y: (ev.clientY - r.top) / graphZoom };
   };
   const move = (ev) => {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    if (Math.hypot(dx, dy) < 4) return;
+    disarmConnect();
     const m = toCanvas(ev);
     const mx = (x1 + m.x) / 2;
     clearConnectPreview();
@@ -777,24 +986,22 @@ function startPortConnect(e, srcId) {
     document.removeEventListener("mouseup", up);
     clearConnectPreview();
     connectCtx = null;
+    // no real drag: arm click-connect instead of wiring blind
+    if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) { disarmConnect(); armConnect(srcId); return; }
     const hit = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".node");
     if (!hit) return;
     const tgtId = hit.dataset.step;
     if (!tgtId) return;
-    const s = stepById(tgtId);
-    if (!s) return;
-    if (tgtId === srcId) return toast("A step cannot depend on itself", true);
-    if (wouldCreateCycle(srcId, tgtId)) return toast(`Wire ${srcId} → ${tgtId} would create a cycle`, true);
-    s.depends_on = Array.isArray(s.depends_on) ? s.depends_on : [];
-    if (s.depends_on.includes(srcId)) return toast(`${tgtId} already depends on ${srcId}`);
-    s.depends_on.push(srcId);
-    renderBuilder();
-    captureGraphToDSL();
-    toast(`Connected ${srcId} → ${tgtId}`);
+    completeConnect(srcId, tgtId);
   };
   document.addEventListener("mousemove", move);
   document.addEventListener("mouseup", up);
 }
+
+/* Esc cancels an armed click-connect */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && pendingConnect) disarmConnect();
+});
 
 /* zoom: 0.25x – 2x on the canvas inner */
 function applyZoom() {
