@@ -388,8 +388,7 @@ async function pagePlaybookEditor(id) {
 
   $("#editorShell").style.setProperty("--ins-w", "380px");
 
-  $("#paletteBtn").addEventListener("click", () => togglePalette());
-  $("#firstStepBtn").addEventListener("click", () => { togglePalette(true); addToolStep(); });
+  $("#firstStepBtn").addEventListener("click", () => addToolStep());
   $("#undoBtn").addEventListener("click", undoGraph);
   $("#redoBtn").addEventListener("click", redoGraph);
   $("#addToolBtn").addEventListener("click", () => addToolStep());
