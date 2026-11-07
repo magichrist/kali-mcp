@@ -856,13 +856,27 @@ function upstreamOutFields(stepId) {
   return namedGroups(s.filter?.pattern);
 }
 
-function insLabel(text, control, hint) {
+/* ── inspector help (hover tooltip "icons") ─────────────────────────── */
+
+function helpTip(text) {
+  const t = String(text || "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+  if (!t) return "";
+  return `<span class="help-tip-wrap"><button type="button" class="help-tip" data-tip="${esc(t)}" aria-label="Help: ${esc(t)}" tabindex="0">?</button></span>`;
+}
+
+function insLabel(text, control, tip) {
   return `<label class="ins-field">
-    <span class="ins-flabel">${esc(text)}${hint ? `<em class="dim">${esc(hint)}</em>` : ""}</span>${control}</label>`;
+    <span class="ins-flabel"><span class="ins-flabel-txt">${esc(text)}</span>${helpTip(tip)}</span>${control}</label>`;
+}
+
+/* same affordance for section headings */
+function subLabel(text, tip, extra = "") {
+  return `<div class="ins-subhead">${esc(text)}${extra}${helpTip(tip)}</div>`;
 }
 
 function insDependsField(s) {
-  return insLabel("Depends on", `<input class="select" id="insDeps" value="${esc((s.depends_on || []).join(", "))}" placeholder="comma separated upstream step ids">`, "upstream steps that must finish first");
+  return insLabel("Depends on", `<input class="select" id="insDeps" value="${esc((s.depends_on || []).join(", "))}" placeholder="comma separated upstream step ids">`,
+    "Steps that must finish before this one runs. Enter their <b>Step ids</b>, comma separated — e.g. <code>recon_1, parse_2</code>. Upstream steps are always implicit prerequisites, this wires extra ones.");
 }
 
 function insGeneralTab(s) {
@@ -875,21 +889,127 @@ function insGeneralTab(s) {
     <select class="select" id="insType">
       ${["tool", "shell", "scope_check", "finding_correlation", "assessment_report", "custom"]
         .map((v) => `<option value="${v}" ${v === (s.type || "tool") ? "selected" : ""}>${v}</option>`).join("")}
-    </select>`);
+    </select>`,
+    "<b>tool</b> runs a registry tool · <b>shell</b> runs your own command · <b>custom</b> = internal module stage · the rest are built-in reporting/scope stages. Changing type resets tool-specific settings.");
   const toolSel = s.type === "tool" ? insLabel("Tool", `
     <input class="select" id="insTool" value="${esc(s.tool || "")}" placeholder="e.g. nuclei" list="dlTools">` +
     `<datalist id="dlTools">${(toolsCache || []).map((t) => `<option value="${esc(t.name)}"></option>`).join("")}</datalist>`,
-    "registered in the tool registry") : "";
+    "Pick a registered tool — its argument form on the Inputs tab follows this choice. Names come from the Tool Registry (see the Tools page).") : "";
   const cmdField = s.type === "shell" ? insLabel("Shell command", `
     <textarea class="select area mono" id="insCommand" style="min-height:64px" spellcheck="false" placeholder="nmap {ip} -sn — {name} placeholders fill from the Inputs tab">${esc(s.command || "")}</textarea>`,
-    "supports {name} placeholders filled from the inputs you map on the Inputs tab") : "";
+    "Any shell command. Put <code>{name}</code> placeholders where mapped inputs land — e.g. <code>nmap -sn {ip}</code> with an input named <b>ip</b> mapped to the run input or an upstream field.") : "";
   return `
-    ${insLabel("Step id", `<input class="select mono" id="insId" value="${esc(s.id)}">`)}
+    ${insLabel("Step id", `<input class="select mono" id="insId" value="${esc(s.id)}">`,
+      "Unique name used on the canvas and to reference this step's outputs as <code>{{thisid.field}}</code> downstream. Renaming updates all references automatically.")}
     ${s.type === "shell" ? typeFixed : typeSel}
     ${toolSel}
     ${cmdField}
     ${insDependsField(s)}
-    <div class="checkline">${insLabel("Checkpoint", `<input type="checkbox" id="insCheckpoint" ${s.checkpoint ? "checked" : ""}>`, "persist state so the run can resume here")}</div>`;
+    <div class="checkline">${insLabel("Checkpoint", `<input type="checkbox" id="insCheckpoint" ${s.checkpoint ? "checked" : ""}>`, "Persists the run state after this step so a failed run can be resumed from here instead of starting over.")}</div>`;
+}
+
+/* ── schema-driven tool arguments ─────────────────────────────────── */
+
+function toolInputSchema(toolName) {
+  if (!toolName) return null;
+  const t = (toolsCache || []).find(
+    (x) => String(x.name || "").toLowerCase() === String(toolName).toLowerCase());
+  const sc = t?.input_schema;
+  if (!sc || sc.type !== "object" || !sc.properties || !Object.keys(sc.properties).length) return null;
+  return sc;
+}
+
+function argControlHtml(name, prop, val) {
+  const type = String(prop?.type || "string");
+  const common = `data-arg="${esc(name)}" data-argtype="${type}"`;
+  if (type === "boolean") {
+    const v = val === undefined ? (prop?.default ?? null) : val;
+    return `<select class="select" ${common}>
+      <option value="" ${v === null || v === undefined ? "selected" : ""}>— not set</option>
+      <option value="true" ${v === true ? "selected" : ""}>true</option>
+      <option value="false" ${v === false ? "selected" : ""}>false</option>
+    </select>`;
+  }
+  if (type === "integer" || type === "number") {
+    const v = val !== undefined ? val : prop?.default;
+    return `<input class="select" type="number" ${common}
+      value="${v === undefined || v === null ? "" : esc(String(v))}" placeholder="${type === "number" ? "e.g. 1.5" : "e.g. 30"}">`;
+  }
+  if (type === "array" || type === "object") {
+    const v = val !== undefined ? val : prop?.default;
+    return `<textarea class="select area mono" ${common} style="min-height:46px" spellcheck="false"
+      placeholder="${type === "array" ? '[ "item1", "item2" ]' : '{ "key": "value" }'}">${esc(v === undefined || v === null ? "" : JSON.stringify(v, null, 1))}</textarea>`;
+  }
+  const v = val !== undefined ? val : prop?.default;
+  return `<input class="select" ${common} value="${v === undefined || v === null ? "" : esc(String(v))}">`;
+}
+
+function argRowHtml(name, prop, val, required) {
+  const req = Array.isArray(required) && required.includes(name);
+  return `<div class="arg-row${req ? " arg-required" : ""}">
+    <div class="arg-head">
+      <code class="arg-key">${esc(name)}</code>
+      <span class="chip">${esc(String(prop?.type || "string"))}</span>
+      ${req ? `<span class="chip accent">required</span>` : ""}
+      ${helpTip(prop?.description || `Argument “${name}” of type ${prop?.type || "string"}.`)}
+    </div>
+    ${argControlHtml(name, prop, val)}
+  </div>`;
+}
+
+function argExtraRowHtml(name, val) {
+  return `<div class="arg-row arg-extra">
+    <div class="arg-head">
+      <input class="select inp mono arg-extra-name" data-argname value="${esc(name)}" placeholder="extra argument name">
+      ${helpTip("Not in this tool's schema — usually a runtime/execution option. Extra keys are still passed to the runner.")}
+    </div>
+    <textarea class="select area mono arg-extra-val" style="min-height:40px" spellcheck="false" placeholder="JSON value">${esc(JSON.stringify(val, null, 1))}</textarea>
+  </div>`;
+}
+
+/* best-effort read of builder fields → args object; also used to seed raw JSON */
+function collectBuilderArgs() {
+  const args = {};
+  let missing = [];
+  $$("#argBuilder [data-arg]").forEach((el) => {
+    const name = el.dataset.arg;
+    const type = el.dataset.argtype || "string";
+    const raw = el.value;
+    if (type === "boolean") {
+      if (raw === "") return;
+      args[name] = raw === "true";
+      return;
+    }
+    if (type === "integer") {
+      if (String(raw).trim() === "") return;
+      args[name] = parseInt(raw, 10);
+      return;
+    }
+    if (type === "number") {
+      if (String(raw).trim() === "") return;
+      args[name] = parseFloat(raw);
+      return;
+    }
+    if (type === "array" || type === "object") {
+      const txt = String(raw).trim();
+      if (!txt) return;
+      try { args[name] = JSON.parse(txt); }
+      catch { missing.push(`${name} must be valid ${type} JSON (e.g. ${type === "array" ? '["a","b"]' : '{"k":"v"}'})`); }
+      return;
+    }
+    const txt = String(raw).trim();
+    if (txt) args[name] = txt;
+  });
+  // extras (unknown keys)
+  $$("#argBuilder .arg-extra").forEach((row) => {
+    const name = (row.querySelector(".arg-extra-name")?.value || "").trim();
+    const txt = (row.querySelector(".arg-extra-val")?.value || "").trim();
+    if (!name && !txt) return;
+    if (!name || !txt) { missing.push(`extra argument: fill both name and JSON value (or clear them)`); return; }
+    try { args[name] = JSON.parse(txt); }
+    catch { missing.push(`extra argument "${name}" must be a JSON value (true, 90, "text", …)`); }
+  });
+  return { args, missing };
 }
 
 function insInputsTab(s) {
@@ -897,14 +1017,30 @@ function insInputsTab(s) {
     const rows = Object.entries(s.inputs || {}).map(([k, v], i) => mapRowHtml(i, k, v, s)).join("");
     return `
       <div class="ins-note dim"><code>{{name}}</code> = run input · <code>{{step.field}}</code> = previous step output · bare text = literal. Use the source selector so you don't have to type references.</div>
-      <div class="ins-subhead">Input parameters <button class="btn icon" id="insAddInput" title="Add input parameter">＋</button></div>
+      ${subLabel("Input parameters", "Values fed to this step. <b>Run input</b> asks at launch (wraps as <code>{{name}}</code>); <b>Previous step</b> pipes an upstream output field (<code>{{step.field}}</code>); <b>Literal value</b> hardcodes text, a number or a value like an IP or URL.", `<button class="btn icon" id="insAddInput" title="Add input parameter">＋</button>`)}
       <div id="insInputRows">${rows || `<p class="dim map-none">No inputs mapped yet — add one below.</p>`}</div>`;
   }
   const isTool = s.type === "tool";
+  const schema = isTool ? toolInputSchema(s.tool) : null;
+  if (isTool && schema) {
+    const req = schema.required || [];
+    const props = schema.properties;
+    const argd = s.args || {};
+    const rows = Object.entries(props).map(([k, p]) => argRowHtml(k, p, argd[k], req)).join("");
+    const extras = Object.keys(argd).filter((k) => !props[k]).map((k) => argExtraRowHtml(k, argd[k])).join("");
+    return `
+      ${subLabel("Tool arguments", `Arguments for <b>${esc(s.tool || "tool")}</b>, straight from the registry's input schema — names and types are fixed, hover each <b>?</b> for what the argument does. Filled values become the JSON shown on the <i>Edit raw JSON</i> view.`)}
+      <div id="argBuilder">${rows || `<p class="dim map-none">This tool takes no arguments.</p>`}${extras}</div>
+      <button class="btn ghost sm" id="argAddExtra" type="button">＋ Extra argument</button>
+      <button class="btn ghost sm" id="argRawToggle" type="button">Edit raw JSON</button>
+      <textarea class="select area" id="insArgs" hidden style="min-height:150px;font-family:ui-monospace,Menlo,monospace" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea>
+      <div class="ins-note dim">Prefer a JSON blob? <i>Edit raw JSON</i> switches this same data to a raw view.</div>`;
+  }
   return `
-    <div class="ins-subhead">${isTool ? "Tool arguments" : "Module arguments"} <span class="dim">(JSON object)</span></div>
-    <textarea class="select area" id="insArgs" style="min-height:150px;font-family:ui-monospace,Menlo,monospace" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea>
-    ${isTool ? `<div class="ins-note dim">Argument names should match the tool's input schema (see Tool Registry).</div>` : ""}`;
+    ${subLabel(isTool ? "Tool arguments (JSON object)" : "Module arguments (JSON object)", isTool
+      ? `No schema registered for <code>${esc(s.tool || "this tool")}</code> — write the arguments object by hand, e.g. <code>{"target":"10.0.0.5","verbose":true}</code>. Keys should match the tool's input schema in the Tool Registry.`
+      : `Internal module stage arguments. The required keys depend on the module — the server reports a precise error if one is missing. Run inputs are referenced as <code>{{name}}</code>.`)}
+    <textarea class="select area" id="insArgs" style="min-height:150px;font-family:ui-monospace,Menlo,monospace" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea>`;
 }
 
 function insOutputsTab(s) {
@@ -912,16 +1048,16 @@ function insOutputsTab(s) {
     const f = s.filter && s.filter.type !== "none" ? s.filter : { type: "grep", pattern: "" };
     const fields = namedGroups(f.pattern);
     return `
-      <div class="ins-subhead">Output extraction</div>
-      <div class="ins-note dim">Extract structured fields from the command output. Named capture groups <code>(?P<field>…)</code> become output fields the next step can map with <code>{{thisid.field}}</code>.</div>
+      ${subLabel("Output extraction", "Cut structured values out of the command output. <b>grep</b> returns the first/last matching line, <b>regex</b> applies a pattern with named capture groups <code>(?P&lt;field&gt;…)</code> — each named group becomes an output field the next step can map as <code>{{thisstepid.field}}</code>.")}
       <div class="ins-filter-row">
         <select class="select" id="insFilterType">
           ${["grep", "regex", "none"].map((v) => `<option value="${v}" ${v === (s.filter?.type || "grep") ? "selected" : ""}>${v}</option>`).join("")}
         </select>
         <label class="checkline sm">first match only <input type="checkbox" id="insFilterFirst" ${s.filter?.first_only ? "checked" : ""}></label>
       </div>
-      ${insLabel("Pattern", `<input class="select mono" id="insFilterPattern" value="${esc(f.pattern || "")}" placeholder='(?P<ip>[0-9]+\\.[0-9.]+)'>`)}
-      <div class="ins-subhead">Extracted fields</div>
+      ${insLabel("Pattern", `<input class="select mono" id="insFilterPattern" value="${esc(f.pattern || "")}" placeholder='(?P<ip>[0-9]+\\.[0-9.]+)'>`,
+        "Applies to the raw command output. Named groups become mapped fields — e.g. <code>(?P<host>[a-z0-9.-]+)</code> becomes <code>{{&lt;this step's id&gt;.host}}</code> for the next step.")}
+      ${subLabel("Extracted fields", "Preview of what downstream steps can map — comes from the named <code>(?P&lt;group&gt;…)</code> groups above.")}
       ${fields.length ? `<div class="chip-row">${fields.map((x) => `<span class="chip accent mono">${esc(s.id)}.${esc(x)}</span>`).join("")}</div>` : `<p class="dim">No named fields — downstream steps will only see raw text unless you add (?P&lt;name&gt;…) groups.</p>`}`;
   }
   return `<div class="ins-note">This step type produces its outputs internally (findings, correlations, scope checks or the assessment report) — no manual output extraction to configure.</div>`;
@@ -929,10 +1065,10 @@ function insOutputsTab(s) {
 
 function insAdvancedTab(s) {
   return `
-    <div class="ins-subhead">Execution arguments</div>
+    ${subLabel("Execution arguments", "Extra JSON settings for the runner. Shell nodes can use <code>{name}</code> placeholders filled from the Inputs tab. Common keys: <code>timeout</code>, <code>verbose</code>.")}
     <textarea class="select area" id="insArgs" style="min-height:130px;font-family:ui-monospace,Menlo,monospace" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea>
-    <div class="ins-note dim">Shell nodes: <code>{name}</code> placeholders fill from the Inputs tab · extra JSON keys (e.g. <code>timeout</code>) act as execution settings.</div>
-    ${insLabel("Condition (when)", `<input class="select mono" id="insWhen" value="${esc(s.when || "")}" placeholder="e.g. outputs? no match => skip">`, "skip this step when the expression is falsy")}`;
+    ${insLabel("Condition (when)", `<input class="select mono" id="insWhen" value="${esc(s.when || "")}" placeholder="e.g. outputs? no match => skip">`,
+      "Skips this step when the expression is falsy (0, false, empty). Leave blank to always run.")}`;
 }
 
 function insTabsHtml(s) {
@@ -979,6 +1115,49 @@ function renderInspector() {
   $("#insDel")?.addEventListener("click", () => deleteGraphStep(graphSel));
   $("#insClose")?.addEventListener("click", () => $("#insCol")?.classList.remove("ins-open"));
   $("#insAddInput")?.addEventListener("click", () => addMapRow());
+
+  // tool-argument schema builder wiring
+  const bld = $("#argBuilder");
+  if (bld) {
+    $("#argRawToggle")?.addEventListener("click", () => {
+      const ta = $("#insArgs");
+      if (!ta) return;
+      if (ta.hidden) {
+        // seed raw view from the current builder fields
+        const { args, missing } = collectBuilderArgs();
+        if (!missing.length && Object.keys(args).length) {
+          ta.value = JSON.stringify(args, null, 2);
+        }
+      }
+      ta.hidden = !ta.hidden;
+      bld.style.display = ta.hidden ? "" : "none";
+      $("#argAddExtra") && ($("#argAddExtra").style.display = ta.hidden ? "none" : "");
+      $("#argRawToggle").textContent = ta.hidden ? "Edit raw JSON" : "Use form fields";
+      $("#argRawToggle").focus();
+    });
+    $("#argAddExtra")?.addEventListener("click", () => {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = argExtraRowHtml("", "");
+      const row = wrap.firstElementChild;
+      bld.appendChild(row);
+      row.querySelector(".arg-extra-name").focus();
+    });
+    // switching the tool re-opens the inspector on Inputs so the schema follows
+    $("#insTool")?.addEventListener("change", () => {
+      const s2 = stepById(graphSel);
+      if (!s2) return;
+      const t = $("#insTool").value.trim();
+      if (t) s2.tool = t; else delete s2.tool;
+      inspectTab = "inputs";
+      renderInspector();
+    });
+  }
+
+  // flip tooltips near the right edge so their bubble isn't clipped
+  $$("#insBody .help-tip").forEach((b) => {
+    const r = b.getBoundingClientRect();
+    if (r.right + 140 > document.documentElement.clientWidth) b.classList.add("tip-left");
+  });
 
   // mapper wiring
   $$("#insBody .map-row").forEach((row) => {
@@ -1136,12 +1315,26 @@ function applyNodeInspector() {
 
   const argsEl = $("#insArgs");
   if (argsEl) {
-    try {
-      const parsed = JSON.parse(argsEl.value || "{}");
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        if (Object.keys(parsed).length) s.args = parsed; else delete s.args;
-      } else toast("args must be a JSON object — kept previous value", true);
-    } catch { return toast("args is not valid JSON — nothing applied for args", true); }
+    const builder = $("#argBuilder");
+    if (builder && argsEl.hidden) {
+      // schema builder drives the args; raw JSON only wins when the raw view is open
+      const { args, missing } = collectBuilderArgs();
+      if (missing.length) return toast(missing[0], true);
+      // required-argument guard against the tool's schema
+      const sc = toolInputSchema(s.tool);
+      if (sc) {
+        const lack = (sc.required || []).filter((k) => args[k] === undefined || args[k] === "" || args[k] === null);
+        if (lack.length) return toast(`Required argument${lack.length > 1 ? "s" : ""} ${lack.map((k) => `"${k}"`).join(", ")} missing for ${s.tool}`, true);
+      }
+      if (Object.keys(args).length) s.args = args; else delete s.args;
+    } else {
+      try {
+        const parsed = JSON.parse(argsEl.value || "{}");
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          if (Object.keys(parsed).length) s.args = parsed; else delete s.args;
+        } else toast("args must be a JSON object — kept previous value", true);
+      } catch { return toast("args is not valid JSON — nothing applied for args", true); }
+    }
   }
 
   const whenEl = $("#insWhen");
