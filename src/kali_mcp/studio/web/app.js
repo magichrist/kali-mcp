@@ -383,12 +383,18 @@ async function pagePlaybooks() {
           <div class="canvas-area" id="canvasArea">
             <div class="canvas-inner" id="canvasInner">
               <span class="canvas-label">EXECUTION GRAPH</span>
-              <span class="canvas-hint">click a step to edit · drag to rearrange</span>
+              <span class="canvas-hint">click a step to edit · drag to rearrange · drag <b>●</b> from a port onto another step to connect</span>
               <svg class="edges" id="edgeLayer"></svg>
               <div class="canvas-legend">
                 <span><i class="legend-dot" style="background:#edc57c"></i>tool</span>
                 <span><i class="legend-dot" style="background:#92dbad"></i>scope / report</span>
                 <span><i class="legend-dot" style="background:#aabaff"></i>correlation</span>
+              </div>
+              <div class="add-node" id="addNodeTile" title="Add a step">＋ Add step</div>
+              <div class="zoom" id="zoomCtl" title="Zoom">
+                <button id="zoomOut" title="Zoom out">−</button>
+                <button id="zoomReset" title="Reset zoom">⌂</button>
+                <button id="zoomIn" title="Zoom in">＋</button>
               </div>
             </div>
           </div>
@@ -429,8 +435,7 @@ async function pagePlaybooks() {
   $("#deleteBtn").addEventListener("click", deletePlaybook);
 
   $("#addStepBtn").addEventListener("click", addGraphStep);
-  $("#resetLayoutBtn").addEventListener("click", resetGraphLayout);
-  $("#graphSaveBtn").addEventListener("click", () => { captureGraphToDSL(); saveDraft(); });
+  $("#resetLayoutBtn").addEventListener("click", resetGraphLayout);  $("#graphSaveBtn").addEventListener("click", () => { captureGraphToDSL(); saveDraft(); });
   $("#graphValidateBtn").addEventListener("click", async () => {
     captureGraphToDSL();
     const out = $("#editorResult");
@@ -445,6 +450,14 @@ async function pagePlaybooks() {
     } catch (err) { toast(err.message, true); }
   });
   $("#graphRunBtn").addEventListener("click", () => runPlaybook(selectedId));
+
+  /* static canvas chrome: on-canvas ＋ tile + zoom controls (visual builder) */
+  const addTile = $("#addNodeTile");
+  if (addTile) addTile.addEventListener("click", (e) => { e.stopPropagation(); addGraphStep(); });
+  const zi = $("#zoomIn"), zo = $("#zoomOut"), zr = $("#zoomReset");
+  if (zi) zi.addEventListener("click", () => nudgeZoom(+0.25));
+  if (zo) zo.addEventListener("click", () => nudgeZoom(-0.25));
+  if (zr) zr.addEventListener("click", () => { graphZoom = 1; applyZoom(); });
 
   await refreshPlaybooks();
 }
@@ -564,7 +577,11 @@ function renderBuilder() {
       <div class="node-body">${esc(argSummary)}${s.when ? `<br/>when: ${esc(s.when)}` : ""}</div>
       <div class="node-foot"><span class="chip">${esc((s.depends_on || []).length + " dep(s)")}</span>${s.checkpoint ? '<span class="chip">checkpoint</span>' : ""}</div>
       <span class="port left"></span><span class="port right"></span>`;
-    el.addEventListener("mousedown", (e) => startNodeDrag(e, s.id, p, depths));
+    el.addEventListener("mousedown", (e) => startNodeDrag(e, s.id, p));
+    const rightPort = el.querySelector(".port.right");
+    if (rightPort) {
+      rightPort.addEventListener("mousedown", (e) => startPortConnect(e, s.id));
+    }
     inner.appendChild(el);
   }
 
@@ -702,6 +719,92 @@ function startNodeDrag(e, id, origin) {
   };
   document.addEventListener("mousemove", move);
   document.addEventListener("mouseup", up);
+}
+
+/* edge creation: drag from a node's right port onto another node
+   (adds srcId to the target step's depends_on, cycle-checked) */
+let connectCtx = null;
+
+function wouldCreateCycle(srcId, tgtId) {
+  // Adding src as a dependency of tgt closes a loop only if src already
+  // depends (transitively) on tgt.
+  if (srcId === tgtId) return true;
+  const seen = new Set();
+  const stack = [srcId];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (cur === tgtId) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    const s = stepById(cur);
+    (s?.depends_on || []).forEach((d) => stack.push(d));
+  }
+  return false;
+}
+
+function clearConnectPreview() {
+  const p = $("#connectPreview");
+  if (p) p.remove();
+}
+
+function startPortConnect(e, srcId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const depths = {};
+  graphLayout(depths);
+  const a = nodePos(srcId, depths);
+  const x1 = a.x + NODE_W, y1 = a.y + 51;
+  connectCtx = { srcId, depths };
+  const inner = $("#canvasInner");
+  const toCanvas = (ev) => {
+    const r = inner.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) / graphZoom, y: (ev.clientY - r.top) / graphZoom };
+  };
+  const move = (ev) => {
+    const m = toCanvas(ev);
+    const mx = (x1 + m.x) / 2;
+    clearConnectPreview();
+    const svg = $("#edgeLayer");
+    if (!svg) return;
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.id = "connectPreview";
+    path.setAttribute("class", "edge");
+    path.setAttribute("d", `M${x1},${y1} C${mx},${y1} ${mx},${m.y} ${m.x},${m.y}`);
+    svg.appendChild(path);
+  };
+  const up = (ev) => {
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+    clearConnectPreview();
+    connectCtx = null;
+    const hit = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".node");
+    if (!hit) return;
+    const tgtId = hit.dataset.step;
+    if (!tgtId) return;
+    const s = stepById(tgtId);
+    if (!s) return;
+    if (tgtId === srcId) return toast("A step cannot depend on itself", true);
+    if (wouldCreateCycle(srcId, tgtId)) return toast(`Wire ${srcId} → ${tgtId} would create a cycle`, true);
+    s.depends_on = Array.isArray(s.depends_on) ? s.depends_on : [];
+    if (s.depends_on.includes(srcId)) return toast(`${tgtId} already depends on ${srcId}`);
+    s.depends_on.push(srcId);
+    renderBuilder();
+    captureGraphToDSL();
+    toast(`Connected ${srcId} → ${tgtId}`);
+  };
+  document.addEventListener("mousemove", move);
+  document.addEventListener("mouseup", up);
+}
+
+/* zoom: 0.25x – 2x on the canvas inner */
+function applyZoom() {
+  const inner = $("#canvasInner");
+  if (inner) inner.style.transform = `scale(${graphZoom})`;
+}
+
+function nudgeZoom(delta) {
+  graphZoom = Math.min(2, Math.max(0.25, Math.round((graphZoom + delta) * 100) / 100));
+  applyZoom();
 }
 
 function redrawEdges() {
