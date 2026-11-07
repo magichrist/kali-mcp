@@ -37,7 +37,8 @@ from kali_mcp.studio import (
     service_tools,
 )
 from kali_mcp.studio.mcp_client import ExternalMCPClient
-from kali_mcp.workflow.dsl import compile_dsl, deserialize as dsl_serialize
+from kali_mcp.workflow.dsl import compile_dsl
+from kali_mcp.workflow.dsl import deserialize as dsl_serialize
 
 logger = logging.getLogger("kali_mcp.studio.api")
 
@@ -486,9 +487,14 @@ async def list_tools(request: Request) -> JSONResponse:
     for row in rows:
         if row.get("input_schema"):
             try:
-                row["input_schema"] = redaction.redact(json.loads(row["input_schema"]) if isinstance(row["input_schema"], str) else row["input_schema"])
-            except Exception:  # noqa: BLE001
-                pass
+                row["input_schema"] = redaction.redact(
+                    json.loads(row["input_schema"])
+                    if isinstance(row["input_schema"], str) else row["input_schema"]
+                )
+            except Exception:  # noqa: BLE001 — unparsable schemas are listed unredacted, never block the listing
+                logger.debug(
+                    "tool %s: unparsable input_schema left unredacted", row.get("id")
+                )
     return _ok({"tools": rows})
 
 
@@ -542,13 +548,13 @@ async def set_tool_visibility_endpoint(request: Request) -> JSONResponse:
     visibility = body.get("visibility")
     if visibility not in ("agent_callable", "playbook_selectable", "internal", "hidden"):
         return _error("invalid visibility", 422)
-    if visibility == "agent_callable":
-        # Require approval for promoting to agent_callable
-        if not approvals.is_approved(db, approvals.GATE_VISIBILITY_AGENT_CALLABLE, tool_id):
-            return _error(
-                approvals.require_approval_for(approvals.GATE_VISIBILITY_AGENT_CALLABLE),
-                403, code="approval_required",
-            )
+    if visibility == "agent_callable" and not approvals.is_approved(
+        db, approvals.GATE_VISIBILITY_AGENT_CALLABLE, tool_id
+    ):
+        return _error(
+            approvals.require_approval_for(approvals.GATE_VISIBILITY_AGENT_CALLABLE),
+            403, code="approval_required",
+        )
     ok = service_tools.set_tool_visibility(db, tool_id, visibility)
     if not ok:
         return _error("tool not found", 404)
@@ -722,7 +728,9 @@ def _connection_transport_from_body(body: dict[str, Any]) -> dict[str, Any]:
         command = command.split()
     args = body.get("args") or []
     if not isinstance(args, list):
-        raise ValueError("args must be a list")
+        # Keep ValueError: the endpoint maps it to a 400 response (TypeError
+        # would escape as an unhandled 500).
+        raise ValueError("args must be a list")  # noqa: TRY004
     return {
         "transport": transport,
         "endpoint_url": body.get("endpoint_url") or body.get("url"),
@@ -1288,4 +1296,4 @@ def mount_studio_routes(app: Any) -> None:
     logger.info("Mounted %d Studio REST routes", len(studio_routes))
 
 
-__all__ = ["routes", "mount_studio_routes"]
+__all__ = ["mount_studio_routes", "routes"]
