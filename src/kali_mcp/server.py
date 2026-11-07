@@ -45,6 +45,7 @@ from kali_mcp.utils.vault import ensure_vault_dirs
 
 setup_logging()
 logger = logging.getLogger("kali_mcp.server")
+print(f"MODULE LEVEL: db_path={config.db_path}, db_enabled={config.db_enabled}", flush=True)
 
 
 # ── Health Monitor ──────────────────────────────────────────────
@@ -160,6 +161,7 @@ def _get_memory_mb() -> float:
 @asynccontextmanager
 async def lifespan(app):
     """Server lifecycle — startup and shutdown."""
+    print(f"DEBUG LIFESPAN START: db_path={config.db_path}, db_enabled={config.db_enabled}", flush=True)
     logger.info("Server starting up...")
     logger.info("Registered %d tools: %s", len(ALL_TOOLS), [t.name for t in ALL_TOOLS])
     # Initialize foundational infrastructure (Phase 1)
@@ -170,8 +172,10 @@ async def lifespan(app):
         logger.exception("Vault initialization failed")
 
     try:
+        print(f"DEBUG: db_enabled={config.db_enabled}, db_path={config.db_path}", flush=True)
         if getattr(config, "db_enabled", True):
             _db = db_manager.get_db()
+            print(f"DEBUG: get_db() returned {_db}", flush=True)
             if _db is not None:
                 try:
                     from kali_mcp.studio.service_tools import sync_registry_to_db
@@ -190,6 +194,8 @@ async def lifespan(app):
                 except Exception:  # seed failure must not stop startup
                     logger.exception("Built-in playbook seeding failed")
             logger.info("Database initialized (path=%s)", str(config.db_path))
+        else:
+            logger.info("Database disabled via MCP_DB_ENABLED=false")
     except Exception:
         logger.exception("Database initialization failed")
 
@@ -595,6 +601,7 @@ def main() -> None:
         logger.info("Transport: streamable-http")
     else:
         app = mcp.sse_app()
+    app.add_route("/api/direct_test2", lambda request: JSONResponse({"test": "hello2"}), methods=["GET"])
         logger.info("Transport: sse")
 
     origins = [o.strip() for o in config.allowed_origins.split(",") if o.strip()]
@@ -648,6 +655,8 @@ def main() -> None:
         from kali_mcp.studio.api import mount_studio_routes
 
         mount_studio_routes(app)
+    # Test route directly added
+    app.add_route("/api/test_direct", lambda request: JSONResponse({"test": "hello"}), methods=["GET"])
         logger.info("Studio REST routes mounted")
 
     # ── Studio static web (Phase 5) ────────────────────────────────
