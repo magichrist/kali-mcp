@@ -422,29 +422,38 @@ def seed_builtin_playbooks(
 
         existing = db.get_playbook(pb_id)
         if existing:
-            # Only re-seed if content changed (compare via a notes hash is not
-            # stored; we always update metadata but preserve versions)
             db.update_playbook(
                 pb_id,
                 name=name,
                 description=data.get("description"),
                 category="builtin",
                 author="system",
-                is_builtin=True,
                 status="published",
             )
+            # is_builtin isn't updatable via update_playbook; set it directly
+            db.conn.execute(
+                "UPDATE playbooks SET is_builtin=1 WHERE playbook_id=?",
+                (pb_id,),
+            )
+            db.conn.commit()
             # Publish version only if no versions exist yet
             versions = db.list_playbook_versions(pb_id)
             if not versions:
-                db.publish_playbook_version(
-                    playbook_id=pb_id,
-                    version=version,
-                    definition=definition,
-                    inputs_schema=data.get("inputs"),
-                    notes="Seeded from YAML definition",
-                    published_by="system",
-                    version_id=f"{pb_id}-{version}",
-                )
+                version_id = f"{pb_id}-{version}"
+                vid_exists = db.conn.execute(
+                    "SELECT 1 FROM playbook_versions WHERE version_id = ?",
+                    (version_id,),
+                ).fetchone()
+                if not vid_exists:
+                    db.publish_playbook_version(
+                        playbook_id=pb_id,
+                        version=version,
+                        definition=definition,
+                        inputs_schema=data.get("inputs"),
+                        notes="Seeded from YAML definition",
+                        published_by="system",
+                        version_id=version_id,
+                    )
             count += 1
         else:
             db.create_playbook(
@@ -456,15 +465,21 @@ def seed_builtin_playbooks(
                 is_builtin=True,
                 status="published",
             )
-            db.publish_playbook_version(
-                playbook_id=pb_id,
-                version=version,
-                definition=definition,
-                inputs_schema=data.get("inputs"),
-                notes="Seeded from YAML definition",
-                published_by="system",
-                version_id=f"{pb_id}-{version}",
-            )
+            version_id = f"{pb_id}-{version}"
+            vid_exists = db.conn.execute(
+                "SELECT 1 FROM playbook_versions WHERE version_id = ?",
+                (version_id,),
+            ).fetchone()
+            if not vid_exists:
+                db.publish_playbook_version(
+                    playbook_id=pb_id,
+                    version=version,
+                    definition=definition,
+                    inputs_schema=data.get("inputs"),
+                    notes="Seeded from YAML definition",
+                    published_by="system",
+                    version_id=version_id,
+                )
             count += 1
     logger.info("Seeded %d builtin playbooks from %s", count, definitions_dir)
     return count
