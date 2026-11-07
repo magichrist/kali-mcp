@@ -337,7 +337,7 @@ class PlaybookRunTool(BaseTool):
                     {k: v for k, v in defn.inputs.items()
                      if v == route_inputs.get(k)},
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("workflow_execution record failed")
 
         from kali_mcp.workflow.dag_executor import run_playbook_async
@@ -352,7 +352,7 @@ class PlaybookRunTool(BaseTool):
                     completed_at=utc_now_iso(),
                 )
             return error_response(ToolError(error=f"scope violation: {exc}"))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if db is not None:
                 db.update_workflow_execution(
                     execution_id, status="failed", error=str(exc),
@@ -429,7 +429,7 @@ async def _run_background(job_id: str, coroutine_factory) -> None:
     """Run a background playbook task and keep the registry entry updated."""
     try:
         await coroutine_factory()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         STATUS = JOB_REGISTRY.get(job_id)
         if STATUS is not None:
             STATUS["status"] = "failed"
@@ -468,7 +468,7 @@ def _studio_playbook_row(playbook_id: str) -> dict[str, Any] | None:
         return None
     try:
         return db.get_playbook(playbook_id)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("studio playbook lookup failed for %r", playbook_id)
         return None
 
@@ -562,15 +562,12 @@ def _persist_studio_result(
         for step_id, res in step_results.items():
             if isinstance(res, dict):
                 step_error = res.get("error")
-                step_success = not res.get("skipped") or step_error is None
                 db.record_step_execution(
                     execution_id,
                     step_id,
                     step_type=str(res.get("type")) if res.get("type") else None,
                     tool_id=str(res.get("tool")) if res.get("tool") else None,
-                    status="failed" if step_error else (
-                        "completed" if step_success else "completed"
-                    ),
+                    status="failed" if step_error else "completed",
                     outputs={"result": res} if not res.get("skipped") else None,
                     error=str(step_error) if step_error else None,
                     started_at=utc_now_iso(),
@@ -586,7 +583,7 @@ def _persist_studio_result(
             error=payload.get("error"),
             completed_at=utc_now_iso(),
         )
-    except Exception:  # noqa: BLE001 — persistence failures never lose the run result
+    except Exception:
         logger.exception("failed to persist studio execution %s", execution_id)
 
 
@@ -694,8 +691,11 @@ class PlaybookCatalogTool(BaseTool):
                             entry["estimated_duration"] = (
                                 (definition.get("execution") or {}).get("timeout", 300)
                             )
-                    except Exception:  # noqa: BLE001
-                        pass
+                    except Exception:  # noqa: BLE001 — unparsable definition never blocks the catalog
+                        logger.debug(
+                            "playbook_catalog: could not parse definition for %s",
+                            entry.get("id"),
+                        )
                 playbooks.append(entry)
             playbooks.sort(key=lambda p: p["id"])
             payload = {
@@ -822,7 +822,7 @@ class PlaybookResultTool(BaseTool):
                 return _success_tool_result(self.name, payload)
 
         # 1. In-memory registry (running / completed this session)
-        for _, status in JOB_REGISTRY.items():
+        for status in JOB_REGISTRY.values():
             if status.get("job_id") == key or status.get("assessment_id") == key:
                 running = status.get("status") == "running"
                 payload = {
