@@ -166,32 +166,53 @@ class TemplateRunTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        if not arguments.get("template_id"):
+        # Accept "template" as a user-friendly alias for "template_id".
+        template_id = arguments.get("template_id") or arguments.get("template")
+        if not template_id:
             raise ValueError("template_id is required")
+        # Accept flat top-level params (e.g. target=..., benchmark=...) in
+        # addition to the canonical "params" object. Merge them into params.
         params = arguments.get("params")
+        if params is None:
+            params = {}
+        elif not isinstance(params, dict):
+            raise ValueError("params must be an object")
+        # Fold any top-level template-parameter keys into params (keys that
+        # are not MCP-level fields).
+        mcp_keys = {"template_id", "template", "params", "background"}
+        for key, val in arguments.items():
+            if key not in mcp_keys and key not in params:
+                params[key] = val
         if params is not None and not isinstance(params, dict):
             raise ValueError("params must be an object")
         try:
             from kali_mcp.playbooks.registry import get_template
 
-            get_template(arguments["template_id"])
+            get_template(template_id)
         except KeyError as e:
             raise ValueError(f"unknown template: {e}")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        return ["template_run", arguments.get("template_id", "")]
+        template_id = arguments.get("template_id") or arguments.get("template", "")
+        return ["template_run", template_id]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        # Normalize: accept "template" alias for "template_id".
+        template_id = arguments.get("template_id") or arguments.get("template")
+        # Normalize: merge flat top-level params into params.
+        params = arguments.get("params") or {}
+        mcp_keys = {"template_id", "template", "params", "background"}
+        for key, val in arguments.items():
+            if key not in mcp_keys and key not in params:
+                params[key] = val
+        wants_background = bool(arguments.get("background", False))
+
         # Render FIRST: this validates required and merges defaults
         from kali_mcp.playbooks.registry import (
             TemplateNotFound,
             render_template,
         )
         from kali_mcp.workflow.yaml_loader import PlaybookError
-
-        template_id = arguments["template_id"]
-        params = arguments.get("params") or {}
-        wants_background = bool(arguments.get("background", False))
 
         try:
             definition = render_template(template_id, params)
