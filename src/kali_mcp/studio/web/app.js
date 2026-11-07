@@ -323,10 +323,8 @@ async function pagePlaybookEditor(id) {
       <span class="pb-hint dim" id="pbHint"></span>
     </div>
     <div class="editor-grid" id="editorGrid">
-      <aside class="palette" id="palette" hidden></aside>
       <div class="canvas-col">
         <div class="graph-toolbar" id="graphToolbar">
-          <button class="btn icon" id="paletteBtn" title="Toggle node palette">☰</button>
           <span class="tool-sep"></span>
           <button class="btn icon" id="undoBtn" title="Undo">↶</button>
           <button class="btn icon" id="redoBtn" title="Redo">↷</button>
@@ -355,7 +353,7 @@ async function pagePlaybookEditor(id) {
           <div class="canvas-empty" id="canvasEmpty" hidden>
             <div class="ce-glyph">⌘</div>
             <h3>Your workflow starts here</h3>
-            <p>Add a step to begin — pick one from the palette, or use the ＋ buttons in the graph toolbar.</p>
+            <p>Add a step to begin — use ＋ Tool (registered security tool) or ＋ Shell (command node) in the graph toolbar.</p>
             <button class="btn primary" id="firstStepBtn">Add first step</button>
           </div>
         </div>
@@ -540,6 +538,7 @@ function togglePalette(forceOpen) {
   if (!pal) return;
   const open = forceOpen === true ? true : (forceOpen === false ? false : pal.hidden);
   pal.hidden = !open;
+  $("#editorGrid")?.classList.toggle("pal-open", open);
   $("#paletteBtn")?.classList.toggle("active", open);
 }
 
@@ -1131,7 +1130,7 @@ function renderInspector() {
       }
       ta.hidden = !ta.hidden;
       bld.style.display = ta.hidden ? "" : "none";
-      $("#argAddExtra") && ($("#argAddExtra").style.display = ta.hidden ? "none" : "");
+      $("#argAddExtra") && ($("#argAddExtra").style.display = ta.hidden ? "" : "none");
       $("#argRawToggle").textContent = ta.hidden ? "Edit raw JSON" : "Use form fields";
       $("#argRawToggle").focus();
     });
@@ -1153,10 +1152,14 @@ function renderInspector() {
     });
   }
 
-  // flip tooltips near the right edge so their bubble isn't clipped
+  // flip tooltips near the right edge / top of the scroll area so bubbles aren't clipped
+  const bodyEl = $("#insBody");
+  const bodyRect = bodyEl && typeof bodyEl.getBoundingClientRect === "function"
+    ? bodyEl.getBoundingClientRect() : null;
   $$("#insBody .help-tip").forEach((b) => {
     const r = b.getBoundingClientRect();
-    if (r.right + 140 > document.documentElement.clientWidth) b.classList.add("tip-left");
+    if (r.right + 270 > document.documentElement.clientWidth - 12) b.classList.add("tip-left");
+    if (bodyRect && r.top - 130 < bodyRect.top) b.classList.add("tip-down");
   });
 
   // mapper wiring
