@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse, PlainTextResponse
 
 from kali_mcp.db import manager as db_manager
 from kali_mcp.config import config
+from kali_mcp.studio import service_connections, service_mcp_connections
 
 logger = logging.getLogger("kali_mcp.studio.api")
 
@@ -317,6 +318,128 @@ async def server_info(request: Request) -> JSONResponse:
     })
 
 
+async def list_connections_api(request: Request) -> JSONResponse:
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    conns = service_connections.list_connections(db)
+    return JSONResponse({"connections": conns, "count": len(conns)})
+
+
+async def upsert_connection_api(request: Request) -> JSONResponse:
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    body = await request.json()
+    connection_id = body.get("connection_id")
+    name = body.get("name")
+    transport = body.get("transport")
+    if not connection_id or not name or not transport:
+        return JSONResponse({"error": "connection_id, name, transport required"}, status_code=400)
+    row = service_connections.upsert_connection(
+        db,
+        connection_id=connection_id,
+        name=name,
+        transport=transport,
+        description=body.get("description"),
+        endpoint_url=body.get("endpoint_url"),
+        command=body.get("command"),
+        args=body.get("args"),
+        auth_type=body.get("auth_type"),
+        auth_config=body.get("auth_config"),
+        enabled=body.get("enabled", True),
+    )
+    return JSONResponse(row, status_code=201)
+
+
+async def get_connection_api(request: Request) -> JSONResponse:
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    connection_id = request.path_params["id"]
+    cur = db.conn.cursor()
+    row = cur.execute(
+        "SELECT * FROM mcp_connections WHERE connection_id = ?", (connection_id,)
+    ).fetchone()
+    if row is None:
+        return JSONResponse({"error": "connection not found"}, status_code=404)
+    c = dict(row)
+    for field in ("args", "auth_config"):
+        raw = c.get(field)
+        if raw:
+            try:
+                c[field] = json.loads(raw)
+            except (TypeError, ValueError):
+                pass
+    cur.execute(
+        "SELECT tool_id, visibility FROM tool_definitions WHERE provider = ?",
+        (connection_id,),
+    )
+    imported_tools = [
+        {"tool_id": r[0], "visibility": r[1]} for r in cur.fetchall()
+    ]
+    c["imported_tools"] = imported_tools
+    c["imported_tool_count"] = len(imported_tools)
+    return JSONResponse({"connection": c})
+
+
+async def delete_connection_api(request: Request) -> JSONResponse:
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    connection_id = request.path_params["id"]
+    deleted = service_connections.delete_connection(db, connection_id)
+    if not deleted:
+        return JSONResponse({"error": "connection not found"}, status_code=404)
+    return JSONResponse({"status": "deleted"})
+
+
+async def test_connection_api(request: Request) -> JSONResponse:
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    connection_id = request.path_params["id"]
+    cur = db.conn.cursor()
+    row = cur.execute(
+        "SELECT transport, endpoint_url, command FROM mcp_connections WHERE connection_id = ?",
+        (connection_id,),
+    ).fetchone()
+    if row is None:
+        return JSONResponse({"error": "connection not found"}, status_code=404)
+    transport, endpoint_url, command = row
+    from kali_mcp.studio.mcp_client import ExternalMCPClient
+    client = ExternalMCPClient(
+        transport, url=endpoint_url, command=command.split() if command else None,
+    )
+    ok = service_mcp_connections.test_connection(client)
+    service_connections.set_health(db, connection_id, ok)
+    return JSONResponse({"ok": ok, "healthy": ok})
+
+
+async def discover_connection_api(request: Request) -> JSONResponse:
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    connection_id = request.path_params["id"]
+    cur = db.conn.cursor()
+    row = cur.execute(
+        "SELECT transport, endpoint_url, command FROM mcp_connections WHERE connection_id = ?",
+        (connection_id,),
+    ).fetchone()
+    if row is None:
+        return JSONResponse({"error": "connection not found"}, status_code=404)
+    transport, endpoint_url, command = row
+    from kali_mcp.studio.mcp_client import ExternalMCPClient
+    client = ExternalMCPClient(
+        transport, url=endpoint_url, command=command.split() if command else None,
+    )
+    imported = await service_mcp_connections.discover_and_import(
+        db, connection_id, client, visibility="internal",
+    )
+    service_connections.set_health(db, connection_id, True)
+    return JSONResponse({"imported_tools": imported, "count": len(imported)})
+
+
 def mount_studio_routes(app) -> None:
     """Mount all Studio REST routes on the given Starlette app."""
 
@@ -334,6 +457,14 @@ def mount_studio_routes(app) -> None:
 
     # Server info
     app.add_route("/api/server", server_info, methods=["GET"])
+
+    # MCP Connections routes
+    app.add_route("/api/connections", list_connections_api, methods=["GET"])
+    app.add_route("/api/connections", upsert_connection_api, methods=["POST"])
+    app.add_route("/api/connections/{id}", get_connection_api, methods=["GET"])
+    app.add_route("/api/connections/{id}", delete_connection_api, methods=["DELETE"])
+    app.add_route("/api/connections/{id}/test", test_connection_api, methods=["POST"])
+    app.add_route("/api/connections/{id}/discover", discover_connection_api, methods=["POST"])
 
     # Execution routes
     app.add_route("/api/executions", list_executions, methods=["GET"])
