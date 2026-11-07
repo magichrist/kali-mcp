@@ -84,10 +84,10 @@ class TestCmdMonitor:
     def test_cmd_monitor_passes_url_to_monitor_main(self) -> None:
         with patch("kali_mcp.cli._load_env"), patch(
             "kali_mcp.monitor.tui.main"
-        ) as mock_monitor_main, patch.dict(os.environ, {}, clear=True):
+        ) as mock_monitor_main:
             args = SimpleNamespace(url="http://127.0.0.1:9000")
             assert cmd_monitor(args) == 0
-            mock_monitor_main.assert_called_once_with("http://127.0.0.1:9000", None)
+            mock_monitor_main.assert_called_once_with("http://127.0.0.1:9000")
 
     def test_cmd_monitor_defaults_url_when_none(self) -> None:
         with patch("kali_mcp.cli._load_env"), patch(
@@ -95,7 +95,7 @@ class TestCmdMonitor:
         ) as mock_monitor_main, patch.dict(os.environ, {}, clear=True):
             args = SimpleNamespace(url=None)
             cmd_monitor(args)
-            mock_monitor_main.assert_called_once_with("http://127.0.0.1:8399", None)
+            mock_monitor_main.assert_called_once_with("http://127.0.0.1:8399")
 
 
 class TestCmdPurgeExtended:
