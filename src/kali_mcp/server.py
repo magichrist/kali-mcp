@@ -180,6 +180,15 @@ async def lifespan(app):
                     logger.info("Synced %d tools to tool_definitions", len(synced))
                 except Exception:  # a sync failure must not stop startup (BLE001 deliberately tolerated here)
                     logger.exception("Tool registry sync failed")
+
+                # ── Seed built-in Studio playbooks from YAML definitions ──
+                try:
+                    from kali_mcp.studio.playbook_service import seed_builtin_playbooks
+
+                    seeded = seed_builtin_playbooks(_db)
+                    logger.info("Seeded %d built-in playbooks from YAML definitions", seeded)
+                except Exception:  # seed failure must not stop startup
+                    logger.exception("Built-in playbook seeding failed")
             logger.info("Database initialized (path=%s)", str(config.db_path))
     except Exception:
         logger.exception("Database initialization failed")
