@@ -440,6 +440,50 @@ label > .select, label > .inp, label.ins-field > .select { margin-top: 6px; }
 .run-row-head { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
 .run-row-head b { font-weight: 600; }
 
+/* new-playbook modal */
+.new-pb-modal { width: min(560px, calc(100vw - 32px)); }
+.np-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 2px;
+}
+.np-glyph {
+  width: 44px; height: 44px;
+  flex: none;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #a3e7bd, #35b37a);
+  color: #08170e;
+  display: grid; place-items: center;
+  font-size: 19px;
+  font-weight: 700;
+}
+.np-head h3 { margin: 0 0 3px; }
+.np-head p { line-height: 1.5; }
+.np-field { display: flex; flex-direction: column; min-width: 0; }
+.np-label { font-size: 13px; font-weight: 600; }
+.np-label em {
+  display: block;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--dim);
+  margin: 1px 0 6px;
+}
+.np-row2 { display: grid; grid-template-columns: 172px minmax(0, 1fr); gap: 12px; align-items: end; }
+.np-col { min-width: 0; }
+.np-hint {
+  display: block;
+  min-height: 15px;
+  font-size: 12px;
+  margin-top: 5px;
+  color: var(--dim);
+}
+.np-hint.warn { color: var(--amber); }
+@media (max-width: 767px) {
+  .np-row2 { grid-template-columns: 1fr; }
+}
+
 .toast {
   position: fixed;
   left: 50%;
