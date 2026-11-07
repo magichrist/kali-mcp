@@ -46,7 +46,7 @@ async function api(path, opts = {}) {
 
 let pendingRetry = [];
 function promptForToken() {
-  $("#tokenModal").classList.add("open");
+  $("#tokenModal").classList.add("show");
   $("#tokenInput").focus();
   return new Promise((resolve) => pendingRetry.push(resolve));
 }
@@ -55,7 +55,7 @@ async function saveTokenAndRetry() {
   const value = $("#tokenInput").value.trim();
   if (!value) return;
   localStorage.setItem(TOKEN_KEY, value);
-  $("#tokenModal").classList.remove("open");
+  $("#tokenModal").classList.remove("show");
   $("#tokenInput").value = "";
   refreshAuthBadge();
   toast("Token saved — reloading");
