@@ -141,6 +141,8 @@ async def start_execution(
     inputs: dict[str, Any] | None = None,
     profile_id: str | None = None,
     version_id: int | str | None = None,
+    trigger: str | None = None,
+    debug: bool = False,
 ) -> dict[str, Any]:
     """Start (and await) a run of a published Studio playbook.
 
@@ -149,6 +151,10 @@ async def start_execution(
     runs the playbook through the DAG engine, records per-step executions,
     and finalizes the row status. Raises ``LookupError`` for unknown
     playbooks/versions and ``ValueError`` for invalid input.
+
+    ``trigger`` records where the run came from (e.g. ``studio``, ``api``)
+    and ``debug`` marks manual/test runs so they can be distinguished from
+    AI/agent-initiated runs in the UI.
     """
     row = db.get_playbook(playbook_id)
     if row is None:
@@ -204,6 +210,8 @@ async def start_execution(
         inputs=inputs or {},
         status="running",
         started_at=db._now_utc(),
+        trigger=trigger,
+        debug=debug,
     )
 
     from kali_mcp.workflow.dag_executor import run_playbook_async
