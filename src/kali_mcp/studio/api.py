@@ -87,6 +87,41 @@ async def put_definition(request: Request) -> JSONResponse:
     return JSONResponse({"playbook_id": playbook_id, "valid": True})
 
 
+async def get_definition_api(request: Request) -> JSONResponse:
+    """Get playbook definition (draft if present, else latest published version)."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    playbook_id = request.path_params["id"]
+    row = db.get_playbook(playbook_id)
+    if row is None:
+        return JSONResponse({"error": "playbook not found"}, status_code=404)
+
+    # Prefer draft_definition if present
+    draft = row.get("draft_definition")
+    if draft:
+        try:
+            definition = json.loads(draft) if isinstance(draft, str) else draft
+            return JSONResponse({"definition": definition, "draft": True})
+        except (TypeError, ValueError):
+            pass
+
+    # Fall back to latest published version
+    versions = db.list_playbook_versions(playbook_id)
+    if versions:
+        version = versions[0]  # newest first per list_playbook_versions
+        definition = version.get("definition")
+        if isinstance(definition, str):
+            try:
+                definition = json.loads(definition)
+            except (TypeError, ValueError):
+                definition = None
+        return JSONResponse({"definition": definition, "draft": False})
+
+    return JSONResponse({"error": "no definition found"}, status_code=404)
+
+
 async def put_definition_publish(request: Request) -> JSONResponse:
     """Publish playbook definition."""
     db = db_manager.get_db()
@@ -611,6 +646,7 @@ def mount_studio_routes(app) -> None:
     app.add_route("/api/playbooks/{id}", get_playbook, methods=["GET"])
     app.add_route("/api/playbooks/{id}", delete_playbook, methods=["DELETE"])
     app.add_route("/api/playbooks/{id}/definition", put_definition, methods=["PUT"])
+    app.add_route("/api/playbooks/{id}/definition", get_definition_api, methods=["GET"])
     app.add_route("/api/playbooks/{id}/publish", put_definition_publish, methods=["POST"])
     app.add_route("/api/playbooks/{id}/validate-definition", put_definition, methods=["POST"])
     app.add_route("/api/playbooks/{id}/versions", list_versions, methods=["GET"])
