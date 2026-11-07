@@ -83,6 +83,12 @@ class Config:
 
     # Studio
     studio_enabled: bool = field(default_factory=lambda: _bool_env("STUDIO_ENABLED", True))
+    # Agent profile bound to this server's auth token (Playbook Studio Phase
+    # 6). When set, EVERY MCP request resolves to this agent profile and the
+    # deny-by-default permission model is enforced — the client cannot opt
+    # out by omitting the X-Agent-Profile header. The header (multi-agent
+    # setups) takes precedence only when this is empty.
+    agent_profile_id: str = field(default_factory=lambda: os.getenv("MCP_AGENT_PROFILE_ID", "").strip())
     studio_db_path: str = field(default_factory=lambda: os.getenv("STUDIO_DB_PATH", ""))
     # Dedicated port for the Studio web UI (0 = share the main MCP server port)
     studio_port: int = field(default_factory=lambda: _int_env("STUDIO_PORT", 0))
