@@ -48,7 +48,7 @@ def _db() -> Any:
 
     try:
         return db_manager.get_db()
-    except Exception:  # noqa: BLE001 — DB failures never bypass enforcement irrecoverably
+    except Exception:
         logger.exception("agent_context: DB resolution failed")
         return None
 
@@ -148,7 +148,7 @@ def can_call_tool(profile_id: str, tool_id: str) -> bool:
         return False
     try:
         return bool(db.can_agent_call_tool(profile_id, tool_id))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("agent_context: tool permission check failed")
         return False
 
@@ -162,7 +162,7 @@ def is_playbook_assigned(profile_id: str, playbook_id: str) -> bool:
         return False
     try:
         return bool(db.is_playbook_assigned(profile_id, playbook_id))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("agent_context: playbook assignment check failed")
         return False
 
