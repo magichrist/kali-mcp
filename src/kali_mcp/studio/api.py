@@ -109,7 +109,7 @@ async def put_definition_publish(request: Request) -> JSONResponse:
             status_code=422,
         )
 
-    vid = playbook_service.publish_playbook_version(
+    vid = playbook_service.publish_version(
         db, playbook_id, version, definition, published_by="studio"
     )
 
