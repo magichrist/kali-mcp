@@ -130,6 +130,14 @@ class PlaybookRunTool(BaseTool):
                     "type": "string",
                     "description": "Alias for playbook",
                 },
+                "template": {
+                    "type": "string",
+                    "description": "Template id from template_list (renders + runs a template playbook; alias for template_id)",
+                },
+                "template_id": {
+                    "type": "string",
+                    "description": "Alias for template",
+                },
                 "target": {
                     "type": "string",
                     "description": "Single target domain, IP, or URL (required; also accepted as 'host', 'ip', 'domain', 'url')",
@@ -177,7 +185,7 @@ class PlaybookRunTool(BaseTool):
                     "description": "Force background execution (returns job_id immediately)",
                 },
             },
-            "required": ["playbook", "target"],
+            "required": [],
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
@@ -187,6 +195,7 @@ class PlaybookRunTool(BaseTool):
             or arguments.get("playbook_id")
             or arguments.get("name")
         )
+        template_id = arguments.get("template") or arguments.get("template_id")
         target = (
             arguments.get("target")
             or arguments.get("host")
@@ -194,8 +203,11 @@ class PlaybookRunTool(BaseTool):
             or arguments.get("domain")
             or arguments.get("url")
         )
-        if not playbook:
-            raise ValueError("playbook is required (also accepted as 'playbook_id' or 'name')")
+        if not playbook and not template_id:
+            raise ValueError(
+                "playbook or template is required "
+                "(playbook: 'playbook_id'/'name'; template: 'template'/'template_id')"
+            )
         if not target:
             raise ValueError("target is required (also accepted as 'host', 'ip', 'domain', 'url')")
         profile = arguments.get("profile", "safe_active")
@@ -204,14 +216,24 @@ class PlaybookRunTool(BaseTool):
         detail = arguments.get("detail", "normal")
         if detail not in VALID_DETAIL:
             raise ValueError("detail must be summary, normal, or full")
-        if _studio_playbook_row(playbook) is not None:
-            return  # Studio playbook — assignment gates checked at execute time
-        try:
-            from kali_mcp.playbooks.registry import get_playbook
 
-            get_playbook(playbook)
-        except KeyError as e:
-            raise ValueError(f"unknown playbook: {e}")
+        if template_id:
+            # Validate the template exists
+            try:
+                from kali_mcp.playbooks.registry import get_template
+
+                get_template(template_id)
+            except KeyError as e:
+                raise ValueError(f"unknown template: {e}")
+        elif _studio_playbook_row(playbook) is not None:
+            return  # Studio playbook — assignment gates checked at execute time
+        else:
+            try:
+                from kali_mcp.playbooks.registry import get_playbook
+
+                get_playbook(playbook)
+            except KeyError as e:
+                raise ValueError(f"unknown playbook: {e}")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         playbook = (
@@ -220,6 +242,7 @@ class PlaybookRunTool(BaseTool):
             or arguments.get("name")
             or ""
         )
+        template_id = arguments.get("template") or arguments.get("template_id") or ""
         target = (
             arguments.get("target")
             or arguments.get("host")
@@ -228,6 +251,8 @@ class PlaybookRunTool(BaseTool):
             or arguments.get("url")
             or ""
         )
+        if template_id:
+            return ["playbook_run", "--template", template_id, target]
         return ["playbook_run", playbook, target]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -236,6 +261,7 @@ class PlaybookRunTool(BaseTool):
             or arguments.get("playbook_id")
             or arguments.get("name")
         )
+        template_id = arguments.get("template") or arguments.get("template_id")
         target = (
             arguments.get("target")
             or arguments.get("host")
@@ -243,6 +269,10 @@ class PlaybookRunTool(BaseTool):
             or arguments.get("domain")
             or arguments.get("url")
         )
+
+        # ── Template path — render template + run via DAG engine ──
+        if template_id:
+            return await self._run_template(arguments, template_id, target)
 
         # ── Studio (DB) playbook path — takes precedence when the id exists
         if _studio_playbook_row(playbook) is not None:
@@ -338,6 +368,106 @@ class PlaybookRunTool(BaseTool):
                 k: assessment.get(k) for k in ("evidence", "coverage", "module_results")
                 if k in assessment
             }
+
+        result = _success_tool_result(self.name, payload)
+        result["assessment_run"] = payload
+        return result
+
+    async def _run_template(
+        self,
+        arguments: dict[str, Any],
+        template_id: str,
+        target: str,
+    ) -> dict[str, Any]:
+        """Render a template into a playbook definition and run it via the DAG engine.
+
+        Template parameters are taken from flat top-level keys (target, depth,
+        benchmark, etc.) or from a ``params`` object. Sensitive keys
+        (password, secret, token, api_key, …) are redacted from output.
+        """
+        # Merge flat top-level params into params dict
+        params = arguments.get("params") or {}
+        _mcp_keys = frozenset(
+            {
+                "template_id",
+                "template",
+                "id",
+                "name",
+                "template_name",
+                "params",
+                "background",
+                "target",
+                "host",
+                "ip",
+                "domain",
+                "url",
+                "scope_id",
+                "profile",
+                "detail",
+                "options",
+                "inputs",
+            }
+        )
+        for key, val in arguments.items():
+            if key not in _mcp_keys and key not in params:
+                params[key] = val
+
+        wants_background = bool(arguments.get("background", False))
+
+        job_id = _new_id("job")
+        assessment_id = _new_id("assessment")
+
+        _, _, run_coro = await _run_template_defn(
+            template_id, params, job_id, assessment_id, self.name
+        )
+
+        if wants_background:
+            asyncio.create_task(_run_background(job_id, run_coro))
+            payload = {
+                "job_id": job_id,
+                "assessment_id": assessment_id,
+                "template": template_id,
+                "target": target,
+                "status": "accepted",
+                "next_actions": [
+                    "Use job_control or playbook_result with this job_id/assessment_id to poll progress.",
+                ],
+            }
+            _success = _success_tool_result(self.name, payload)
+            _success["assessment_run"] = payload
+            return _success
+
+        try:
+            res = await run_coro()
+        except Exception as e:
+            STATUS = JOB_REGISTRY[job_id]
+            STATUS["status"] = "failed"
+            STATUS["error"] = f"{type(e).__name__}: {e}"
+            STATUS["finished_at"] = utc_now_iso()
+            raise
+        STATUS = JOB_REGISTRY[job_id]
+        STATUS["status"] = res.status if hasattr(res, "status") else "completed"
+        STATUS["result"] = res
+        STATUS["finished_at"] = utc_now_iso()
+
+        # Build result payload from the DAG engine result
+        res_dict = res if isinstance(res, dict) else {}
+        payload = {
+            "job_id": job_id,
+            "assessment_id": assessment_id,
+            "template": template_id,
+            "target": target,
+            "status": STATUS["status"],
+            "summary": res_dict.get("summary") or {},
+            "results": res_dict.get("results", []) or [],
+            "steps": res_dict.get("steps", []) or [],
+            "step_results": res_dict.get("step_results", {}) or {},
+            "findings": res_dict.get("findings", []) or [],
+            "correlated_findings": res_dict.get("correlated_findings", []) or [],
+            "asset_graph": res_dict.get("asset_graph", {}) or {},
+            "next_actions": res_dict.get("next_actions", []) or [],
+            "execution": res_dict.get("execution", {}) or {},
+        }
 
         result = _success_tool_result(self.name, payload)
         result["assessment_run"] = payload
@@ -497,6 +627,49 @@ async def _run_background(job_id: str, coroutine_factory) -> None:
             STATUS["error"] = f"{type(e).__name__}: {e}"
             STATUS["finished_at"] = utc_now_iso()
         logger.exception("background playbook job %s failed", job_id)
+
+
+async def _run_template_defn(
+    template_id: str,
+    params: dict[str, Any],
+    job_id: str,
+    assessment_id: str,
+    tool_name: str,
+) -> dict[str, Any]:
+    """Render a template into a playbook definition and run it via the DAG engine.
+
+    Shared by ``playbook_run`` and ``template_run`` so both tools execute
+    templates identically.
+    """
+    from kali_mcp.playbooks.registry import TemplateNotFound, render_template
+    from kali_mcp.workflow.dag_executor import run_playbook_async
+    from kali_mcp.workflow.yaml_loader import PlaybookError
+
+    try:
+        definition = render_template(template_id, params)
+    except TemplateNotFound:
+        raise
+    except PlaybookError as e:
+        raise ValueError(f"template produced an invalid playbook: {e}")
+
+    JOB_REGISTRY[job_id] = {
+        "job_id": job_id,
+        "assessment_id": assessment_id,
+        "tool": tool_name,
+        "template": template_id,
+        "status": "running",
+        "started_at": utc_now_iso(),
+    }
+
+    async def run() -> dict[str, Any]:
+        res = await run_playbook_async(definition)
+        STATUS = JOB_REGISTRY[job_id]
+        STATUS["status"] = res.status if hasattr(res, "status") else "completed"
+        STATUS["result"] = res
+        STATUS["finished_at"] = utc_now_iso()
+        return res
+
+    return job_id, assessment_id, run
 
 
 def _truncate_payload(assessment: dict[str, Any], limit: int = 5_000_000) -> None:

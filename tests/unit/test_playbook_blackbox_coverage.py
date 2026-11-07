@@ -110,8 +110,9 @@ class TestPlaybookRunTool:
         tool = PlaybookRunTool()
         schema = tool.input_schema()
         assert schema["type"] == "object"
-        assert set(schema["required"]) == {"playbook", "target"}
+        assert set(schema["required"]) == set()  # playbook or template
         assert "playbook" in schema["properties"]
+        assert "template" in schema["properties"]
         assert "target" in schema["properties"]
 
     def test_build_command(self):
@@ -125,8 +126,8 @@ class TestPlaybookRunTool:
     @pytest.mark.parametrize(
         "args,err",
         [
-            ({}, "playbook is required"),
-            ({"target": "t"}, "playbook is required"),
+            ({}, "playbook or template is required"),
+            ({"target": "t"}, "playbook or template is required"),
             ({"playbook": "pb"}, "target is required"),
             (
                 {"playbook": "pb", "target": "t", "profile": "bogus"},

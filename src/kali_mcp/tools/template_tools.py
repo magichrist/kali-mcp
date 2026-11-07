@@ -1,14 +1,24 @@
-"""Template tooling — render a template into a playbook and execute it."""
+"""Template tooling — render a template into a playbook and execute it.
+
+Templates are playbooks with parameters. ``template_run`` is a thin wrapper
+around ``playbook_run``: it resolves the template id, merges flat parameter
+keys into a params dict, and delegates to the shared template execution path
+in ``playbook_blackbox``. Everything is a playbook — templates are just
+playbooks with declared parameters.
+"""
 
 from __future__ import annotations
 
-import asyncio
-import json
 from typing import Any
 
 from kali_mcp.models import utc_now_iso
 from kali_mcp.tools.base import BaseTool
-from kali_mcp.tools.playbook_blackbox import JOB_REGISTRY, _new_id, _success_tool_result
+from kali_mcp.tools.playbook_blackbox import (
+    JOB_REGISTRY,
+    _new_id,
+    _run_template_defn,
+    _success_tool_result,
+)
 
 
 # ── Alias maps (AI-agent friendly: accept any common spelling) ──
@@ -50,10 +60,8 @@ def _extract_params(arguments: dict[str, Any]) -> dict[str, Any]:
     """Merge canonical ``params`` object with any flat top-level parameter keys.
 
     Every top-level key that is not an MCP-level field is treated as a template
-    parameter. This lets callers pass parameters either nested under ``params``
-    or flat at the top level — both work identically.
+    parameter.
     """
-    # MCP-level fields that are NOT template parameters.
     _mcp_keys = frozenset(
         {
             "template_id",
@@ -95,10 +103,11 @@ class TemplateListTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "List available assessment templates.\n\n"
+            "List available templates — playbooks with declared parameters.\n\n"
             "Returns each template's id, name, description, and declared\n"
             "parameters (with types, required flags, and defaults). Use the\n"
-            "template id with template_run to execute a template.\n\n"
+            "template id with template_run (or playbook_run with template=) to\n"
+            "execute a template.\n\n"
             "No inputs required."
         )
 
@@ -137,7 +146,10 @@ class TemplateListTool(BaseTool):
             out_templates = []
             for t in templates:
                 params = t.get("parameters", {}) or {}
-                required = [n for n, s in params.items() if isinstance(s, dict) and s.get("required")]
+                required = [
+                    n for n, s in params.items()
+                    if isinstance(s, dict) and s.get("required")
+                ]
                 out_templates.append({
                     "id": t.get("id"),
                     "name": t.get("name"),
@@ -161,7 +173,7 @@ class TemplateListTool(BaseTool):
 
 
 class TemplateRunTool(BaseTool):
-    """Render a template into a playbook and execute it."""
+    """Execute a template — thin wrapper around playbook_run."""
 
     @property
     def name(self) -> str:
@@ -170,10 +182,10 @@ class TemplateRunTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "Execute a pre-orchestrated assessment template in one call.\n\n"
-            "Use when:\n"
-            "  - A template from template_list matches your scenario.\n"
-            "  - You want curated tool orchestration with minimal parameters.\n\n"
+            "Execute a template — thin wrapper around playbook_run.\n\n"
+            "Templates are playbooks with declared parameters. This tool is a\n"
+            "thin wrapper: it resolves the template id, merges flat parameter\n"
+            "keys, and delegates to the shared playbook_run execution path.\n\n"
             "Inputs (all flexible):\n"
             "  - template_id | template | id | name : template id from template_list (required)\n"
             "  - params : object of template parameters, OR pass parameters flat at top level\n"
@@ -239,13 +251,10 @@ class TemplateRunTool(BaseTool):
             raise ValueError(
                 "template_id is required (also accepted as 'template', 'id', or 'name')"
             )
-        raw_params = arguments.get("params")
-        if raw_params is not None and not isinstance(raw_params, dict):
-            raise ValueError("params must be an object")
-        params = _extract_params(arguments)
-        try:
-            from kali_mcp.playbooks.registry import get_template
+        # Validate the template exists
+        from kali_mcp.playbooks.registry import get_template
 
+        try:
             get_template(template_id)
         except KeyError as e:
             raise ValueError(f"unknown template: {e}")
@@ -261,232 +270,55 @@ class TemplateRunTool(BaseTool):
         params = _extract_params(arguments)
         wants_background = bool(arguments.get("background", False))
 
-        # Render FIRST: this validates required and merges defaults
-        from kali_mcp.playbooks.registry import (
-            TemplateNotFound,
-            render_template,
+        job_id = _new_id("job")
+        assessment_id = _new_id("assessment")
+
+        _, _, run_coro = await _run_template_defn(
+            template_id, params, job_id, assessment_id, self.name
         )
-        from kali_mcp.workflow.yaml_loader import PlaybookError
 
-        try:
-            definition = render_template(template_id, params)
-        except TemplateNotFound:
-            raise
-        except PlaybookError as e:
-            raise ValueError(f"template produced an invalid playbook: {e}")
-
-        # Explicit background flag → background execution returning job_id
         if wants_background:
-            return await self._run_background(template_id, definition, params)
+            from kali_mcp.tools.playbook_blackbox import _run_background
 
-        job_id = _new_id("job")
-        JOB_REGISTRY[job_id] = {
-            "job_id": job_id,
-            "assessment_id": job_id,
-            "tool": self.name,
-            "template": template_id,
-            "status": "running",
-            "started_at": utc_now_iso(),
-        }
-
-        from kali_mcp.workflow import PlaybookEngine as DAGEngine
-
-        engine = DAGEngine()
-        try:
-            result = await engine.run(definition)
-        except Exception as e:
-            JOB_REGISTRY[job_id].update(
-                status="failed",
-                error=f"{type(e).__name__}: {e}",
-                finished_at=utc_now_iso(),
-            )
-            raise
-        JOB_REGISTRY[job_id].update(
-            status="completed" if result.success else "failed",
-            finished_at=utc_now_iso(),
-            result={
-                "success": result.success,
-                "stdout": result.stdout,
-                "stderr": getattr(result, "stderr", ""),
-            },
-        )
-
-        payload = {
-            "job_id": job_id,
-            "template_id": template_id,
-            "status": JOB_REGISTRY[job_id]["status"],
-            "steps": [],
-            "step_results": {},
-            "findings": [],
-            "summary": {"total": 0, "by_severity": {}},
-            "result": {
-                "success": result.success,
-                "stdout": result.stdout,
-                "stderr": getattr(result, "stderr", ""),
-            },
-        }
-
-        # Populate steps, step_results, findings from engine output if available
-        try:
-            stdout = getattr(result, "stdout", "") or ""
-            data = json.loads(stdout) if isinstance(stdout, str) else {}
-            if isinstance(data, dict):
-                steps = data.get("steps", [])
-                if isinstance(steps, list):
-                    payload["steps"] = steps
-                sr = data.get("step_results", {})
-                if isinstance(sr, dict):
-                    payload["step_results"] = sr
-                findings = []
-                for _sid, sr_item in sr.items():
-                    if isinstance(sr_item, dict):
-                        for f in sr_item.get("findings", []) or []:
-                            if isinstance(f, dict):
-                                findings.append(f)
-                payload["findings"] = findings
-                by_severity: dict[str, int] = {}
-                for f in findings:
-                    sev = f.get("severity", "informational") if isinstance(f, dict) else "informational"
-                    by_severity[sev] = by_severity.get(sev, 0) + 1
-                payload["summary"] = {
-                    "total": len(findings),
-                    "by_severity": by_severity,
-                }
-        except (json.JSONDecodeError, TypeError, AttributeError):
-            pass
-
-        wrapped = {
-            "isError": False,
-            "template_run": payload,
-            "content": [
-                {
-                    "type": "text",
-                    "text": json.dumps({"stdout": json.dumps(payload)}),
-                }
-            ],
-        }
-        return wrapped
-
-    async def _run_background(
-        self, template_id: str, definition: Any, params: dict[str, Any]
-    ) -> dict[str, Any]:
-        job_id = _new_id("job")
-        JOB_REGISTRY[job_id] = {
-            "job_id": job_id,
-            "assessment_id": job_id,
-            "tool": self.name,
-            "template": template_id,
-            "status": "accepted",
-            "started_at": utc_now_iso(),
-        }
-
-        # Redact sensitive params for the returned payload
-        safe_params = _redact_params(params)
-
-        async def _run() -> None:
-            from kali_mcp.workflow import PlaybookEngine as DAGEngine
-
-            engine = DAGEngine()
-            try:
-                result = await engine.run(definition)
-                JOB_REGISTRY[job_id].update(
-                    status="completed" if result.success else "failed",
-                    finished_at=utc_now_iso(),
-                    result={
-                        "success": result.success,
-                        "stdout": result.stdout,
-                        "stderr": getattr(result, "stderr", ""),
-                    },
-                )
-            except Exception as e:  # noqa: BLE001
-                JOB_REGISTRY[job_id].update(
-                    status="failed",
-                    error=f"{type(e).__name__}: {e}",
-                    finished_at=utc_now_iso(),
-                )
-
-        asyncio.create_task(_run())
-
-        payload = {
-            "tool": self.name,
-            "command": ["template_run", template_id],
-            "job_id": job_id,
-            "template_id": template_id,
-            "template": template_id,
-            "status": "accepted",
-            "params": safe_params,
-            "next_actions": [
-                "Use job_control or template_result with this job_id to poll progress.",
-            ],
-        }
-        return {
-            "isError": False,
-            "template_run": payload,
-            "content": [
-                {
-                    "type": "text",
-                    "text": json.dumps({"stdout": json.dumps(payload)}),
-                }
-            ],
-        }
-
-    async def _guarded(self, job_id: str, coro) -> None:
-        """Run a coroutine under a job id; mark failed on exception."""
-        try:
-            if asyncio.iscoroutinefunction(coro):
-                await coro()
-            else:
-                await coro
-        except Exception as e:  # noqa: BLE001
-            JOB_REGISTRY[job_id] = {
+            asyncio.create_task(_run_background(job_id, run_coro))
+            payload = {
                 "job_id": job_id,
-                "status": "failed",
-                "error": f"{type(e).__name__}: {e}",
-                "finished_at": utc_now_iso(),
+                "assessment_id": assessment_id,
+                "template": template_id,
+                "target": params.get("target", ""),
+                "status": "accepted",
+                "next_actions": [
+                    "Use job_control or playbook_result with this job_id to poll progress.",
+                ],
             }
-
-    @staticmethod
-    def _payload_from_execution(
-        template_id: str, job_id: str, result: Any
-    ) -> dict[str, Any]:
-        """Convert an engine ExecutionResult into a compact tool payload."""
-        stdout = getattr(result, "stdout", "") or ""
-        success = getattr(result, "success", False)
+            result = _success_tool_result(self.name, payload)
+            result["template_run"] = payload
+            return result
 
         try:
-            data = json.loads(stdout) if isinstance(stdout, str) else {}
-        except (json.JSONDecodeError, TypeError):
-            data = {}
-
-        step_results = data.get("step_results", {}) if isinstance(data, dict) else {}
-        if not isinstance(step_results, dict):
-            step_results = {}
-
-        findings = []
-        for _step_id, sr in step_results.items():
-            if isinstance(sr, dict):
-                for f in sr.get("findings", []) or []:
-                    if isinstance(f, dict):
-                        findings.append(f)
-
-        by_severity: dict[str, int] = {}
-        for f in findings:
-            sev = f.get("severity", "informational") if isinstance(f, dict) else "informational"
-            by_severity[sev] = by_severity.get(sev, 0) + 1
-
-        steps = data.get("steps", []) if isinstance(data, dict) else []
-        if not isinstance(steps, list):
-            steps = []
-
-        return {
+            res = await run_coro()
+        except Exception as e:
+            JOB_REGISTRY[job_id]["status"] = "failed"
+            JOB_REGISTRY[job_id]["error"] = f"{type(e).__name__}: {e}"
+            JOB_REGISTRY[job_id]["finished_at"] = utc_now_iso()
+            raise
+        res_dict = res if isinstance(res, dict) else {}
+        payload = {
             "job_id": job_id,
-            "template_id": template_id,
-            "status": "completed" if success else "failed",
-            "steps": steps,
-            "step_results": step_results,
-            "findings": findings,
-            "summary": {
-                "total": len(findings),
-                "by_severity": by_severity,
-            },
+            "assessment_id": assessment_id,
+            "template": template_id,
+            "target": params.get("target", ""),
+            "status": res.status if hasattr(res, "status") else "completed",
+            "summary": res_dict.get("summary") or {},
+            "results": res_dict.get("results", []) or [],
+            "steps": res_dict.get("steps", []) or [],
+            "step_results": res_dict.get("step_results", {}) or {},
+            "findings": res_dict.get("findings", []) or [],
+            "correlated_findings": res_dict.get("correlated_findings", []) or [],
+            "asset_graph": res_dict.get("asset_graph", {}) or {},
+            "next_actions": res_dict.get("next_actions", []) or [],
+            "execution": res_dict.get("execution", {}) or {},
         }
+        result = _success_tool_result(self.name, payload)
+        result["template_run"] = payload
+        return result
