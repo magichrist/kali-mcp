@@ -643,16 +643,16 @@ def _validate_step_type(
                 )
             elif ftype in ("grep", "regex"):
                 pattern = flt.get("pattern")
-                if not isinstance(pattern, str) or not pattern.strip():
+                if not isinstance(pattern, str):
                     findings.append(
                         _finding(
                             "error",
                             step.id,
                             "filter.pattern",
-                            "filter pattern must be a non-empty string",
+                            "filter pattern must be a string",
                         )
                     )
-                else:
+                elif pattern.strip():
                     try:
                         re.compile(pattern)
                     except re.error as exc:
