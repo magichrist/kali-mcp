@@ -2,25 +2,39 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from typing import Any
 
+from kali_mcp.models import utc_now_iso
 from kali_mcp.tools.base import BaseTool
-from kali_mcp.utils.jobs import JOB_REGISTRY, _new_id, _run_background
-from kali_mcp.utils.time import utc_now_iso
+from kali_mcp.tools.playbook_blackbox import JOB_REGISTRY, _new_id, _success_tool_result
 
 
 # ── Alias maps (AI-agent friendly: accept any common spelling) ──
 # Any of these keys resolve to the template identifier.
 _TEMPLATE_ID_KEYS = ("template_id", "template", "id", "name", "template_name")
 
-# Any of these keys resolve to the target parameter.
-_TARGET_KEYS = ("target", "host", "ip", "domain", "url", "target_host")
-
-# MCP-level fields that are NOT template parameters.
-_MCP_KEYS = frozenset(
-    {"template_id", "template", "id", "name", "template_name",
-     "params", "background", "target", "host", "ip", "domain", "url"}
+# Keys that contain sensitive values and should be redacted from outputs.
+_SENSITIVE_KEYS = frozenset(
+    {"password", "passwd", "secret", "api_key", "apikey", "token", "private_key"}
 )
+
+
+def _is_sensitive_key(key: str) -> bool:
+    """Return True if a parameter key looks sensitive."""
+    k = key.lower()
+    return any(s in k for s in _SENSITIVE_KEYS)
+
+
+def _redact_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of params with sensitive keys removed."""
+    redacted: dict[str, Any] = {}
+    for key, val in params.items():
+        if _is_sensitive_key(key):
+            continue  # drop sensitive keys entirely
+        redacted[key] = val
+    return redacted
 
 
 def _resolve_template_id(arguments: dict[str, Any]) -> str:
@@ -39,16 +53,109 @@ def _extract_params(arguments: dict[str, Any]) -> dict[str, Any]:
     parameter. This lets callers pass parameters either nested under ``params``
     or flat at the top level — both work identically.
     """
+    # MCP-level fields that are NOT template parameters.
+    _mcp_keys = frozenset(
+        {
+            "template_id",
+            "template",
+            "id",
+            "name",
+            "template_name",
+            "params",
+            "background",
+            "target",
+            "host",
+            "ip",
+            "domain",
+            "url",
+        }
+    )
     params: dict[str, Any] = {}
     raw_params = arguments.get("params")
     if isinstance(raw_params, dict):
         params.update(raw_params)
     for key, val in arguments.items():
-        if key in _MCP_KEYS:
+        if key in _mcp_keys:
             continue
         if key not in params:
             params[key] = val
     return params
+
+
+# ── template_list ─────────────────────────────────────────────────────
+
+
+class TemplateListTool(BaseTool):
+    """List available templates with their parameters."""
+
+    @property
+    def name(self) -> str:
+        return "template_list"
+
+    @property
+    def description(self) -> str:
+        return (
+            "List available assessment templates.\n\n"
+            "Returns each template's id, name, description, and declared\n"
+            "parameters (with types, required flags, and defaults). Use the\n"
+            "template id with template_run to execute a template.\n\n"
+            "No inputs required."
+        )
+
+    @property
+    def default_timeout(self) -> int:
+        return 30
+
+    def input_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "type": "string",
+                    "description": "Output detail level: compact (default) or full",
+                    "default": "compact",
+                }
+            },
+            "required": [],
+        }
+
+    def validate(self, arguments: dict[str, Any]) -> None:
+        # No inputs required — accept anything or nothing.
+        pass
+
+    def build_command(self, arguments: dict[str, Any]) -> list[str]:
+        return ["template_list"]
+
+    async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        from kali_mcp.playbooks.registry import list_templates
+
+        templates = list_templates()
+        detail = arguments.get("detail", "compact")
+
+        if detail == "full":
+            out_templates = templates
+        else:
+            out_templates = []
+            for t in templates:
+                params = t.get("parameters", {}) or {}
+                required = [n for n, s in params.items() if isinstance(s, dict) and s.get("required")]
+                out_templates.append({
+                    "id": t.get("id"),
+                    "name": t.get("name"),
+                    "description": t.get("description", ""),
+                    "required_params": required,
+                })
+
+        payload = {
+            "tool": self.name,
+            "command": ["template_list"],
+            "templates": out_templates,
+            "count": len(out_templates),
+            "next_actions": [
+                "Use template_run with a template id from the list to execute.",
+            ],
+        }
+        return _success_tool_result(self.name, payload)
 
 
 # ── template_run ──────────────────────────────────────────────────────
@@ -133,9 +240,10 @@ class TemplateRunTool(BaseTool):
             raise ValueError(
                 "template_id is required (also accepted as 'template', 'id', or 'name')"
             )
-        params = _extract_params(arguments)
-        if not isinstance(params, dict):
+        raw_params = arguments.get("params")
+        if raw_params is not None and not isinstance(raw_params, dict):
             raise ValueError("params must be an object")
+        params = _extract_params(arguments)
         try:
             from kali_mcp.playbooks.registry import get_template
 
@@ -200,24 +308,69 @@ class TemplateRunTool(BaseTool):
             result={
                 "success": result.success,
                 "stdout": result.stdout,
-                "stderr": result.stderr,
+                "stderr": getattr(result, "stderr", ""),
             },
         )
 
-        return {
-            "tool": self.name,
-            "command": self.build_command(arguments),
+        payload = {
             "job_id": job_id,
-            "template": template_id,
+            "template_id": template_id,
             "status": JOB_REGISTRY[job_id]["status"],
-            "result": result,
+            "steps": [],
+            "step_results": {},
+            "findings": [],
+            "summary": {"total": 0, "by_severity": {}},
+            "result": {
+                "success": result.success,
+                "stdout": result.stdout,
+                "stderr": getattr(result, "stderr", ""),
+            },
         }
+
+        # Populate steps, step_results, findings from engine output if available
+        try:
+            stdout = getattr(result, "stdout", "") or ""
+            data = json.loads(stdout) if isinstance(stdout, str) else {}
+            if isinstance(data, dict):
+                steps = data.get("steps", [])
+                if isinstance(steps, list):
+                    payload["steps"] = steps
+                sr = data.get("step_results", {})
+                if isinstance(sr, dict):
+                    payload["step_results"] = sr
+                findings = []
+                for _sid, sr_item in sr.items():
+                    if isinstance(sr_item, dict):
+                        for f in sr_item.get("findings", []) or []:
+                            if isinstance(f, dict):
+                                findings.append(f)
+                payload["findings"] = findings
+                by_severity: dict[str, int] = {}
+                for f in findings:
+                    sev = f.get("severity", "informational") if isinstance(f, dict) else "informational"
+                    by_severity[sev] = by_severity.get(sev, 0) + 1
+                payload["summary"] = {
+                    "total": len(findings),
+                    "by_severity": by_severity,
+                }
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
+
+        wrapped = {
+            "isError": False,
+            "template_run": payload,
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps({"stdout": json.dumps(payload)}),
+                }
+            ],
+        }
+        return wrapped
 
     async def _run_background(
         self, template_id: str, definition: Any, params: dict[str, Any]
     ) -> dict[str, Any]:
-        import asyncio
-
         job_id = _new_id("job")
         JOB_REGISTRY[job_id] = {
             "job_id": job_id,
@@ -227,6 +380,9 @@ class TemplateRunTool(BaseTool):
             "status": "accepted",
             "started_at": utc_now_iso(),
         }
+
+        # Redact sensitive params for the returned payload
+        safe_params = _redact_params(params)
 
         async def _run() -> None:
             from kali_mcp.workflow import PlaybookEngine as DAGEngine
@@ -240,7 +396,7 @@ class TemplateRunTool(BaseTool):
                     result={
                         "success": result.success,
                         "stdout": result.stdout,
-                        "stderr": result.stderr,
+                        "stderr": getattr(result, "stderr", ""),
                     },
                 )
             except Exception as e:  # noqa: BLE001
@@ -251,13 +407,87 @@ class TemplateRunTool(BaseTool):
                 )
 
         asyncio.create_task(_run())
-        return {
+
+        payload = {
             "tool": self.name,
             "command": ["template_run", template_id],
             "job_id": job_id,
+            "template_id": template_id,
             "template": template_id,
             "status": "accepted",
+            "params": safe_params,
             "next_actions": [
                 "Use job_control or template_result with this job_id to poll progress.",
             ],
+        }
+        return {
+            "isError": False,
+            "template_run": payload,
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps({"stdout": json.dumps(payload)}),
+                }
+            ],
+        }
+
+    async def _guarded(self, job_id: str, coro) -> None:
+        """Run a coroutine under a job id; mark failed on exception."""
+        try:
+            if asyncio.iscoroutinefunction(coro):
+                await coro()
+            else:
+                await coro
+        except Exception as e:  # noqa: BLE001
+            JOB_REGISTRY[job_id] = {
+                "job_id": job_id,
+                "status": "failed",
+                "error": f"{type(e).__name__}: {e}",
+                "finished_at": utc_now_iso(),
+            }
+
+    @staticmethod
+    def _payload_from_execution(
+        template_id: str, job_id: str, result: Any
+    ) -> dict[str, Any]:
+        """Convert an engine ExecutionResult into a compact tool payload."""
+        stdout = getattr(result, "stdout", "") or ""
+        success = getattr(result, "success", False)
+
+        try:
+            data = json.loads(stdout) if isinstance(stdout, str) else {}
+        except (json.JSONDecodeError, TypeError):
+            data = {}
+
+        step_results = data.get("step_results", {}) if isinstance(data, dict) else {}
+        if not isinstance(step_results, dict):
+            step_results = {}
+
+        findings = []
+        for _step_id, sr in step_results.items():
+            if isinstance(sr, dict):
+                for f in sr.get("findings", []) or []:
+                    if isinstance(f, dict):
+                        findings.append(f)
+
+        by_severity: dict[str, int] = {}
+        for f in findings:
+            sev = f.get("severity", "informational") if isinstance(f, dict) else "informational"
+            by_severity[sev] = by_severity.get(sev, 0) + 1
+
+        steps = data.get("steps", []) if isinstance(data, dict) else []
+        if not isinstance(steps, list):
+            steps = []
+
+        return {
+            "job_id": job_id,
+            "template_id": template_id,
+            "status": "completed" if success else "failed",
+            "steps": steps,
+            "step_results": step_results,
+            "findings": findings,
+            "summary": {
+                "total": len(findings),
+                "by_severity": by_severity,
+            },
         }

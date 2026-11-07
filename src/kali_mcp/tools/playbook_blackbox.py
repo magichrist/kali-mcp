@@ -120,11 +120,35 @@ class PlaybookRunTool(BaseTool):
             "properties": {
                 "playbook": {
                     "type": "string",
-                    "description": "Playbook id from playbook_catalog (required)",
+                    "description": "Playbook id from playbook_catalog (required; also accepted as 'playbook_id' or 'name')",
+                },
+                "playbook_id": {
+                    "type": "string",
+                    "description": "Alias for playbook",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Alias for playbook",
                 },
                 "target": {
                     "type": "string",
-                    "description": "Single target domain, IP, or URL (required)",
+                    "description": "Single target domain, IP, or URL (required; also accepted as 'host', 'ip', 'domain', 'url')",
+                },
+                "host": {
+                    "type": "string",
+                    "description": "Alias for target",
+                },
+                "ip": {
+                    "type": "string",
+                    "description": "Alias for target",
+                },
+                "domain": {
+                    "type": "string",
+                    "description": "Alias for target",
+                },
+                "url": {
+                    "type": "string",
+                    "description": "Alias for target",
                 },
                 "scope_id": {
                     "type": "string",
@@ -157,37 +181,74 @@ class PlaybookRunTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        if not arguments.get("playbook"):
-            raise ValueError("playbook is required")
-        if not arguments.get("target"):
-            raise ValueError("target is required")
+        # Accept aliases for playbook and target.
+        playbook = (
+            arguments.get("playbook")
+            or arguments.get("playbook_id")
+            or arguments.get("name")
+        )
+        target = (
+            arguments.get("target")
+            or arguments.get("host")
+            or arguments.get("ip")
+            or arguments.get("domain")
+            or arguments.get("url")
+        )
+        if not playbook:
+            raise ValueError("playbook is required (also accepted as 'playbook_id' or 'name')")
+        if not target:
+            raise ValueError("target is required (also accepted as 'host', 'ip', 'domain', 'url')")
         profile = arguments.get("profile", "safe_active")
         if arguments.get("profile") is not None and profile not in VALID_PROFILES:
             raise ValueError("profile must be safe_active, aggressive, or passive")
         detail = arguments.get("detail", "normal")
         if detail not in VALID_DETAIL:
             raise ValueError("detail must be summary, normal, or full")
-        if _studio_playbook_row(arguments["playbook"]) is not None:
+        if _studio_playbook_row(playbook) is not None:
             return  # Studio playbook — assignment gates checked at execute time
         try:
             from kali_mcp.playbooks.registry import get_playbook
 
-            get_playbook(arguments["playbook"])
+            get_playbook(playbook)
         except KeyError as e:
             raise ValueError(f"unknown playbook: {e}")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        return ["playbook_run", arguments.get("playbook", ""), arguments.get("target", "")]
+        playbook = (
+            arguments.get("playbook")
+            or arguments.get("playbook_id")
+            or arguments.get("name")
+            or ""
+        )
+        target = (
+            arguments.get("target")
+            or arguments.get("host")
+            or arguments.get("ip")
+            or arguments.get("domain")
+            or arguments.get("url")
+            or ""
+        )
+        return ["playbook_run", playbook, target]
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        playbook = arguments["playbook"]
+        playbook = (
+            arguments.get("playbook")
+            or arguments.get("playbook_id")
+            or arguments.get("name")
+        )
+        target = (
+            arguments.get("target")
+            or arguments.get("host")
+            or arguments.get("ip")
+            or arguments.get("domain")
+            or arguments.get("url")
+        )
 
         # ── Studio (DB) playbook path — takes precedence when the id exists
         if _studio_playbook_row(playbook) is not None:
             return await self._execute_studio(arguments, playbook)
 
         # ── Legacy black-box path (playbooks/registry) ──
-        target = arguments["target"]
         scope_id = arguments.get("scope_id") or ""
         profile = arguments.get("profile", "safe_active")
         detail = arguments.get("detail", "normal")
