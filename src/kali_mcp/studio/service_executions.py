@@ -183,7 +183,7 @@ async def start_execution(
 
     try:
         defn = load_playbook(definition)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ValueError(f"invalid playbook definition: {exc}") from exc
 
     _merge_required_inputs(defn, inputs)
@@ -217,7 +217,7 @@ async def start_execution(
             completed_at=db._now_utc(),
         )
         raise ValueError(f"scope violation: {exc}") from exc
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         db.update_workflow_execution(
             execution_id, status="failed", error=str(exc),
             completed_at=db._now_utc(),
@@ -263,7 +263,7 @@ async def start_execution(
                     started_at=db._now_utc(),
                     completed_at=db._now_utc(),
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("step record failed for %s", step_id)
 
     exec_row = get_execution(db, execution_id)
@@ -277,12 +277,12 @@ async def start_execution(
 
 
 __all__ = [
-    "start_execution",
-    "list_executions",
+    "cancel_execution",
     "get_execution",
-    "list_steps",
     "get_step",
     "list_artifacts",
-    "cancel_execution",
+    "list_executions",
+    "list_steps",
     "resume_execution",
+    "start_execution",
 ]
