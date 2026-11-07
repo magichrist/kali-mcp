@@ -93,6 +93,13 @@ Copy `.env.example` to `.env` and adjust:
 
 **`parallel_execute`** — fan out to multiple tools concurrently, then aggregate and deduplicate open ports, vulnerabilities, and credentials.
 
+**Playbook Studio** — a built-in operator web UI (served at `/studio` or a dedicated `STUDIO_PORT`) for authoring, validating, publishing, and running multi-step playbooks on top of the DAG engine:
+
+- Author in the DSL editor or the visual graph builder (drag nodes, wire `depends_on` edges port-to-port, zoom, per-step inspector), then round-trip between the two views losslessly.
+- Draft → validate → publish an immutable version; run published versions with declared required inputs; watch execution progress per step (`GET /api/executions/{id}`), cancel, resume, roll back, import/export.
+- Govern what agents can see: agent profiles with deny-by-default tool grants (`agent_tool_permissions`) and playbook assignments (`agent_playbook_assignments`). Requests resolve the profile from the `X-Agent-Profile` header, or bind every request to one profile with `MCP_AGENT_PROFILE_ID`. Ungranted tools and unassigned playbooks return a `403`-equivalent forbidden payload; with no profile context the default surface is unchanged.
+- Full REST surface at `/api/playbooks`, `/api/executions`, `/api/agents`, `/api/tools`, plus `/api/overview`, `/api/scope`, and `/api/server` for health at a glance.
+
 **Inter-agent vault** — SQLite-backed knowledge store (`artifacts/vault/vault.sqlite` + JSON mirrors). Any agent can write findings, credentials, or notes; any other agent can query them back by category, target, tool, or free-text search. Every tool run is automatically deposited.
 
 **Live monitor TUI** — `kmcp monitor` launches a pastel cyber dashboard showing connected users, running jobs, and server health with SSE push updates. Kill stuck jobs or force cleanup from the dashboard. Press `q` to quit; the screen clears on exit.
@@ -139,6 +146,10 @@ Configuration is loaded from environment variables via `.env`. All values have s
 | `MCP_VAULT_MAX_ROW_BYTES` | `26214400` | Max vault row size (25 MB; 0 = unlimited) |
 | `MCP_DB_PATH` | `data/kali-mcp.sqlite` | SQLite database path |
 | `MCP_DB_ENABLED` | `true` | Write executions to SQLite |
+| `MCP_AGENT_PROFILE_ID` | *(empty)* | Bind every MCP request to this agent profile (deny-by-default permissions; unknown id fails closed) |
+| `STUDIO_ENABLED` | `true` | Serve the Playbook Studio web UI and REST API |
+| `STUDIO_PORT` | `0` | Dedicated Studio port (0 = shared with the MCP server) |
+| `STUDIO_DEFAULT_VISIBILITY` | `agent_callable` | Default visibility mode for newly synced tools |
 
 ## $\textsf{\color{#c58af2}{◈}}$ Architecture
 
