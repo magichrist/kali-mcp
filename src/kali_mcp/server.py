@@ -178,7 +178,7 @@ async def lifespan(app):
 
                     synced = sync_registry_to_db(_db)
                     logger.info("Synced %d tools to tool_definitions", len(synced))
-                except Exception:  # noqa: BLE001
+                except Exception:  # a sync failure must not stop startup (BLE001 deliberately tolerated here)
                     logger.exception("Tool registry sync failed")
             logger.info("Database initialized (path=%s)", str(config.db_path))
     except Exception:
@@ -295,7 +295,7 @@ for tool_instance in ALL_TOOLS:
             profile_ctx = None
             try:
                 profile_ctx = agent_context.resolve_from_context(ctx)
-            except Exception:  # noqa: BLE001 — resolution must never crash the dispatch
+            except Exception:  # BLE001 tolerated — resolution must never crash the dispatch
                 logger.debug("agent profile resolution failed", exc_info=True)
                 profile_ctx = None
             if profile_ctx:
