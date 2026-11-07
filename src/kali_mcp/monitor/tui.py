@@ -177,19 +177,15 @@ async def _http_post(base_url: str, payload: dict[str, Any]) -> dict[str, Any]:
 # ════════════════════════════════════════════════════════════════════════════
 
 
-async def run(url: str, token: str | None = None) -> None:
+async def run(url: str) -> None:
     """Run the interactive monitor TUI.
 
     Parameters
     ----------
     url:
         Base URL of the Kali MCP Server, e.g. ``http://127.0.0.1:8399``.
-    token:
-        Optional bearer token (``MCP_API_TOKEN``) sent with the SSE
-        connection. Required when the server has authentication enabled.
     """
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    client = SseClient(f"{url}/monitor/stream", headers=headers)
+    client = SseClient(f"{url}/monitor/stream")
     await client.connect()
 
     loop = asyncio.get_event_loop()
@@ -363,6 +359,6 @@ async def run(url: str, token: str | None = None) -> None:
         await client.close()
 
 
-def main(url: str = "http://127.0.0.1:8399", token: str | None = None) -> None:
+def main(url: str = "http://127.0.0.1:8399") -> None:
     """Entry point for ``python -m kali_mcp monitor``."""
-    asyncio.run(run(url, token))
+    asyncio.run(run(url))
