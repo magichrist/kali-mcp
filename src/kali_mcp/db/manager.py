@@ -453,6 +453,15 @@ class DBManager:
             """
         )
 
+        # Playbook drafts live on the row (published versions are immutable);
+        # execution provenance records who/what started a run. These tables
+        # are created in the v2 script above, so migrate after it.
+        self._migrate_add_column(cur, "playbooks", "draft_definition", "TEXT")
+        self._migrate_add_column(cur, "workflow_executions", "trigger", "TEXT")
+        self._migrate_add_column(
+            cur, "workflow_executions", "debug", "INTEGER DEFAULT 0"
+        )
+
     # ── migration helpers ────────────────────────────────────────────────
 
     @staticmethod
@@ -1340,8 +1349,13 @@ class DBManager:
         author: str | None = None,
         status: str | None = None,
         current_version_id: int | None = None,
+        draft_definition: dict | list | str | None = None,
     ) -> bool:
         """Update playbook metadata, keeping existing values for omitted fields.
+
+        ``draft_definition`` stores the working (unpublished) definition as
+        JSON so drafts survive reloads; it is cleared on publish. Passing
+        ``None`` keeps the current draft.
 
         Returns False when the playbook does not exist.
         """
@@ -1353,7 +1367,7 @@ class DBManager:
             """
             UPDATE playbooks
             SET name=?, description=?, category=?, author=?, status=?,
-                current_version_id=?, updated_at=?
+                current_version_id=?, draft_definition=?, updated_at=?
             WHERE playbook_id=?
             """,
             (
@@ -1364,6 +1378,8 @@ class DBManager:
                 status if status is not None else row["status"],
                 current_version_id if current_version_id is not None
                 else row["current_version_id"],
+                self._dump_json(draft_definition)
+                if draft_definition is not None else row["draft_definition"],
                 self._now_utc(),
                 playbook_id,
             ),
@@ -1466,7 +1482,8 @@ class DBManager:
         cur.execute(
             """
             UPDATE playbooks
-            SET current_version_id=?, status='published', updated_at=?
+            SET current_version_id=?, status='published', draft_definition=NULL,
+                updated_at=?
             WHERE playbook_id=?
             """,
             (vid, now, playbook_id),
@@ -1513,6 +1530,8 @@ class DBManager:
         inputs: dict | list | str | None = None,
         status: str = "running",
         started_at: str | None = None,
+        trigger: str | None = None,
+        debug: bool = False,
     ) -> int:
         """Create a durable workflow execution record.
 
@@ -1531,13 +1550,15 @@ class DBManager:
             """
             INSERT INTO workflow_executions
             (execution_id, job_id, assessment_id, playbook_id, version_id,
-             profile_id, status, inputs, started_at)
-            VALUES (?,?,?,?,?,?,?,?,?)
+             profile_id, status, inputs, started_at, "trigger", debug)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 execution_id, job_id, assessment_id, playbook_id, version_id,
                 profile_id, status, self._dump_json(inputs),
                 started_at or self._now_utc(),
+                trigger,
+                1 if debug else 0,
             ),
         )
         wid = int(cur.lastrowid)
