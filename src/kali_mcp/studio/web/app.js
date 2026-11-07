@@ -1098,7 +1098,12 @@ function renderInspector() {
   inj.innerHTML = insTabsHtml(s);
 
   $$("#inspector .ins-tabs button").forEach((btn) =>
-    btn.addEventListener("click", () => { inspectTab = btn.dataset.tab; renderInspector(); }));
+    btn.addEventListener("click", () => {
+      const s = stepById(graphSel);
+      if (s) applyTabFields(s);   // persist this tab's edits before switching
+      inspectTab = btn.dataset.tab;
+      renderInspector();
+    }));
 
   $("#insApply")?.addEventListener("click", () => applyNodeInspector());
   $("#insDel")?.addEventListener("click", () => deleteGraphStep(graphSel));
@@ -1230,24 +1235,23 @@ function addMapRow() {
 }
 
 /* apply: merges whichever fields are present in the current tab */
-function applyNodeInspector() {
-  const s = stepById(graphSel);
+/* pull the currently-shown inspector fields into step object s from the DOM.
+   Best-effort, no toasts, no canvas re-render — used to persist a tab's edits
+   before switching tabs/pages so nothing the user typed is thrown away. */
+function applyTabFields(s) {
   if (!s) return;
   const oldId = s.id;
-  const ids = new Set(getGraphSteps().map((x) => x.id).filter((x) => x !== oldId));
 
   const idEl = $("#insId");
   if (idEl) {
     const newId = (idEl.value || "").trim();
-    if (!newId) return toast("Step id required", true);
-    if (newId !== oldId && ids.has(newId)) return toast(`Step id "${newId}" already used`, true);
-    if (newId !== oldId) {
+    if (newId && newId !== oldId && !getGraphSteps().some((x) => x.id === newId)) {
       getGraphSteps().forEach((x) => {
         if (Array.isArray(x.depends_on)) x.depends_on = x.depends_on.map((d) => (d === oldId ? newId : d));
       });
       delete graphPos[oldId];
+      s.id = newId;
     }
-    s.id = newId;
   }
 
   const depsEl = $("#insDeps");
@@ -1281,7 +1285,7 @@ function applyNodeInspector() {
       else if (mode === "upstream") {
         const st = (row.querySelector(".map-step")?.value || "").trim();
         const fl = (row.querySelector(".map-field")?.value || "").trim();
-        if (!st || !fl) { toast(`${k}: pick a step and an output field`, true); return; }
+        if (!st || !fl) return; // keep previous value for this row
         v = `{{${st}.${fl}}}`;
       } else v = (row.querySelector(".map-lit")?.value || "").trim();
       if (v) inputs[k] = v;
@@ -1310,23 +1314,21 @@ function applyNodeInspector() {
   if (argsEl) {
     const builder = $("#argBuilder");
     if (builder && argsEl.hidden) {
-      // schema builder drives the args; raw JSON only wins when the raw view is open
       const { args, missing } = collectBuilderArgs();
-      if (missing.length) return toast(missing[0], true);
-      // required-argument guard against the tool's schema
-      const sc = toolInputSchema(s.tool);
-      if (sc) {
-        const lack = (sc.required || []).filter((k) => args[k] === undefined || args[k] === "" || args[k] === null);
-        if (lack.length) return toast(`Required argument${lack.length > 1 ? "s" : ""} ${lack.map((k) => `"${k}"`).join(", ")} missing for ${s.tool}`, true);
+      if (!missing.length) {
+        const sc = toolInputSchema(s.tool);
+        const lack = sc ? (sc.required || []).filter((k) => args[k] === undefined || args[k] === "" || args[k] === null) : [];
+        if (!lack.length) {
+          if (Object.keys(args).length) s.args = args; else delete s.args;
+        }
       }
-      if (Object.keys(args).length) s.args = args; else delete s.args;
     } else {
       try {
         const parsed = JSON.parse(argsEl.value || "{}");
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
           if (Object.keys(parsed).length) s.args = parsed; else delete s.args;
-        } else toast("args must be a JSON object — kept previous value", true);
-      } catch { return toast("args is not valid JSON — nothing applied for args", true); }
+        }
+      } catch { /* keep previous args */ }
     }
   }
 
@@ -1338,6 +1340,49 @@ function applyNodeInspector() {
 
   const ckEl = $("#insCheckpoint");
   if (ckEl && ckEl.checked) s.checkpoint = true; else if (ckEl) delete s.checkpoint;
+}
+
+function applyNodeInspector() {
+  const s = stepById(graphSel);
+  if (!s) return;
+  const oldId = s.id;
+  const ids = new Set(getGraphSteps().map((x) => x.id).filter((x) => x !== oldId));
+
+  const idEl = $("#insId");
+  if (idEl) {
+    const newId = (idEl.value || "").trim();
+    if (!newId) return toast("Step id required", true);
+    if (newId !== oldId && ids.has(newId)) return toast(`Step id "${newId}" already used`, true);
+  }
+
+  applyTabFields(s);
+
+  // required-argument / invalid-arg guards (only on explicit Save)
+  const rowsEl = $("#insInputRows");
+  if (rowsEl) {
+    $$("#insInputRows .map-row").forEach((row) => {
+      const k = (row.querySelector(".map-key")?.value || "").trim();
+      if (!k) return;
+      const mode = row.querySelector(".map-mode")?.value || "literal";
+      if (mode === "upstream") {
+        const st = (row.querySelector(".map-step")?.value || "").trim();
+        const fl = (row.querySelector(".map-field")?.value || "").trim();
+        if (!st || !fl) { toast(`${k}: pick a step and an output field`, true); }
+      }
+    });
+  }
+  const argsEl = $("#insArgs");
+  if (argsEl) {
+    const builder = $("#argBuilder");
+    if (builder && argsEl.hidden) {
+      const sc = toolInputSchema(s.tool);
+      if (sc) {
+        const argd = s.args || {};
+        const lack = (sc.required || []).filter((k) => argd[k] === undefined || argd[k] === "" || argd[k] === null);
+        if (lack.length) return toast(`Required argument${lack.length > 1 ? "s" : ""} ${lack.map((k) => `"${k}"`).join(", ")} missing for ${s.tool}`, true);
+      }
+    }
+  }
 
   graphSel = s.id;
   captureGraphToDSL();
@@ -2465,6 +2510,12 @@ function parseHash() {
 
 async function route() {
   if (execTimer) { clearInterval(execTimer); execTimer = null; }
+  // persist any unsaved inspector edits when leaving the editor page
+  const { route: currRoute, id: currId } = parseHash();
+  if (currRoute === "playbooks" && currId && graphSel) {
+    const s = stepById(graphSel);
+    if (s) applyTabFields(s);
+  }
   const { route: name, id } = parseHash();
   $$("#mainNav .nav-item").forEach((btn) => btn.classList.toggle("active", btn.dataset.route === name));
   setPageMeta({ crumb: ROUTES[name].crumb, title: ROUTES[name].title });

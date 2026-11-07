@@ -945,7 +945,7 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
   pointer-events: none;
   display: none;
 }
-.help-tip:hover::after, .help-tip:focus-visible::after, .help-tip.open::after { display: block; }
+.help-tip.open::after { display: block; }
 /* near the right edge of the inspector, flip the bubble so it isn't clipped */
 .help-tip.tip-left::after {
   left: auto;
