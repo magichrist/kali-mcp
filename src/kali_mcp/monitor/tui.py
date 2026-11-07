@@ -374,6 +374,18 @@ async def run(url: str, token: str | None = None) -> None:
                     continue
                 if escape_buf:
                     escape_buf += key
+                    # Only complete 3-char sequences match arrow keys.
+                    # Shorter prefixes ("\x1b", "\x1b[") need more input.
+                    if len(escape_buf) == 1:
+                        # Just "\x1b" — wait for more
+                        continue
+                    if len(escape_buf) == 2:
+                        # "\x1b[" — wait for the final char
+                        if escape_buf != "\x1b[":
+                            # Not a CSI sequence — reset
+                            escape_buf = ""
+                        continue
+                    # len == 3: check for arrow keys
                     if escape_buf == "\x1b[A":  # Up
                         if panel == PANEL_SESSIONS:
                             items = snapshot.get("sessions", []) if snapshot else []
@@ -427,7 +439,7 @@ async def run(url: str, token: str | None = None) -> None:
                         live.update(layout, refresh=True)
                         continue
                     else:
-                        # Unknown escape sequence — reset
+                        # Unknown 3-char escape sequence — reset
                         escape_buf = ""
                         continue
 
