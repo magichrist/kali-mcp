@@ -12,7 +12,8 @@ artifacts/
 data/
 .venv
 .venv/
-
+WebUI/node_modules/
+WebUI/node_modules
 docs/
 tasks/
 .coverage
