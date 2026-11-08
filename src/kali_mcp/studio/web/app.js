@@ -545,7 +545,6 @@ let historyStack = [];
 let futureStack = [];
 let inspectTab = "general";
 let runStatus = {};           // {stepId: status} from the latest execution
-let stepResults = {};         // {stepId: {outputs, error, tool_id}} from the latest execution
 let runStatusTimer = null;
 
 const TYPE_ICONS = {
@@ -761,15 +760,9 @@ function renderBuilder() {
     }
     const stCls = runStatusClass(s.id);
     const stTxt = runStatus[s.id] ? `run status: ${runStatus[s.id]}` : "";
-    const res = stepResults[s.id];
-    const resHtml = res
-      ? `<div class="node-result ${res.error ? 'err' : ''}">
-           <span class="result-label">test result:</span>
-           <span class="result-val">${esc(String(res.error || (res.outputs && JSON.stringify(res.outputs)).slice(0, 120)) || 'no output')}</span>
-         </div>`
-      : "";
     const el = document.createElement("div");
-    el.className = `node ${s.type === "shell" ? "shell " : ""}${graphSel === s.id ? "selected" : ""}`;
+    const running = runStatus[s.id] === "running" || runStatus[s.id] === "pending";
+    el.className = `node ${s.type === "shell" ? "shell " : ""}${running ? "running " : ""}${graphSel === s.id ? "selected" : ""}`;
     el.style.left = `${p.x}px`; el.style.top = `${p.y}px`;
     el.dataset.step = s.id;
     el.innerHTML = `
@@ -780,7 +773,6 @@ function renderBuilder() {
         <span class="node-status ${stCls}" title="${esc(stTxt)}"></span>
       </div>
       <div class="node-body">${bodyHtml}</div>
-      ${resHtml}
       <div class="node-foot">
         <span class="chip">${(s.depends_on || []).length} in</span>
         ${Object.keys(s.inputs || {}).length ? `<span class="chip">${Object.keys(s.inputs || {}).length} inputs</span>` : ""}
@@ -1146,34 +1138,6 @@ function renderInspector() {
 
   $("#insApply")?.addEventListener("click", () => applyNodeInspector());
   $("#insDel")?.addEventListener("click", () => deleteGraphStep(graphSel));
-  $("#insTestStep")?.addEventListener("click", async () => {
-    if (!graphSel) return toast("Select a step first", true);
-    if (!selectedId) return toast("Select a playbook first", true);
-    // persist current edits before testing
-    if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
-    try {
-      toast(`Testing step ${graphSel}…`);
-      const r = await api("/executions", {
-        method: "POST",
-        body: JSON.stringify({ playbook_id: selectedId, inputs: {}, debug: true, trigger: "studio" }),
-      });
-      const execId = r?.execution?.execution_id || r?.execution_id || "";
-      toast(`Test started${execId ? `: ${execId}` : ""}`);
-      // poll briefly for completion
-      for (let i = 0; i < 10; i++) {
-        await new Promise((res) => setTimeout(res, 1000));
-        try {
-          const det = await api(`/executions/${encodeURIComponent(execId)}`);
-          if (det.execution && det.execution.status !== "running") {
-            await loadRunStatus(selectedId);
-            toast(`Test complete — results shown under nodes`);
-            return;
-          }
-        } catch { /* keep polling */ }
-      }
-      toast(`Test running — open Executions to watch progress`);
-    } catch (err) { toast(err.message, true); }
-  });
   $("#insClose")?.addEventListener("click", () => $("#insCol")?.classList.remove("ins-open"));
   $("#insAddInput")?.addEventListener("click", () => addMapRow());
 
@@ -1806,12 +1770,42 @@ async function runModal(id) {
 }
 
 async function startRun(id, inputs, opts = {}) {
+  // Stop any previous live-poll timer
+  if (runStatusTimer) { clearInterval(runStatusTimer); runStatusTimer = null; }
+  runStatus = {};
   toast(`Starting ${id}${opts.debug ? " (debug)" : ""}…`);
   try {
     const r = await api("/executions", { method: "POST", body: JSON.stringify({ playbook_id: id, inputs, debug: !!opts.debug, trigger: opts.trigger || "studio" }) });
     const execId = r?.execution?.execution_id || r?.execution_id || "";
-    toast(`Run started${execId ? `: ${execId}` : ""}`);
-    location.hash = execId ? `#/executions/${encodeURIComponent(execId)}` : "#/executions";
+    if (!execId) { toast("Run started but no execution id"); return; }
+    toast(`Run started: ${execId}`);
+
+    // Poll execution status live so nodes highlight yellow while running
+    runStatusTimer = setInterval(async () => {
+      try {
+        const det = await api(`/executions/${encodeURIComponent(execId)}`);
+        const exec = det.execution;
+        if (!exec) return;
+
+        const map = {};
+        for (const s of det.steps || []) map[s.step_id] = s.status;
+        runStatus = map;
+
+        if (builderView === "graph" && $("#canvasInner")) renderBuilder();
+
+        const st = exec.status;
+        if (st !== "running" && st !== "pending") {
+          clearInterval(runStatusTimer);
+          runStatusTimer = null;
+          renderBuilder();
+          toast(st === "completed" ? "Run completed" : `Run ${st}`);
+        }
+      } catch { /* keep polling */ }
+    }, 1000);
+
+    // Initial status load to catch already-completed steps
+    await loadRunStatus(id);
+    if (builderView === "graph" && $("#canvasInner")) renderBuilder();
   } catch (err) { toast(err.message, true); }
 }
 
@@ -1823,17 +1817,8 @@ async function loadRunStatus(id) {
     if (!mine.length) return;
     const det = await api(`/executions/${encodeURIComponent(mine[0].execution_id)}`);
     const map = {};
-    const results = {};
-    for (const s of det.steps || []) {
-      map[s.step_id] = s.status;
-      results[s.step_id] = {
-        outputs: s.outputs,
-        error: s.error,
-        tool_id: s.tool_id,
-      };
-    }
+    for (const s of det.steps || []) map[s.step_id] = s.status;
     runStatus = map;
-    stepResults = results;
     if (builderView === "graph" && $("#canvasInner")) renderBuilder();
   } catch { /* best-effort only */ }
 }
@@ -2602,6 +2587,7 @@ function parseHash() {
 
 async function route() {
   if (execTimer) { clearInterval(execTimer); execTimer = null; }
+  if (runStatusTimer) { clearInterval(runStatusTimer); runStatusTimer = null; }
   // persist any unsaved inspector edits when leaving the editor page
   const { route: currRoute, id: currId } = parseHash();
   if (currRoute === "playbooks" && currId && graphSel) {

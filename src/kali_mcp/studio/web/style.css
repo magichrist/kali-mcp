@@ -732,6 +732,11 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
   border-color: var(--green-strong);
   box-shadow: 0 0 0 1px var(--green2), var(--shadow-soft);
 }
+.node.running {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--amber2), 0 0 14px rgba(212, 141, 36, .35);
+}
+.node.running .node-body { animation: nodePulse 1.2s ease-in-out infinite; }
 .node-shell {
   width: 280px;
 }
