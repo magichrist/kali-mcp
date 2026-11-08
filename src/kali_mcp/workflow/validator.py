@@ -39,6 +39,7 @@ from kali_mcp.workflow.yaml_loader import (
     VALID_STEP_TYPES,
     PlaybookDefinition,
     StepDefinition,
+    load_module,
 )
 
 Severity = Literal["error", "warning"]
@@ -700,10 +701,19 @@ def _check_module_available(
     modules: set[str] | None,
     findings: list[Finding],
 ) -> None:
-    """Resolve a module reference when a module catalog is available."""
+    """Resolve a module reference when a module catalog is available.
+
+    Falls back to YAML module definitions (``playbooks/modules/<cat>/<id>.yaml``)
+    when the module is not registered in the Python module registry, so legacy
+    YAML playbooks that reference short module names (e.g. ``module: nmap``)
+    still validate.
+    """
     if modules is None:
         return
     if module_name not in modules:
+        # Fall back to YAML module definition lookup
+        if load_module(module_name) is not None:
+            return
         hint = _suggestion(module_name, modules)
         findings.append(
             _finding(
