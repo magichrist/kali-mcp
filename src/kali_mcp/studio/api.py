@@ -16,7 +16,7 @@ from starlette.responses import JSONResponse, PlainTextResponse
 
 from kali_mcp.db import manager as db_manager
 from kali_mcp.config import config
-from kali_mcp.studio import service_connections, service_mcp_connections
+from kali_mcp.studio import service_connections, service_mcp_connections, service_agents
 
 logger = logging.getLogger("kali_mcp.studio.api")
 
@@ -637,6 +637,129 @@ async def findings_api(request: Request) -> JSONResponse:
     return JSONResponse(result)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Agent Profiles routes
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def list_agents_api(request: Request) -> JSONResponse:
+    """List all agent profiles."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    rows = service_agents.list_profiles(db)
+    agents = []
+    for r in rows:
+        agents.append({
+            "profile_id": r.get("profile_id"),
+            "name": r.get("name"),
+            "description": r.get("description"),
+            "default_visibility": r.get("default_visibility"),
+            "max_parallel_operations": r.get("max_parallel_operations"),
+            "max_execution_seconds": r.get("max_execution_seconds"),
+        })
+    return JSONResponse({"agents": agents})
+
+
+async def create_agent_api(request: Request) -> JSONResponse:
+    """Create an agent profile."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    body = await request.json()
+    profile_id = body.get("profile_id")
+    name = body.get("name")
+    if not profile_id or not name:
+        return JSONResponse({"error": "profile_id and name required"}, status_code=400)
+    try:
+        service_agents.create_profile(
+            db, profile_id, name,
+            description=body.get("description"),
+        )
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return JSONResponse(service_agents.get_profile(db, profile_id), status_code=201)
+
+
+async def get_agent_api(request: Request) -> JSONResponse:
+    """Get agent profile with effective catalog, permissions and assignments."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    profile_id = request.path_params["id"]
+    agent = service_agents.get_profile(db, profile_id)
+    if agent is None:
+        return JSONResponse({"error": "agent profile not found"}, status_code=404)
+    catalog = service_agents.effective_catalog(db, profile_id)
+    permissions = service_agents.list_tool_permission_rows(db, profile_id)
+    for p in permissions:
+        p["profile_id"] = profile_id
+    assignments = service_agents.list_playbook_assignments(db, profile_id)
+    for a in assignments:
+        a["profile_id"] = profile_id
+    return JSONResponse({
+        "agent": agent,
+        "effective_catalog": catalog,
+        "permissions": permissions,
+        "assignments": assignments,
+    })
+
+
+async def delete_agent_api(request: Request) -> JSONResponse:
+    """Delete an agent profile."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    profile_id = request.path_params["id"]
+    deleted = service_agents.delete_profile(db, profile_id)
+    if not deleted:
+        return JSONResponse({"error": "agent profile not found"}, status_code=404)
+    return JSONResponse({"status": "deleted"})
+
+
+async def grant_agent_tool_api(request: Request) -> JSONResponse:
+    """Grant a tool to an agent profile."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    profile_id = request.path_params["id"]
+    tool_id = request.path_params["tool_id"]
+    service_agents.grant_tool(db, profile_id, tool_id, granted=True)
+    return JSONResponse({"profile_id": profile_id, "tool_id": tool_id, "granted": True})
+
+
+async def revoke_agent_tool_api(request: Request) -> JSONResponse:
+    """Revoke a tool from an agent profile."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    profile_id = request.path_params["id"]
+    tool_id = request.path_params["tool_id"]
+    service_agents.revoke_tool(db, profile_id, tool_id)
+    return JSONResponse({"profile_id": profile_id, "tool_id": tool_id, "revoked": True})
+
+
+async def assign_agent_playbook_api(request: Request) -> JSONResponse:
+    """Assign a playbook to an agent profile."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    profile_id = request.path_params["id"]
+    playbook_id = request.path_params["playbook_id"]
+    service_agents.assign_playbook(db, profile_id, playbook_id, granted=True)
+    return JSONResponse({"profile_id": profile_id, "playbook_id": playbook_id, "assigned": True})
+
+
+async def unassign_agent_playbook_api(request: Request) -> JSONResponse:
+    """Unassign a playbook from an agent profile."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    profile_id = request.path_params["id"]
+    playbook_id = request.path_params["playbook_id"]
+    service_agents.unassign_playbook(db, profile_id, playbook_id)
+    return JSONResponse({"profile_id": profile_id, "playbook_id": playbook_id, "unassigned": True})
+
+
 def mount_studio_routes(app) -> None:
     """Mount all Studio REST routes on the given Starlette app."""
 
@@ -673,6 +796,16 @@ def mount_studio_routes(app) -> None:
 
     # Findings routes
     app.add_route("/api/findings", findings_api, methods=["GET"])
+
+    # Agent Profiles routes
+    app.add_route("/api/agents", list_agents_api, methods=["GET"])
+    app.add_route("/api/agents", create_agent_api, methods=["POST"])
+    app.add_route("/api/agents/{id}", get_agent_api, methods=["GET"])
+    app.add_route("/api/agents/{id}", delete_agent_api, methods=["DELETE"])
+    app.add_route("/api/agents/{id}/tools/{tool_id}", grant_agent_tool_api, methods=["PUT"])
+    app.add_route("/api/agents/{id}/tools/{tool_id}", revoke_agent_tool_api, methods=["DELETE"])
+    app.add_route("/api/agents/{id}/playbooks/{playbook_id}", assign_agent_playbook_api, methods=["PUT"])
+    app.add_route("/api/agents/{id}/playbooks/{playbook_id}", unassign_agent_playbook_api, methods=["DELETE"])
 
     # Execution routes
     app.add_route("/api/executions", list_executions, methods=["GET"])
