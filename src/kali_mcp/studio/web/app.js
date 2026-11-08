@@ -535,7 +535,7 @@ function initInspectorResizer() {
 /* ── canonical model: graphDef ⇄ DSL — a single source of truth ────── */
 
 const NODE_W = 280, NODE_H = 140, X_GAP = 360, Y_GAP = 200;
-let builderView = "graph";
+let builderView = "dsl";
 let graphDef = null;          // canonical definition object while editing
 let graphSel = null;          // selected step id
 let graphPos = {};            // {stepId:{x,y}} drag overrides
@@ -591,7 +591,7 @@ function captureGraphToDSL() {
 }
 
 function switchBuilderView(view) {
-  if (view === builderView && view === "graph") { renderBuilder(); return; }
+  if (view === builderView && view === "graph" && graphDef) { renderBuilder(); return; }
   if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   if (view === "graph") {
     if (!loadGraphFromDSL()) return;   // invalid JSON: stay in DSL with a toast
