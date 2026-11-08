@@ -12,6 +12,44 @@ function esc(v) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* Copy text to clipboard; works in Safari and other browsers. */
+function copyText(text) {
+  const t = String(text ?? "");
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(() => {
+      const toastEl = $("#toast");
+      if (toastEl) {
+        toastEl.textContent = "copied";
+        toastEl.classList.add("show");
+        setTimeout(() => toastEl.classList.remove("show"), 900);
+      }
+    }).catch(() => copyTextFallback(t));
+    return;
+  }
+  copyTextFallback(t);
+}
+
+function copyTextFallback(t) {
+  const el = document.createElement("textarea");
+  el.value = t;
+  el.setAttribute("readonly", "");
+  el.style.position = "fixed";
+  el.style.left = "-9999px";
+  el.style.top = "10px";
+  document.body.appendChild(el);
+  el.focus();
+  el.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+  document.body.removeChild(el);
+  const toastEl = $("#toast");
+  if (toastEl) {
+    toastEl.textContent = ok ? "copied" : "copy failed";
+    toastEl.classList.add("show");
+    setTimeout(() => toastEl.classList.remove("show"), 900);
+  }
+}
+
 /* ── API client ─────────────────────────────────────────────────────── */
 
 function token() { return localStorage.getItem(TOKEN_KEY) || ""; }
@@ -851,12 +889,19 @@ function renderNodeOutput(res) {
 
   let html = "";
 
-  /* Component-style key: value lines for common keys */
+  /* Component-style key: value lines for common keys (click label to copy value) */
   const commonKeys = ["tool", "command", "stdout", "stderr", "exit_code", "success", "timed_out", "duration", "start_time", "end_time"];
+  const valColor = {
+    tool: "val-tool", command: "val-cmd", stdout: "val-stdout", stderr: "val-stderr",
+    exit_code: "val-exit", success: "val-bool", timed_out: "val-bool",
+    duration: "val-dur", start_time: "val-time", end_time: "val-time"
+  };
   if (out && typeof out === "object" && !Array.isArray(out)) {
     for (const k of commonKeys) {
       if (k in out) {
-        html += `<div class="result-line"><span class="result-key">${esc(k)}:</span> <span class="result-val">${esc(String(out[k]))}</span></div>`;
+        const v = String(out[k]);
+        const vc = valColor[k] || "";
+        html += `<div class="result-line"><span class="result-key copyable" data-copy-value="${esc(v)}" title="click to copy value">${esc(k)}:</span> <span class="result-val ${vc}">${esc(v)}</span></div>`;
       }
     }
   }
@@ -865,10 +910,17 @@ function renderNodeOutput(res) {
     html += `<div class="result-line err-line"><span class="result-key">error:</span> <span class="result-val err">${esc(String(err))}</span></div>`;
   }
 
-  /* Always show the full outputs as colorized JSON — nothing removed. */
-  if (out) {
-    html += `<span class="result-label">full output</span>`;
-    html += `<div class="result-val jsonic">${colorJson(out)}</div>`;
+  /* Show only extra outputs (common keys removed) as colorized JSON */
+  const extra = {};
+  if (out && typeof out === "object" && !Array.isArray(out)) {
+    for (const [k, v] of Object.entries(out)) {
+      if (!commonKeys.includes(k)) extra[k] = v;
+    }
+  }
+  const extraKeys = Object.keys(extra);
+  if (extraKeys.length) {
+    html += `<span class="result-label">extra outputs</span>`;
+    html += `<div class="result-val jsonic">${colorJson(extra)}</div>`;
   } else if (!html) {
     html += `<span class="result-val dim">no output</span>`;
   }
@@ -897,14 +949,6 @@ function renderNodeOutput(res) {
       </div>
       <span class="port left" title="input port"></span><span class="port right" title="drag or click to connect"></span>`;
     el.addEventListener("mousedown", (e) => startNodeDrag(e, s.id, p));
-    el.addEventListener("dblclick", (e) => {
-      e.stopPropagation();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-    });
     const rightPort = el.querySelector(".port.right");
     if (rightPort) rightPort.addEventListener("mousedown", (e) => startPortConnect(e, s.id));
     inner.appendChild(el);
@@ -919,7 +963,7 @@ function renderNodeOutput(res) {
       const a = nodePos(dep, depths), b = nodePos(s.id, depths);
       const y1 = a.y + NODE_H / 2, y2 = b.y + NODE_H / 2;
       const hot = graphSel === dep || graphSel === s.id ? " hot" : "";
-      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}"/>`;
+      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}" data-dep="${esc(dep)}" data-step="${esc(s.id)}"/>`;
     }
   }
   svg.innerHTML = edges;
@@ -1786,6 +1830,32 @@ document.addEventListener("click", (e) => {
   tip.classList.toggle("open");
 });
 
+/* Double-click an edge to remove the dependency (delegated, survives innerHTML swaps). */
+document.addEventListener("dblclick", (e) => {
+  const path = e.target.closest(".edge");
+  if (!path) return;
+  e.stopPropagation();
+  const dep = path.dataset.dep, step = path.dataset.step;
+  if (!dep || !step) return;
+  pushHistory();
+  const s = stepById(step);
+  if (s && Array.isArray(s.depends_on)) {
+    s.depends_on = s.depends_on.filter((d) => d !== dep);
+    captureGraphToDSL();
+    renderBuilder();
+    toast(`Removed ${dep} → ${step}`);
+  }
+});
+
+/* Click a copyable key label to copy its value to clipboard. */
+document.addEventListener("click", (e) => {
+  const span = e.target.closest(".copyable");
+  if (!span) return;
+  e.preventDefault();
+  e.stopPropagation();
+  copyText(span.dataset.copyValue || "");
+});
+
 function redrawEdges() {
   const depths = {};
   graphLayout(depths);
@@ -1798,7 +1868,7 @@ function redrawEdges() {
       const a = nodePos(dep, depths), b = nodePos(s.id, depths);
       const y1 = a.y + NODE_H / 2, y2 = b.y + NODE_H / 2;
       const hot = graphSel === dep || graphSel === s.id ? " hot" : "";
-      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}"/>`;
+      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}" data-dep="${esc(dep)}" data-step="${esc(s.id)}"/>`;
     }
   }
   svg.innerHTML = edges;
