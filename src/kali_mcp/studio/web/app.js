@@ -545,6 +545,7 @@ let historyStack = [];
 let futureStack = [];
 let inspectTab = "general";
 let runStatus = {};           // {stepId: status} from the latest execution
+let stepResults = {};         // {stepId: {outputs, error, tool_id}} from the latest execution
 let runStatusTimer = null;
 
 const TYPE_ICONS = {
@@ -760,6 +761,13 @@ function renderBuilder() {
     }
     const stCls = runStatusClass(s.id);
     const stTxt = runStatus[s.id] ? `run status: ${runStatus[s.id]}` : "";
+    const res = stepResults[s.id];
+    const resHtml = res
+      ? `<div class="node-result ${res.error ? 'err' : ''}">
+           <span class="result-label">test result:</span>
+           <span class="result-val">${esc(String(res.error || (res.outputs && JSON.stringify(res.outputs)).slice(0, 120)) || 'no output')}</span>
+         </div>`
+      : "";
     const el = document.createElement("div");
     el.className = `node ${s.type === "shell" ? "shell " : ""}${graphSel === s.id ? "selected" : ""}`;
     el.style.left = `${p.x}px`; el.style.top = `${p.y}px`;
@@ -772,6 +780,7 @@ function renderBuilder() {
         <span class="node-status ${stCls}" title="${esc(stTxt)}"></span>
       </div>
       <div class="node-body">${bodyHtml}</div>
+      ${resHtml}
       <div class="node-foot">
         <span class="chip">${(s.depends_on || []).length} in</span>
         ${Object.keys(s.inputs || {}).length ? `<span class="chip">${Object.keys(s.inputs || {}).length} inputs</span>` : ""}
@@ -1093,7 +1102,8 @@ function insTabsHtml(s) {
   return `
     <div class="ins-head">
       <div class="ins-idline"><span class="mono">${esc(s.id)}</span><span class="chip">${esc(s.type || "step")}</span>
-        <button class="btn ghost icon ins-close" id="insClose" title="Close inspector">×</button></div>
+        <button class="btn ghost icon ins-close" id="insClose" title="Close inspector">×</button>
+        <button class="btn primary icon" id="insTestStep" title="Run just this step (test)">▶ Test step</button></div>
       <div class="ins-tabs" role="tablist">
         ${INS_TABS.map((t) => `<button class="${t === inspectTab ? "active" : ""}" data-tab="${t}" role="tab">${INS_TAB_LABELS[t]}</button>`).join("")}
       </div>
@@ -1136,6 +1146,34 @@ function renderInspector() {
 
   $("#insApply")?.addEventListener("click", () => applyNodeInspector());
   $("#insDel")?.addEventListener("click", () => deleteGraphStep(graphSel));
+  $("#insTestStep")?.addEventListener("click", async () => {
+    if (!graphSel) return toast("Select a step first", true);
+    if (!selectedId) return toast("Select a playbook first", true);
+    // persist current edits before testing
+    if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
+    try {
+      toast(`Testing step ${graphSel}…`);
+      const r = await api("/executions", {
+        method: "POST",
+        body: JSON.stringify({ playbook_id: selectedId, inputs: {}, debug: true, trigger: "studio" }),
+      });
+      const execId = r?.execution?.execution_id || r?.execution_id || "";
+      toast(`Test started${execId ? `: ${execId}` : ""}`);
+      // poll briefly for completion
+      for (let i = 0; i < 10; i++) {
+        await new Promise((res) => setTimeout(res, 1000));
+        try {
+          const det = await api(`/executions/${encodeURIComponent(execId)}`);
+          if (det.execution && det.execution.status !== "running") {
+            await loadRunStatus(selectedId);
+            toast(`Test complete — results shown under nodes`);
+            return;
+          }
+        } catch { /* keep polling */ }
+      }
+      toast(`Test running — open Executions to watch progress`);
+    } catch (err) { toast(err.message, true); }
+  });
   $("#insClose")?.addEventListener("click", () => $("#insCol")?.classList.remove("ins-open"));
   $("#insAddInput")?.addEventListener("click", () => addMapRow());
 
@@ -1785,8 +1823,17 @@ async function loadRunStatus(id) {
     if (!mine.length) return;
     const det = await api(`/executions/${encodeURIComponent(mine[0].execution_id)}`);
     const map = {};
-    for (const s of det.steps || []) map[s.step_id] = s.status;
+    const results = {};
+    for (const s of det.steps || []) {
+      map[s.step_id] = s.status;
+      results[s.step_id] = {
+        outputs: s.outputs,
+        error: s.error,
+        tool_id: s.tool_id,
+      };
+    }
     runStatus = map;
+    stepResults = results;
     if (builderView === "graph" && $("#canvasInner")) renderBuilder();
   } catch { /* best-effort only */ }
 }

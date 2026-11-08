@@ -61,7 +61,7 @@ def get_execution(db: DBManager, execution_id: str) -> dict[str, Any] | None:
     steps = []
     for s in list_steps(db, execution_id):
         s = dict(s)
-        for key in ("id", "execution_id", "step_type", "inputs", "outputs"):
+        for key in ("id", "execution_id", "step_type", "inputs"):
             s.pop(key, None)
         steps.append(s)
     data["steps"] = steps
