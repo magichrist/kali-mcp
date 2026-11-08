@@ -1508,12 +1508,14 @@ class DBManager:
     def list_playbook_versions(self, playbook_id: str) -> list[dict]:
         """List all versions of a playbook in publish order (oldest first)."""
         cur = self.conn.cursor()
+        fk_values = self._playbook_fk_values(playbook_id)
+        placeholders = ",".join("?" * len(fk_values))
         rows = cur.execute(
-            """
+            f"""
             SELECT * FROM playbook_versions
-            WHERE playbook_id = ? ORDER BY id ASC
+            WHERE playbook_id IN ({placeholders}) ORDER BY id ASC
             """,
-            (playbook_id,),
+            tuple(fk_values),
         ).fetchall()
         return [dict(r) for r in rows]
 

@@ -110,7 +110,7 @@ async def get_definition_api(request: Request) -> JSONResponse:
     # Fall back to latest published version
     versions = db.list_playbook_versions(playbook_id)
     if versions:
-        version = versions[0]  # newest first per list_playbook_versions
+        version = versions[-1]  # ordered oldest-first; last is latest
         definition = version.get("definition")
         if isinstance(definition, str):
             try:
