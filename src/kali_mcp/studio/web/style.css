@@ -58,7 +58,16 @@ body.resizing { cursor: col-resize; user-select: none; }
 
 /* ── app shell ─────────────────────────────────────────────────────── */
 
-.app { height: 100vh; display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
+.app { height: 100vh; display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); transition: grid-template-columns .18s ease; }
+.app.sidebar-minimized { grid-template-columns: 68px minmax(0, 1fr); }
+.app.sidebar-minimized .sidebar { overflow: hidden; }
+.app.sidebar-minimized .brand > div:not(.brandmark) { display: none; }
+.app.sidebar-minimized .nav-label { display: none; }
+.app.sidebar-minimized .nav { align-items: center; padding: 10px 8px; }
+.app.sidebar-minimized .nav-item { width: 46px; justify-content: center; padding: 0; font-size: 0; gap: 0; }
+.app.sidebar-minimized .nav-icon { width: 22px; font-size: 17px; }
+.app.sidebar-minimized .side-bottom { padding: 10px; display: flex; justify-content: center; }
+.app.sidebar-minimized .user > div { display: none; }
 
 .sidebar {
   background: #0e1218;
@@ -617,6 +626,13 @@ label > .select, label > .inp, label.ins-field > .select { margin-top: 6px; }
   grid-template-columns: minmax(0, 1fr) 6px var(--ins-w);
   overflow: hidden;
 }
+.editor-grid.inspector-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+.editor-grid.inspector-hidden .ins-col,
+.editor-grid.inspector-hidden .ins-resizer {
+  display: none !important;
+}
 
 /* canvas column: toolbar + surface */
 .canvas-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
@@ -710,8 +726,8 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
 
 /* edges */
 .edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: auto; z-index: 1; }
-.edge { fill: none; stroke: #3d4c60; stroke-width: 2px; transition: stroke .12s, stroke-width .12s; cursor: pointer; pointer-events: all; }
-.edge.hot { stroke: var(--green-strong); stroke-width: 2.6px; }
+.edge { fill: none; stroke: #3d4c60; stroke-width: 4px; transition: stroke .12s, stroke-width .12s; cursor: pointer; pointer-events: all; }
+.edge.hot { stroke: var(--green-strong); stroke-width: 4px; }
 
 /* nodes */
 .node {
@@ -725,8 +741,10 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
   box-shadow: var(--shadow-soft);
   padding: 12px 14px 10px;
   cursor: grab;
+  user-select: none;
   transition: border-color .12s, box-shadow .12s, z-index .12s;
 }
+.node * { user-select: none; }
 .node:hover { border-color: #46586e; }
 .node.selected {
   border-color: var(--green-strong);
