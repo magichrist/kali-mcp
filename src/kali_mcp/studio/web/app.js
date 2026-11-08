@@ -144,25 +144,24 @@ function colorJson(v, indent = 0) {
   }
   if (typeof v === "object") {
     const keys = Object.keys(v);
-    if (!keys.length) return `<span class="json-punc">{{</span><span class="json-punc">}}</span>`;
+    if (!keys.length) return `<span class="json-punc">{</span><span class="json-punc">}</span>`;
     const items = keys.map((k) => {
       const val = colorJson(v[k], indent + 1);
       return `<div>${pad1}<span class="json-key">"${esc(k)}"</span>: ${val}</div>`;
     }).join("");
-    return `<span class="json-punc">{{</span>\n${items}\n${pad}<span class="json-punc">}}</span>`;
+    return `<span class="json-punc">{</span>\n${items}\n${pad}<span class="json-punc">}</span>`;
   }
   return `<span class="json-str">"${esc(String(v))}"</span>`;
 }
 
-function renderDslPreview() {
-  const ta = $("#dslCode");
-  const prev = $("#dslPreview");
-  if (!ta || !prev) return;
+function renderDsl() {
+  const el = $("#dslCode");
+  if (!el) return;
   try {
-    const parsed = JSON.parse(ta.value || "{}");
-    prev.innerHTML = colorJson(parsed);
-  } catch (err) {
-    prev.innerHTML = `<div style="padding:12px;color:var(--red);font-size:12px">${esc("Invalid JSON: " + err.message)}</div>`;
+    const parsed = JSON.parse(rawDsl || "{}");
+    el.innerHTML = colorJson(parsed);
+  } catch {
+    // keep existing HTML if rawDsl is invalid
   }
 }
 
@@ -431,8 +430,19 @@ async function pagePlaybookEditor(id) {
     $("#pbName").textContent = d.name || id;
     if (crumbEl) crumbEl.textContent = d.name || id;
     $("#pbMeta").innerHTML = `${BADGE(d.status)} <span class="version">v ${esc(d.current_version_id || "no version")}</span><span class="dim mono">${esc(id)}</span>`;
-    $("#dslCode").value = def ? JSON.stringify(def, null, 2) : "";
-    renderDslPreview();
+    rawDsl = def ? JSON.stringify(def, null, 2) : "";
+    $("#dslCode").textContent = rawDsl;
+    renderDsl();
+    $("#dslCode").addEventListener("input", () => {
+      const text = $("#dslCode").textContent || "";
+      try {
+        JSON.parse(text);
+        rawDsl = text;
+      } catch {
+        // keep last valid rawDsl
+      }
+      renderDsl();
+    });
   } catch (err) {
     $("#pbName").textContent = id;
     $("#pbMeta").innerHTML = `<span class="error">${esc(err.message)}</span>`;
@@ -454,21 +464,7 @@ async function pagePlaybookEditor(id) {
   $$("#builderSwitch button").forEach((btn) =>
     btn.addEventListener("click", () => switchBuilderView(btn.dataset.view)));
 
-  /* DSL preview toggle + live update */
-  const dslToggle = $("#dslPreviewToggle");
-  const dslPreview = $("#dslPreview");
-  const dslCode = $("#dslCode");
-  if (dslToggle && dslPreview && dslCode) {
-    dslToggle.addEventListener("click", () => {
-      const show = dslPreview.style.display !== "block";
-      dslPreview.style.display = show ? "block" : "none";
-      dslToggle.textContent = show ? "🙈 Hide" : "👁 Preview";
-      if (show) renderDslPreview();
-    });
-    dslCode.addEventListener("input", () => {
-      if (dslPreview.style.display === "block") renderDslPreview();
-    });
-  }
+
 
   $("#pbValidate").addEventListener("click", validateDefinition);
   $("#pbReset").addEventListener("click", () => {
@@ -616,6 +612,7 @@ function initInspectorResizer() {
 const NODE_W = 280, NODE_H = 140, X_GAP = 360, Y_GAP = 200;
 let builderView = "dsl";
 let graphDef = null;          // canonical definition object while editing
+let rawDsl = "";              // raw JSON text (source of truth for saves)
 let graphSel = null;          // selected step id
 let graphPos = {};            // {stepId:{x,y}} drag overrides
 let graphZoom = 1;
@@ -646,7 +643,7 @@ function emptyDefinition(name) {
 }
 
 function loadGraphFromDSL() {
-  const raw = $("#dslCode")?.value?.trim();
+  const raw = rawDsl?.trim();
   if (raw) {
     try {
       graphDef = JSON.parse(raw);
@@ -666,7 +663,7 @@ function loadGraphFromDSL() {
 function captureGraphToDSL() {
   if (builderView !== "graph" || !graphDef) return;
   const t = $("#dslCode");
-  if (t) t.value = JSON.stringify(graphDef, null, 2);
+  if (t) { rawDsl = JSON.stringify(graphDef, null, 2); t.textContent = rawDsl; renderDsl(); }
 }
 
 function switchBuilderView(view) {
@@ -681,6 +678,7 @@ function switchBuilderView(view) {
   if (gr) gr.hidden = view !== "graph";
   $$("#builderSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   if (view === "graph") renderBuilder();
+  else if (view === "dsl") renderDsl();
 }
 
 /* ── undo / redo (JSON snapshots of the canonical model) ───────────── */
@@ -1974,7 +1972,7 @@ async function validateDefinition() {
   if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   try {
     const r = await api(`/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
-      method: "POST", body: JSON.stringify({ definition: JSON.parse($("#dslCode").value) }),
+      method: "POST", body: JSON.stringify({ definition: JSON.parse(rawDsl) }),
     });
     out.hidden = false;
     out.textContent = JSON.stringify(r, null, 2);
@@ -1990,7 +1988,7 @@ async function saveDraft() {
   if (!selectedId) return toast("Select a playbook first", true);
   if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   try {
-    const body = { definition: JSON.parse($("#dslCode").value) };
+    const body = { definition: JSON.parse(rawDsl) };
     await api(`/playbooks/${encodeURIComponent(selectedId)}/definition`, {
       method: "PUT", body: JSON.stringify(body),
     });
@@ -2004,7 +2002,7 @@ async function publish() {
   if (!selectedId) return toast("Select a playbook first", true);
   if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   try {
-    const def = JSON.parse($("#dslCode").value);
+    const def = JSON.parse(rawDsl);
     const version = def.version || "1.0.0";
     await api(`/playbooks/${encodeURIComponent(selectedId)}/publish`, {
       method: "POST", body: JSON.stringify({ definition: def, version }),
