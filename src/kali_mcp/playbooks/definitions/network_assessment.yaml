@@ -34,7 +34,7 @@ steps:
     depends_on: [validate]
     args:
       target: "{{target}}"
-      ports: "{{options.ports}}"
+      ports: "{{inputs.options.ports}}"
     checkpoint: true
     description: "Discover open ports and services via nmap"
   - id: resolve
@@ -49,8 +49,8 @@ steps:
     depends_on: [discover]
     args:
       target: "{{target}}"
-      ports: "{{options.ports}}"
-      rate: "{{options.rate}}"
+      ports: "{{inputs.options.ports}}"
+      rate: "{{inputs.options.rate}}"
     parallel: true
     checkpoint: true
     description: "Enumerate ports via the ports module (nmap)"
@@ -59,7 +59,7 @@ steps:
     depends_on: [resolve, ports]
     args:
       target: "{{target}}"
-      ports: "{{options.ports}}"
+      ports: "{{inputs.options.ports}}"
       extra_args: "-sV -sC"
     checkpoint: true
     description: "Service and version enumeration on resolved hosts"
