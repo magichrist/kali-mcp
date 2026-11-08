@@ -273,12 +273,12 @@ async function pagePlaybooks() {
 
 async function pagePlaybookEditor(id) {
   selectedId = id;
-  builderView = "graph";
   graphDef = null; graphSel = null; graphPos = {};
   graphZoom = 1; graphPan = { x: 0, y: 0 };
   historyStack = []; futureStack = [];
   inspectTab = "general";
   runStatus = {};
+  stepResults = {};
   if (runStatusTimer) { clearInterval(runStatusTimer); runStatusTimer = null; }
 
   const crumbEl = $("#crumbPage");
