@@ -341,6 +341,7 @@ label > .select, label > .inp, label.ins-field > .select { margin-top: 6px; }
   tab-size: 2;
 }
 .code-area:focus { outline: none; }
+.code-area[contenteditable="true"] { white-space: pre-wrap; outline: none; overflow-y: auto; min-height: 240px; max-height: 600px; }
 .result {
   margin: 0;
   background: #0a0f16;
