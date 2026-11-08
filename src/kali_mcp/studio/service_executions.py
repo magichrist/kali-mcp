@@ -87,6 +87,7 @@ def get_execution(db: DBManager, execution_id: str) -> dict[str, Any] | None:
         s["outputs"] = _loads_if_str(s.get("outputs"))
         steps.append(s)
     data["steps"] = steps
+    data["artifacts"] = list_artifacts(db, execution_id)
     return data
 
 
