@@ -56,8 +56,11 @@ class NmapTool(BaseTool):
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "target")
-        target = arguments["target"]
+        if not isinstance(arguments, dict):
+            raise ValueError("Arguments must be an object")
+        target = arguments.get("target")
+        if not target or not isinstance(target, str):
+            raise ValueError("Missing or invalid required parameter: target")
         try:
             validate_ip(target)
         except ValueError:
@@ -67,17 +70,21 @@ class NmapTool(BaseTool):
                 if not all(c.isalnum() or c in ".-_" for c in target):
                     raise ValueError(f"Invalid target: {target}")
         if "timeout" in arguments:
+            if not isinstance(arguments["timeout"], (int, float)):
+                raise ValueError("Timeout must be a number")
             validate_timeout(arguments["timeout"], min_val=1, max_val=3600)
+        if "ports" in arguments and not isinstance(arguments["ports"], str):
+            raise ValueError("Ports must be a string")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["nmap"]
         cmd.append(arguments.get("scan_type", "-sV"))
-        if "ports" in arguments:
-            cmd.extend(["-p", arguments["ports"]])
+        if "ports" in arguments and arguments["ports"]:
+            cmd.extend(["-p", str(arguments["ports"])])
         extra = arguments.get("extra_args")
         if extra:
-            cmd.extend(shlex.split(extra))
-        cmd.append(arguments["target"])
+            cmd.extend(shlex.split(str(extra)))
+        cmd.append(str(arguments["target"]))
         return cmd
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
