@@ -993,7 +993,7 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
 /* input mapper rows */
 .map-row {
   display: grid;
-  grid-template-columns: 128px 126px minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(110px, 1fr) minmax(90px, 1fr) minmax(140px, 2fr) 32px;
   gap: 8px;
   align-items: start;
   background: var(--panel2);
@@ -1001,9 +1001,9 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
   border-radius: 10px;
   padding: 10px;
 }
-.map-k input { height: 38px; }
+.map-k input { height: 38px; min-width: 0; }
 .map-src { padding-top: 0; }
-.map-mode, .map-step, .mf input { height: 38px; font-size: 13px; }
+.map-mode, .map-step, .mf input { height: 38px; font-size: 13px; min-width: 0; }
 .mf { display: none; min-width: 0; }
 .map-row[data-mode="run"] .mf-run { display: block; }
 .map-row[data-mode="upstream"] .mf-up { display: flex; gap: 6px; }
@@ -1013,6 +1013,14 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
 .mf .map-field { flex: 1 1 54%; min-width: 0; }
 .map-del { width: 32px; height: 38px; padding: 0; }
 .map-none { margin: 0; font-size: 12.5px; padding: 6px 2px; }
+
+/* prevent placeholder text from clipping inside tight mapper cells */
+.map-row input,
+.map-row select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .ins-filter-row { display: flex; align-items: center; gap: 10px; }
 .ins-filter-row .select { width: 150px; flex: none; }

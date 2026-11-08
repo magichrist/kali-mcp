@@ -299,7 +299,7 @@ async def get_execution(request: Request) -> JSONResponse:
     row = service_executions.get_execution(db, execution_id)
     if row is None:
         return JSONResponse({"error": "execution not found"}, status_code=404)
-    return JSONResponse(row)
+    return JSONResponse({"execution": row})
 
 
 async def cancel_execution(request: Request) -> JSONResponse:
