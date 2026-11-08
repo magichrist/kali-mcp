@@ -116,6 +116,34 @@ function table(headers, rows, emptyText = "Nothing here yet.") {
   </div>`;
 }
 
+function colorJson(v, indent = 0) {
+  /* Recursively colorize a JSON value into HTML spans for human readability. */
+  const pad = "  ".repeat(indent);
+  const pad1 = "  ".repeat(indent + 1);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  if (v === null) return `<span class="json-null">null</span>`;
+  if (typeof v === "boolean") return `<span class="json-bool">${v}</span>`;
+  if (typeof v === "number") return `<span class="json-num">${v}</span>`;
+  if (typeof v === "string") return `<span class="json-str">"${esc(v)}"</span>`;
+  if (Array.isArray(v)) {
+    if (!v.length) return `<span class="json-punc">[</span><span class="json-punc">]</span>`;
+    const items = v.map((x) => `<div>${pad1}${colorJson(x, indent + 1)},</div>`).join("");
+    return `<span class="json-punc">[</span>\n${items}\n${pad}<span class="json-punc">]</span>`;
+  }
+  if (typeof v === "object") {
+    const keys = Object.keys(v);
+    if (!keys.length) return `<span class="json-punc">{{</span><span class="json-punc">}}</span>`;
+    const items = keys.map((k) => {
+      const val = colorJson(v[k], indent + 1);
+      return `<div>${pad1}<span class="json-key">"${esc(k)}"</span>: ${val}</div>`;
+    }).join("");
+    return `<span class="json-punc">{{</span>\n${items}\n${pad}<span class="json-punc">}}</span>`;
+  }
+  return `<span class="json-str">"${esc(String(v))}"</span>`;
+}
+
 const BADGE = (s) => {
   const map = {
     completed: "run-state", running: "run-state run-run", pending: "run-state",
@@ -775,10 +803,10 @@ function renderBuilder() {
     const stCls = runStatusClass(s.id);
     const stTxt = runStatus[s.id] ? `run status: ${runStatus[s.id]}` : "";
     const res = stepResults[s.id];
-    const resOut = res && res.outputs ? JSON.stringify(res.outputs, null, 2) : "";
+    const resOut = res && res.outputs ? colorJson(res.outputs) : "";
     const resHtml = res
       ? `<div class="node-result ${res.error ? 'err' : ''}">
-           <span class="result-val">${esc(String(res.error || resOut || 'no output'))}</span>
+           <span class="result-val">${res.error ? esc(String(res.error)) : (resOut || 'no output')}</span>
          </div>`
       : "";
     const el = document.createElement("div");
@@ -1109,13 +1137,13 @@ function insOutputsTab(s) {
       ${fields.length ? `<div class="chip-row">${fields.map((x) => `<span class="chip accent mono">${esc(s.id)}.${esc(x)}</span>`).join("")}</div>` : `<p class="dim">No named fields — downstream steps will only see raw text unless you add (?P&lt;name&gt;…) groups.</p>`}
       ${hasRes ? `
         <div class="ins-subhead">Last run output</div>
-        <pre class="result" style="max-height:200px;overflow:auto;margin:8px 0">${esc(JSON.stringify(res, null, 2))}</pre>
+        <pre class="result" style="max-height:200px;overflow:auto;margin:8px 0">${colorJson(res)}</pre>
       ` : ''}`;
   }
   if (hasRes) {
     return `
       <div class="ins-subhead">Last run output</div>
-      <pre class="result" style="max-height:200px;overflow:auto;margin:8px 0">${esc(JSON.stringify(res, null, 2))}</pre>
+      <pre class="result" style="max-height:200px;overflow:auto;margin:8px 0">${colorJson(res)}</pre>
       <div class="ins-note">This step type produces its outputs internally — no manual output extraction to configure.</div>`;
   }
   return `<div class="ins-note">This step type produces its outputs internally (findings, correlations, scope checks or the assessment report) — no manual output extraction to configure.</div>`;
@@ -2208,24 +2236,37 @@ async function pageExecutionDetail(id) {
       <button class="btn" id="resumeExecBtn">Resume from checkpoint</button>
       <a class="btn ghost" href="#/executions">← back</a>
     </div>
-    ${kpis([
-      { label: "Steps", value: (d.steps || []).length },
-      { label: "Artifacts", value: (d.artifacts || []).length },
-      { label: "Completed", value: (e.completed_at || "").slice(0, 19) || "—" },
-    ])}
-    <div class="panel" style="margin-top:10px;padding:10px"><pre class="result">${esc(JSON.stringify(e, null, 2))}</pre></div>
-    <div class="panel" style="min-height:auto;margin-top:10px">
-      <div class="panel-head"><span>Steps</span></div>
-      <div style="padding:6px">${table(["Step", "Tool", "Status"], (d.steps || []).map((s) => ({
-        cells: [esc(s.step_id), esc(s.tool_id || "—"), BADGE(s.status)],
-      })), "No steps recorded.")}</div>
+    <div class="panel" style="margin-top:10px;padding:10px"><pre class="result">${colorJson(e)}</pre></div>
+    <div class="two-col" style="margin-top:10px">
+      <div class="panel" style="min-height:auto">
+        <div class="panel-head"><span>Steps</span></div>
+        <div style="padding:6px">${table(["Step", "Tool", "Status"], (e.steps || []).map((s) => ({
+          cells: [esc(s.step_id), esc(s.tool_id || "—"), BADGE(s.status)],
+        })), "No steps recorded.")}</div>
+      </div>
+      <div class="panel" style="min-height:auto">
+        <div class="panel-head"><span>Artifacts</span></div>
+        <div style="padding:6px">${table(["Artifact", "Category"], (e.artifacts || []).map((a) => ({
+          cells: [esc(a.name || a.artifact_id || a.evidence_id || "—"), esc(a.category || "—")],
+        })), "No artifacts recorded.")}</div>
+      </div>
     </div>
-    <div class="panel" style="min-height:auto;margin-top:10px">
-      <div class="panel-head"><span>Artifacts</span></div>
-      <div style="padding:6px">${table(["Artifact", "Category"], (d.artifacts || []).map((a) => ({
-        cells: [esc(a.name || a.artifact_id || a.evidence_id || "—"), esc(a.category || "—")],
-      })), "No artifacts recorded.")}</div>
-    </div>`;
+  `;
+  // move execution KPIs to page-top right as minimal badges
+  const headRight = $(".head-right");
+  if (headRight) {
+    ["steps","artifacts","completed"].forEach((k) => { const old = headRight.querySelector(".exec-kpi-"+k); if (old) old.remove(); });
+    const stepsCount = (e.steps || []).length;
+    const artifactsCount = (e.artifacts || []).length;
+    const completedAt = (e.completed_at || "").slice(0, 19) || "—";
+    [["exec-kpi-steps", stepsCount + " steps"], ["exec-kpi-artifacts", artifactsCount + " artifacts"], ["exec-kpi-completed", completedAt]].forEach(([cls, label]) => {
+      const badge = document.createElement("span");
+      badge.className = "exec-kpi-badge " + cls;
+      badge.textContent = label;
+      badge.style.cssText = "padding:4px 10px; background:var(--panel2); border:1px solid var(--line); border-radius:9px; font-size:12.5px; color:var(--muted); margin-left:8px; white-space:nowrap;";
+      headRight.appendChild(badge);
+    });
+  }
   $("#cancelExecBtn").addEventListener("click", async () => {
     if (!confirm(`Cancel ${id}?`)) return;
     try { await api(`/executions/${encodeURIComponent(id)}/cancel`, { method: "POST" }); toast("Cancelled"); pageExecutionDetail(id); }
@@ -2530,10 +2571,21 @@ async function refreshFindings() {
   const d = await api(`/findings?${params}`);
   const el = $("#findingTable");
   if (!el) return;
-  el.innerHTML = `${kpis([{ label: "Matching findings", value: d.count ?? 0 }])}${table(["Test", "Severity", "Tool", "Status", "Created"],
+  el.innerHTML = `${table(["Test", "Severity", "Tool", "Status", "Created"],
     (d.findings || []).map((f) => ({
       cells: [esc(f.test_name || f.checkname || f.name || "—"), BADGE(f.severity), esc(f.tool), esc(f.status || f.validation_status || "—"), esc((f.created_at || "").slice(0, 19))],
     })), "No findings match these filters.")}`;
+  // move the matching count to the page-top right corner (minimal number badge)
+  const headRight = $(".head-right");
+  if (headRight) {
+    const old = headRight.querySelector(".fnd-count-badge");
+    if (old) old.remove();
+    const badge = document.createElement("span");
+    badge.className = "fnd-count-badge";
+    badge.textContent = `${d.count ?? 0} findings`;
+    badge.style.cssText = "padding:4px 10px; background:var(--panel2); border:1px solid var(--line); border-radius:9px; font-size:12.5px; color:var(--muted); margin-left:8px; white-space:nowrap;";
+    headRight.appendChild(badge);
+  }
 }
 
 async function pageFindings() {
@@ -2543,17 +2595,17 @@ async function pageFindings() {
   });
   $("#pageHeadInfo").innerHTML = `
     <div class="eyebrow">FINDINGS</div><h1>Findings</h1>
-    <div class="subtitle">Query the normalized findings table. Filters hit the database directly.</div>`;
+    <div class="subtitle">Query normalized findings. Filters hit the database directly.</div>`;
   $("#pageBody").innerHTML = `
-    <div class="filterbar">
-      <select id="fndSeverity" class="select">
+    <div class="filterbar" style="gap:8px">
+      <select id="fndSeverity" class="select" style="width:150px">
         <option value="all">All severities</option>
         <option value="critical">critical</option><option value="high">high</option>
         <option value="medium">medium</option><option value="low">low</option>
         <option value="info">info</option>
       </select>
-      <input class="select" id="fndTarget" placeholder="target (exact)…" />
-      <input class="select" id="fndTool" placeholder="tool id…" />
+      <input class="select" id="fndTarget" placeholder="target…" style="width:180px" />
+      <input class="select" id="fndTool" placeholder="tool…" style="width:180px" />
       <button class="btn primary" id="fndGo">Apply</button>
     </div>
     <div id="findingTable">Loading…</div>`;
@@ -2561,8 +2613,6 @@ async function pageFindings() {
   $("#fndSeverity").addEventListener("change", refreshFindings);
   await refreshFindings();
 }
-
-/* ── route: scope ──────────────────────────────────────────────────── */
 
 /* ── route: settings ───────────────────────────────────────────────── */
 
