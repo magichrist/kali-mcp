@@ -13,41 +13,44 @@ function esc(v) {
 }
 
 /* Copy text to clipboard; works in Safari and other browsers. */
-function copyText(text) {
-  const t = String(text ?? "");
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(t).then(() => {
-      const toastEl = $("#toast");
-      if (toastEl) {
-        toastEl.textContent = "copied";
-        toastEl.classList.add("show");
-        setTimeout(() => toastEl.classList.remove("show"), 900);
-      }
-    }).catch(() => copyTextFallback(t));
-    return;
-  }
-  copyTextFallback(t);
-}
-
-function copyTextFallback(t) {
-  const el = document.createElement("textarea");
-  el.value = t;
-  el.setAttribute("readonly", "");
-  el.style.position = "fixed";
-  el.style.left = "-9999px";
-  el.style.top = "10px";
-  document.body.appendChild(el);
-  el.focus();
-  el.select();
-  let ok = false;
-  try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
-  document.body.removeChild(el);
+function showCopyToast(msg) {
   const toastEl = $("#toast");
   if (toastEl) {
-    toastEl.textContent = ok ? "copied" : "copy failed";
+    toastEl.textContent = msg;
     toastEl.classList.add("show");
     setTimeout(() => toastEl.classList.remove("show"), 900);
   }
+}
+
+function copyText(text) {
+  const t = String(text ?? "");
+  let ok = false;
+
+  /* Method 1: execCommand — synchronous, works in Safari from user gesture */
+  try {
+    const el = document.createElement("textarea");
+    el.value = t;
+    el.setAttribute("readonly", "");
+    el.style.position = "fixed";
+    el.style.left = "-9999px";
+    el.style.top = "10px";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    ok = document.execCommand("copy");
+    document.body.removeChild(el);
+  } catch (err) { ok = false; }
+
+  if (ok) { showCopyToast("copied"); return; }
+
+  /* Method 2: Clipboard API fallback */
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(() => showCopyToast("copied"))
+      .catch(() => showCopyToast("copy failed"));
+    return;
+  }
+
+  showCopyToast("copy failed");
 }
 
 /* ── API client ─────────────────────────────────────────────────────── */
@@ -361,12 +364,33 @@ async function pagePlaybooks() {
 async function pagePlaybookEditor(id) {
   selectedId = id;
   graphDef = null; graphSel = null; graphPos = {};
-  graphZoom = 1; graphPan = { x: 0, y: 0 };
   historyStack = []; futureStack = [];
   inspectTab = "general";
   runStatus = {};
   stepResults = {};
   if (runStatusTimer) { clearInterval(runStatusTimer); runStatusTimer = null; }
+
+  /* restore saved canvas zoom/pan for this playbook */
+  let canvasRestored = false;
+  const saved = localStorage.getItem(`kmcp_canvas_${id}`);
+  if (saved) {
+    try {
+      const cs = JSON.parse(saved);
+      graphZoom = cs.zoom ?? 1;
+      graphPan = { x: cs.panX ?? 0, y: cs.panY ?? 0 };
+      canvasRestored = true;
+    } catch { graphZoom = 1; graphPan = { x: 0, y: 0 }; }
+  } else {
+    graphZoom = 1; graphPan = { x: 0, y: 0 };
+  }
+
+  /* restore inspector hidden state */
+  const hid = localStorage.getItem(`kmcp_inspector_hidden_${id}`);
+  inspectorHidden = hid === "1";
+  const insCol = $("#insCol");
+  if (insCol) insCol.classList.toggle("inspector-hidden", inspectorHidden);
+  const editorGrid = $("#editorGrid");
+  if (editorGrid) editorGrid.classList.toggle("inspector-hidden", inspectorHidden);
 
   const crumbEl = $("#crumbPage");
   if (crumbEl) crumbEl.textContent = id;
@@ -424,6 +448,8 @@ async function pagePlaybookEditor(id) {
           <button class="btn icon" id="zoomOut" title="Zoom out">−</button>
           <button class="btn icon" id="zoomReset" title="Fit to screen">⛶</button>
           <button class="btn icon" id="zoomIn" title="Zoom in">＋</button>
+          <span class="tool-sep"></span>
+          <button class="btn icon" id="inspectorToggle" title="Hide/show inspector">◀</button>
           <button class="btn icon" id="delSelBtn" title="Delete selected node">✕</button>
           <span class="tool-sep"></span>
           <span class="count" id="graphCount">0 steps</span>
@@ -497,10 +523,38 @@ async function pagePlaybookEditor(id) {
   $("#zoomIn").addEventListener("click", () => nudgeZoom(+0.2));
   $("#zoomOut").addEventListener("click", () => nudgeZoom(-0.2));
   $("#zoomReset").addEventListener("click", fitToScreen);
+
+  /* hide/show inspector toggle */
+  const insToggle = $("#inspectorToggle");
+  if (insToggle) {
+    insToggle.addEventListener("click", () => {
+      inspectorHidden = !inspectorHidden;
+      const insCol = $("#insCol");
+      if (insCol) insCol.classList.toggle("inspector-hidden", inspectorHidden);
+      const editorGrid = $("#editorGrid");
+      if (editorGrid) editorGrid.classList.toggle("inspector-hidden", inspectorHidden);
+      if (selectedId) {
+        localStorage.setItem(`kmcp_inspector_hidden_${selectedId}`, inspectorHidden ? "1" : "0");
+      }
+      insToggle.textContent = inspectorHidden ? "▶" : "◀";
+      insToggle.title = inspectorHidden ? "Show inspector" : "Hide inspector";
+    });
+  }
   $("#delSelBtn").addEventListener("click", () => { if (graphSel) deleteGraphStep(graphSel); else toast("Select a node on the canvas first"); });
 
   $$("#builderSwitch button").forEach((btn) =>
     btn.addEventListener("click", () => switchBuilderView(btn.dataset.view)));
+
+  /* sidebar minimize toggle */
+  const sidebarToggle = $("#sidebarToggle");
+  if (sidebarToggle) {
+    const sidebarHidden = localStorage.getItem("kmcp_sidebar_minimized") === "1";
+    if (sidebarHidden) $("#app")?.classList.add("sidebar-minimized");
+    sidebarToggle.addEventListener("click", () => {
+      const isMinimized = $("#app").classList.toggle("sidebar-minimized");
+      localStorage.setItem("kmcp_sidebar_minimized", isMinimized ? "1" : "0");
+    });
+  }
 
 
 
@@ -539,9 +593,9 @@ async function pagePlaybookEditor(id) {
     loadRunStatus(selectedId).catch(() => {});
   }
   switchBuilderView("graph");
-  // keep large graphs fully visible on entry — the user should never land
-  // on a canvas where the last step is off-screen.
-  if (getGraphSteps().length >= 3) {
+  // keep large graphs fully visible on entry — unless the user has a saved
+  // canvas position/zoom for this playbook, in which case restore that instead.
+  if (getGraphSteps().length >= 3 && !canvasRestored) {
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => fitToScreen());
     else fitToScreen();
   }
@@ -655,6 +709,7 @@ let graphSel = null;          // selected step id
 let graphPos = {};            // {stepId:{x,y}} drag overrides
 let graphZoom = 1;
 let graphPan = { x: 0, y: 0 };
+let inspectorHidden = false;
 let historyStack = [];
 let futureStack = [];
 let inspectTab = "general";
@@ -777,6 +832,12 @@ function nodePos(id, depths) {
 function applyZoom() {
   const inner = $("#canvasInner");
   if (inner) inner.style.transform = `translate(${graphPan.x}px,${graphPan.y}px) scale(${graphZoom})`;
+  /* persist canvas state */
+  if (selectedId) {
+    localStorage.setItem(`kmcp_canvas_${selectedId}`, JSON.stringify({
+      zoom: graphZoom, panX: graphPan.x, panY: graphPan.y
+    }));
+  }
 }
 
 /* zoom keeping the canvas point under clientX/clientY anchored in place */
@@ -899,7 +960,12 @@ function renderNodeOutput(res) {
   if (out && typeof out === "object" && !Array.isArray(out)) {
     for (const k of commonKeys) {
       if (k in out) {
-        const v = String(out[k]);
+        let v = String(out[k]);
+        /* Compact ISO timestamps: "2026-11-08T12:02:52.779699+00:00" -> "2026-11-08 12:02:52" */
+        if ((k === "start_time" || k === "end_time")) {
+          const m = v.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
+          if (m) v = `${m[1]} ${m[2]}`;
+        }
         const vc = valColor[k] || "";
         html += `<div class="result-line"><span class="result-key copyable" data-copy-value="${esc(v)}" title="click to copy value">${esc(k)}:</span> <span class="result-val ${vc}">${esc(v)}</span></div>`;
       }
@@ -963,7 +1029,7 @@ function renderNodeOutput(res) {
       const a = nodePos(dep, depths), b = nodePos(s.id, depths);
       const y1 = a.y + NODE_H / 2, y2 = b.y + NODE_H / 2;
       const hot = graphSel === dep || graphSel === s.id ? " hot" : "";
-      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}" data-dep="${esc(dep)}" data-step="${esc(s.id)}"/>`;
+      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}" data-dep="${esc(dep)}" data-step="${esc(s.id)}" stroke-width="4" vector-effect="non-scaling-stroke"/>`;
     }
   }
   svg.innerHTML = edges;
@@ -1676,6 +1742,8 @@ function addShellStep() {
 let dragCtx = null;
 function startNodeDrag(e, id, origin) {
   if (e.button !== 0) return;
+  /* Prevent text selection immediately on mousedown */
+  e.preventDefault();
   const startX = e.clientX, startY = e.clientY;
   const ox = origin.x, oy = origin.y;
   let moved = false;
@@ -1683,8 +1751,7 @@ function startNodeDrag(e, id, origin) {
     const dx = ev.clientX - startX, dy = ev.clientY - startY;
     if (!moved && Math.hypot(dx, dy) < 4) return;
     moved = true;
-    e.preventDefault();
-    const x = Math.max(0, Math.round(ox + dx / graphZoom)), y = Math.max(0, Math.round(oy + dy / graphZoom));
+    const x = Math.round(ox + dx / graphZoom), y = Math.round(oy + dy / graphZoom);
     graphPos[id] = { x, y };
     const el = $(`.node[data-step="${CSS.escape(id)}"]`);
     if (el) { el.style.left = `${x}px`; el.style.top = `${y}px`; }
@@ -1693,16 +1760,25 @@ function startNodeDrag(e, id, origin) {
   const up = (ev) => {
     document.removeEventListener("mousemove", move);
     document.removeEventListener("mouseup", up);
+    document.body.style.userSelect = "";
     if (!moved) {
       const isPort = ev.target instanceof Element && ev.target.classList.contains("port");
       if (pendingConnect && isPort && pendingConnect !== id) { disarmConnect(); completeConnect(pendingConnect, id); return; }
       const sel = getGraphSteps().find((x) => x.id === id);
       graphSel = id;
       if (sel) inspectTab = "general";
-      renderBuilder();
+      /* Update selection visually without full re-render (keeps DOM stable for copy clicks) */
+      const canvasInner = $("#canvasInner");
+      if (canvasInner) {
+        $$(".node", canvasInner).forEach((n) => n.classList.remove("selected"));
+        const nodeEl = $(`.node[data-step="${CSS.escape(id)}"]`);
+        if (nodeEl) nodeEl.classList.add("selected");
+      }
+      renderInspector();
       if (window.matchMedia("(max-width: 1023px)").matches) $("#insCol")?.classList.add("ins-open");
     }
   };
+  document.body.style.userSelect = "none";
   document.addEventListener("mousemove", move);
   document.addEventListener("mouseup", up);
 }
@@ -1868,7 +1944,7 @@ function redrawEdges() {
       const a = nodePos(dep, depths), b = nodePos(s.id, depths);
       const y1 = a.y + NODE_H / 2, y2 = b.y + NODE_H / 2;
       const hot = graphSel === dep || graphSel === s.id ? " hot" : "";
-      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}" data-dep="${esc(dep)}" data-step="${esc(s.id)}"/>`;
+      edges += `<path class="edge${hot}" d="M${a.x + NODE_W},${y1} C${(a.x + NODE_W + b.x) / 2},${y1} ${(a.x + NODE_W + b.x) / 2},${y2} ${b.x},${y2}" data-dep="${esc(dep)}" data-step="${esc(s.id)}" stroke-width="4" vector-effect="non-scaling-stroke"/>`;
     }
   }
   svg.innerHTML = edges;
@@ -2086,8 +2162,8 @@ async function validateDefinition() {
     toast(r.valid ? "Definition valid" : "Validation failed", !r.valid);
   } catch (err) {
     out.hidden = false;
-    out.textContent = String(err);
-    toast(err.message, true);
+    out.textContent = `Validation error: ${err.message}`;
+    toast("Validation failed — see details below", true);
   }
 }
 
@@ -2910,6 +2986,7 @@ function bootShell() {
   bubble.addEventListener("mouseleave", () => { hideTip(); });
 }
 
-bootShell();
-await refreshAuthBadge();
-await route();
+(() => {
+  bootShell();
+  refreshAuthBadge().then(() => route()).catch(() => route());
+})();
