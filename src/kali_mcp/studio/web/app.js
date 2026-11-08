@@ -840,12 +840,41 @@ function renderBuilder() {
     const stCls = runStatusClass(s.id);
     const stTxt = runStatus[s.id] ? `run status: ${runStatus[s.id]}` : "";
     const res = stepResults[s.id];
-    const resOut = res && res.outputs ? colorJson(res.outputs) : "";
     const resHtml = res
-      ? `<div class="node-result ${res.error ? 'err' : ''}">
-           <span class="result-val">${res.error ? esc(String(res.error)) : (resOut || 'no output')}</span>
-         </div>`
+      ? `<div class="node-result ${res.error ? 'err' : ''}">${renderNodeOutput(res)}</div>`
       : "";
+
+function renderNodeOutput(res) {
+  const out = res && res.outputs ? res.outputs : null;
+  const err = res.error;
+  const hasErr = !!err;
+
+  let html = "";
+
+  /* Component-style key: value lines for common keys */
+  const commonKeys = ["tool", "command", "stdout", "stderr", "exit_code", "success", "timed_out", "duration", "start_time", "end_time"];
+  if (out && typeof out === "object" && !Array.isArray(out)) {
+    for (const k of commonKeys) {
+      if (k in out) {
+        html += `<div class="result-line"><span class="result-key">${esc(k)}:</span> <span class="result-val">${esc(String(out[k]))}</span></div>`;
+      }
+    }
+  }
+
+  if (hasErr) {
+    html += `<div class="result-line err-line"><span class="result-key">error:</span> <span class="result-val err">${esc(String(err))}</span></div>`;
+  }
+
+  /* Always show the full outputs as colorized JSON — nothing removed. */
+  if (out) {
+    html += `<span class="result-label">full output</span>`;
+    html += `<div class="result-val jsonic">${colorJson(out)}</div>`;
+  } else if (!html) {
+    html += `<span class="result-val dim">no output</span>`;
+  }
+
+  return html;
+}
     const el = document.createElement("div");
     const running = runStatus[s.id] === "running" || runStatus[s.id] === "pending";
     el.className = `node ${s.type === "shell" ? "shell " : ""}${running ? "running " : ""}${graphSel === s.id ? "selected" : ""}`;
@@ -868,6 +897,14 @@ function renderBuilder() {
       </div>
       <span class="port left" title="input port"></span><span class="port right" title="drag or click to connect"></span>`;
     el.addEventListener("mousedown", (e) => startNodeDrag(e, s.id, p));
+    el.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
     const rightPort = el.querySelector(".port.right");
     if (rightPort) rightPort.addEventListener("mousedown", (e) => startPortConnect(e, s.id));
     inner.appendChild(el);
@@ -1595,7 +1632,6 @@ function addShellStep() {
 let dragCtx = null;
 function startNodeDrag(e, id, origin) {
   if (e.button !== 0) return;
-  e.preventDefault();
   const startX = e.clientX, startY = e.clientY;
   const ox = origin.x, oy = origin.y;
   let moved = false;
@@ -1603,6 +1639,7 @@ function startNodeDrag(e, id, origin) {
     const dx = ev.clientX - startX, dy = ev.clientY - startY;
     if (!moved && Math.hypot(dx, dy) < 4) return;
     moved = true;
+    e.preventDefault();
     const x = Math.max(0, Math.round(ox + dx / graphZoom)), y = Math.max(0, Math.round(oy + dy / graphZoom));
     graphPos[id] = { x, y };
     const el = $(`.node[data-step="${CSS.escape(id)}"]`);
