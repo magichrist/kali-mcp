@@ -709,8 +709,8 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
 .canvas-empty[hidden] { display: none; }
 
 /* edges */
-.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 1; }
-.edge { fill: none; stroke: #3d4c60; stroke-width: 2px; transition: stroke .12s, stroke-width .12s; }
+.edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: auto; z-index: 1; }
+.edge { fill: none; stroke: #3d4c60; stroke-width: 2px; transition: stroke .12s, stroke-width .12s; cursor: pointer; pointer-events: all; }
 .edge.hot { stroke: var(--green-strong); stroke-width: 2.6px; }
 
 /* nodes */
@@ -817,6 +817,26 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
   overflow-wrap: break-word;
   word-break: break-word;
 }
+.node-result .copyable {
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.85;
+}
+.node-result .copyable:hover {
+  color: var(--green-strong);
+  opacity: 1;
+  text-decoration: underline;
+}
+.node-result .val-tool { color: var(--amber); }
+.node-result .val-cmd { color: var(--blue); }
+.node-result .val-stdout { color: var(--text); }
+.node-result .val-stderr { color: var(--red); }
+.node-result .val-exit { color: var(--green-strong); }
+.node-result .val-bool { color: var(--purple); }
+.node-result .val-dur { color: var(--cyan); }
+.node-result .val-time { color: var(--muted); }
+
+
 .node-result .result-val {
   font-family: ui-monospace, Menlo, monospace;
   font-size: 11px;
