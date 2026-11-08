@@ -279,6 +279,7 @@ async def start_execution(
                     tool_id=str(step_res.get("tool")) if step_res.get("tool") else None,
                     status="failed" if step_error else "completed",
                     error=str(step_error) if step_error else None,
+                    outputs=step_res.get("outputs"),
                     started_at=db._now_utc(),
                     completed_at=db._now_utc(),
                 )

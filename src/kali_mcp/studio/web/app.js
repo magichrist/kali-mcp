@@ -545,6 +545,7 @@ let historyStack = [];
 let futureStack = [];
 let inspectTab = "general";
 let runStatus = {};           // {stepId: status} from the latest execution
+let stepResults = {};         // {stepId: {outputs, error, tool_id}} from the latest execution
 let runStatusTimer = null;
 
 const TYPE_ICONS = {
@@ -760,6 +761,12 @@ function renderBuilder() {
     }
     const stCls = runStatusClass(s.id);
     const stTxt = runStatus[s.id] ? `run status: ${runStatus[s.id]}` : "";
+    const res = stepResults[s.id];
+    const resHtml = res
+      ? `<div class="node-result ${res.error ? 'err' : ''}">
+           <span class="result-val">${esc(String(res.error || (res.outputs && JSON.stringify(res.outputs)).slice(0, 140)) || 'no output')}</span>
+         </div>`
+      : "";
     const el = document.createElement("div");
     const running = runStatus[s.id] === "running" || runStatus[s.id] === "pending";
     el.className = `node ${s.type === "shell" ? "shell " : ""}${running ? "running " : ""}${graphSel === s.id ? "selected" : ""}`;
@@ -773,6 +780,7 @@ function renderBuilder() {
         <span class="node-status ${stCls}" title="${esc(stTxt)}"></span>
       </div>
       <div class="node-body">${bodyHtml}</div>
+      ${resHtml}
       <div class="node-foot">
         <span class="chip">${(s.depends_on || []).length} in</span>
         ${Object.keys(s.inputs || {}).length ? `<span class="chip">${Object.keys(s.inputs || {}).length} inputs</span>` : ""}
@@ -1094,8 +1102,7 @@ function insTabsHtml(s) {
   return `
     <div class="ins-head">
       <div class="ins-idline"><span class="mono">${esc(s.id)}</span><span class="chip">${esc(s.type || "step")}</span>
-        <button class="btn ghost icon ins-close" id="insClose" title="Close inspector">×</button>
-        <button class="btn primary icon" id="insTestStep" title="Run just this step (test)">▶ Test step</button></div>
+        <button class="btn ghost icon ins-close" id="insClose" title="Close inspector">×</button></div>
       <div class="ins-tabs" role="tablist">
         ${INS_TABS.map((t) => `<button class="${t === inspectTab ? "active" : ""}" data-tab="${t}" role="tab">${INS_TAB_LABELS[t]}</button>`).join("")}
       </div>
@@ -1788,8 +1795,17 @@ async function startRun(id, inputs, opts = {}) {
         if (!exec) return;
 
         const map = {};
-        for (const s of det.steps || []) map[s.step_id] = s.status;
+        const results = {};
+        for (const s of exec.steps || []) {
+          map[s.step_id] = s.status;
+          results[s.step_id] = {
+            outputs: s.outputs,
+            error: s.error,
+            tool_id: s.tool_id,
+          };
+        }
         runStatus = map;
+        stepResults = results;
 
         if (builderView === "graph" && $("#canvasInner")) renderBuilder();
 
@@ -1816,9 +1832,19 @@ async function loadRunStatus(id) {
     const mine = (d.executions || []).filter((e) => e.playbook_id === id);
     if (!mine.length) return;
     const det = await api(`/executions/${encodeURIComponent(mine[0].execution_id)}`);
+    const exec = det.execution;
     const map = {};
-    for (const s of det.steps || []) map[s.step_id] = s.status;
+    const results = {};
+    for (const s of exec.steps || []) {
+      map[s.step_id] = s.status;
+      results[s.step_id] = {
+        outputs: s.outputs,
+        error: s.error,
+        tool_id: s.tool_id,
+      };
+    }
     runStatus = map;
+    stepResults = results;
     if (builderView === "graph" && $("#canvasInner")) renderBuilder();
   } catch { /* best-effort only */ }
 }
