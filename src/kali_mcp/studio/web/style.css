@@ -801,9 +801,11 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
 .node-result .result-val {
   font-family: ui-monospace, Menlo, monospace;
   font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-height: 96px;
 }
 .node-result.err .result-val { color: var(--red); }
 .node-result.err { border-color: #3a2a2a; background: #1c1416; }
@@ -957,36 +959,21 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
   color: #06130c;
   outline: none;
 }
-.help-tip::after { /* the bubble */
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 9px);
-  left: -6px;
-  width: max-content;
-  max-width: 265px;
-  padding: 8px 11px;
+.tooltip-bubble {
+  position: fixed;
+  z-index: 999999;
   background: #0e1520;
   border: 1px solid rgba(120, 140, 165, .55);
   border-radius: 9px;
   color: var(--text);
   font: 400 12px/1.5 ui-sans-serif, system-ui, sans-serif;
-  text-align: left;
-  white-space: pre-line;
+  padding: 8px 11px;
+  max-width: 265px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, .55);
-  z-index: 60;
   pointer-events: none;
   display: none;
-}
-.help-tip.open::after { display: block; }
-/* near the right edge of the inspector, flip the bubble so it isn't clipped */
-.help-tip.tip-left::after {
-  left: auto;
-  right: -6px;
-}
-/* near the top of the scroll area, open downward instead */
-.help-tip.tip-down::after {
-  bottom: auto;
-  top: calc(100% + 9px);
+  white-space: pre-line;
+  text-align: left;
 }
 
 /* tool-argument schema builder rows */
