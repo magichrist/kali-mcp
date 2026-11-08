@@ -123,10 +123,20 @@ function colorJson(v, indent = 0) {
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  /* Compact ISO timestamps: "2026-11-08T12:02:52.748528+00:00" -> "2026-11-08 12:02:52" */
+  const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+  const compactTime = (s) => {
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
+    return m ? `${m[1]} ${m[2]}` : s;
+  };
+
   if (v === null) return `<span class="json-null">null</span>`;
   if (typeof v === "boolean") return `<span class="json-bool">${v}</span>`;
   if (typeof v === "number") return `<span class="json-num">${v}</span>`;
-  if (typeof v === "string") return `<span class="json-str">"${esc(v)}"</span>`;
+  if (typeof v === "string") {
+    const disp = ISO_RE.test(v) ? compactTime(v) : v;
+    return `<span class="json-str">"${esc(disp)}"</span>`;
+  }
   if (Array.isArray(v)) {
     if (!v.length) return `<span class="json-punc">[</span><span class="json-punc">]</span>`;
     const items = v.map((x) => `<div>${pad1}${colorJson(x, indent + 1)},</div>`).join("");
@@ -142,6 +152,18 @@ function colorJson(v, indent = 0) {
     return `<span class="json-punc">{{</span>\n${items}\n${pad}<span class="json-punc">}}</span>`;
   }
   return `<span class="json-str">"${esc(String(v))}"</span>`;
+}
+
+function renderDslPreview() {
+  const ta = $("#dslCode");
+  const prev = $("#dslPreview");
+  if (!ta || !prev) return;
+  try {
+    const parsed = JSON.parse(ta.value || "{}");
+    prev.innerHTML = colorJson(parsed);
+  } catch (err) {
+    prev.innerHTML = `<div style="padding:12px;color:var(--red);font-size:12px">${esc("Invalid JSON: " + err.message)}</div>`;
+  }
 }
 
 const BADGE = (s) => {
@@ -393,7 +415,7 @@ async function pagePlaybookEditor(id) {
       </div>
     </div>
     <div class="dsl-panel" id="dslPanel" hidden>
-      <textarea class="code-area" id="dslCode" spellcheck="false" placeholder="Playbook definition (JSON as returned by /definition)…"></textarea>
+      <div id="dslCode" contenteditable="true" class="code-area" spellcheck="false" placeholder="Playbook definition (JSON as returned by /definition)…"></div>
       <div class="dsl-bar"><span class="dim">Canonical model — the graph above edits this same JSON. Graph ⇄ DSL is always in sync.</span></div>
     </div>
     <div class="result-wrap"><pre class="result" id="editorResult" hidden></pre></div>
@@ -410,6 +432,7 @@ async function pagePlaybookEditor(id) {
     if (crumbEl) crumbEl.textContent = d.name || id;
     $("#pbMeta").innerHTML = `${BADGE(d.status)} <span class="version">v ${esc(d.current_version_id || "no version")}</span><span class="dim mono">${esc(id)}</span>`;
     $("#dslCode").value = def ? JSON.stringify(def, null, 2) : "";
+    renderDslPreview();
   } catch (err) {
     $("#pbName").textContent = id;
     $("#pbMeta").innerHTML = `<span class="error">${esc(err.message)}</span>`;
@@ -430,6 +453,22 @@ async function pagePlaybookEditor(id) {
 
   $$("#builderSwitch button").forEach((btn) =>
     btn.addEventListener("click", () => switchBuilderView(btn.dataset.view)));
+
+  /* DSL preview toggle + live update */
+  const dslToggle = $("#dslPreviewToggle");
+  const dslPreview = $("#dslPreview");
+  const dslCode = $("#dslCode");
+  if (dslToggle && dslPreview && dslCode) {
+    dslToggle.addEventListener("click", () => {
+      const show = dslPreview.style.display !== "block";
+      dslPreview.style.display = show ? "block" : "none";
+      dslToggle.textContent = show ? "🙈 Hide" : "👁 Preview";
+      if (show) renderDslPreview();
+    });
+    dslCode.addEventListener("input", () => {
+      if (dslPreview.style.display === "block") renderDslPreview();
+    });
+  }
 
   $("#pbValidate").addEventListener("click", validateDefinition);
   $("#pbReset").addEventListener("click", () => {
