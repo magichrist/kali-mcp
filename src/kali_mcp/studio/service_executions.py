@@ -9,6 +9,7 @@ Pure business logic — no HTTP routing. Routes land in ``studio/api.py``.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -41,7 +42,23 @@ def list_executions(
         f"ORDER BY started_at DESC LIMIT ? OFFSET ?",
         (*params, limit, offset),
     ).fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        r = dict(r)
+        r["inputs"] = _loads_if_str(r.get("inputs"))
+        r["outputs"] = _loads_if_str(r.get("outputs"))
+        out.append(r)
+    return out
+
+
+def _loads_if_str(val: Any) -> Any:
+    """Parse a JSON string back into an object; leave non-strings untouched."""
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except (ValueError, TypeError):
+            return val
+    return val
 
 
 def get_execution(db: DBManager, execution_id: str) -> dict[str, Any] | None:
@@ -56,13 +73,18 @@ def get_execution(db: DBManager, execution_id: str) -> dict[str, Any] | None:
     # Drop internal plumbing columns from the API surface — keep the response
     # compact and context-friendly (execution_id, playbook_id, status, inputs,
     # outputs, trigger, debug, timestamps only).
-    for key in ("id", "job_id", "assessment_id", "profile_id"):
+    for key in ("id", "job_id", "assessment_id", "profile_id", "started_at"):
         data.pop(key, None)
+    # inputs/outputs are stored as JSON strings in SQLite; parse them back so
+    # the API returns real objects instead of double-encoded strings.
+    data["inputs"] = _loads_if_str(data.get("inputs"))
+    data["outputs"] = _loads_if_str(data.get("outputs"))
     steps = []
     for s in list_steps(db, execution_id):
         s = dict(s)
         for key in ("id", "execution_id", "step_type", "inputs"):
             s.pop(key, None)
+        s["outputs"] = _loads_if_str(s.get("outputs"))
         steps.append(s)
     data["steps"] = steps
     return data
@@ -122,6 +144,58 @@ def resume_execution(db: DBManager, execution_id: str) -> dict[str, Any] | None:
 
 
 # ── Start execution (Phase 7 / 08_FILE_PLAN: "start (delegates to engine)") ─
+
+
+def _extract_step_outputs(step_res: dict[str, Any]) -> dict[str, Any] | None:
+    """Pull useful output data out of a step result for storage and UI display.
+
+    Step results from the DAG engine don't carry a top-level ``outputs`` key,
+    so ``step_res.get("outputs")`` is always ``None``. This extracts the
+    meaningful fields per step type:
+
+    * shell — ``stdout``, ``stderr``, ``exit_code``, plus any filter-named
+      capture groups
+    * tool / module — MCP ``content[0].text`` which is a JSON-serialized
+      ``ExecutionResult`` (stdout/stderr/exit_code/etc.)
+    * scope_check / finding_correlation / assessment_report / custom — the
+      step result dict minus internal metadata keys
+    """
+    if not isinstance(step_res, dict):
+        return None
+
+    # Explicit outputs field (future-proof)
+    if "outputs" in step_res and step_res["outputs"] is not None:
+        return step_res["outputs"]
+
+    # Shell step: stdout/stderr/exit_code are the outputs
+    if step_res.get("type") == "shell" or "stdout" in step_res:
+        out: dict[str, Any] = {}
+        for key in ("stdout", "stderr", "exit_code", "duration", "started_at"):
+            if key in step_res:
+                out[key] = step_res[key]
+        meta = {
+            "step", "type", "tool", "command", "stdout", "stderr",
+            "exit_code", "duration", "started_at", "error",
+        }
+        for key, val in step_res.items():
+            if key not in meta:
+                out[key] = val
+        return out if out else None
+
+    # Tool / module step: MCP response — content[0].text is JSON of ExecutionResult
+    content = step_res.get("content")
+    if isinstance(content, list) and content and isinstance(content[0], dict):
+        text = content[0].get("text", "")
+        if text:
+            try:
+                return json.loads(text)
+            except (ValueError, TypeError):
+                pass
+
+    # Fallback: return the step result minus internal metadata
+    meta = {"step", "error", "skipped", "reason", "scope_violation", "timed_out"}
+    out = {k: v for k, v in step_res.items() if k not in meta}
+    return out if out else None
 
 
 def _merge_required_inputs(defn: Any, supplied: dict[str, Any]) -> None:
@@ -279,7 +353,7 @@ async def start_execution(
                     tool_id=str(step_res.get("tool")) if step_res.get("tool") else None,
                     status="failed" if step_error else "completed",
                     error=str(step_error) if step_error else None,
-                    outputs=step_res.get("outputs"),
+                    outputs=_extract_step_outputs(step_res),
                     started_at=db._now_utc(),
                     completed_at=db._now_utc(),
                 )
