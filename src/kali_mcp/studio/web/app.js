@@ -152,9 +152,9 @@ async function pageOverview() {
     <div class="two-col">
       <div class="panel" style="min-height:220px">
         <div class="panel-head"><span>Recent executions</span></div>
-        <div style="padding:8px">${table(["Execution", "Playbook", "Status", "Started"],
+        <div style="padding:8px">${table(["Execution", "Playbook", "Status", "Completed"],
           (o.recent_executions || []).map((e) => ({
-            cells: [esc(e.execution_id), esc(e.playbook_id || "—"), BADGE(e.status), esc((e.started_at || "").slice(0, 19))],
+            cells: [esc(e.execution_id), esc(e.playbook_id || "—"), BADGE(e.status), esc((e.completed_at || "").slice(0, 19))],
             menu: `<a href="#/executions/${esc(e.execution_id)}">view</a>`,
           })), "No executions yet.")}
         </div>
@@ -301,6 +301,7 @@ async function pagePlaybookEditor(id) {
       </div>
       <div class="pb-head-r">
         <button class="btn" id="pbValidate">Validate</button>
+        <button class="btn ghost" id="pbReset" title="Reset test results">↻ Reset</button>
         <button class="btn" id="pbSave" title="Save draft">Save draft</button>
         <button class="btn accent" id="pbRun" title="Run published version with test inputs">▶ Run test</button>
         <button class="btn primary" id="pbPublish">Publish</button>
@@ -403,6 +404,13 @@ async function pagePlaybookEditor(id) {
     btn.addEventListener("click", () => switchBuilderView(btn.dataset.view)));
 
   $("#pbValidate").addEventListener("click", validateDefinition);
+  $("#pbReset").addEventListener("click", () => {
+    localStorage.setItem('kmcp_reset_' + selectedId, '1');
+    runStatus = {};
+    stepResults = {};
+    renderBuilder();
+    toast("Test results cleared");
+  });
   $("#pbSave").addEventListener("click", saveDraft);
   $("#pbPublish").addEventListener("click", publish);
   $("#pbRun").addEventListener("click", () => runModal(selectedId));
@@ -424,7 +432,11 @@ async function pagePlaybookEditor(id) {
   initInspectorResizer();
   initCanvasGestures();
   refreshTools().catch(() => {});
-  loadRunStatus(selectedId).catch(() => {});
+  // Skip re-loading run results if the user reset them (persists across refreshes
+  // until the next run clears the marker).
+  if (!localStorage.getItem('kmcp_reset_' + selectedId)) {
+    loadRunStatus(selectedId).catch(() => {});
+  }
   switchBuilderView("graph");
   // keep large graphs fully visible on entry — the user should never land
   // on a canvas where the last step is off-screen.
@@ -763,9 +775,10 @@ function renderBuilder() {
     const stCls = runStatusClass(s.id);
     const stTxt = runStatus[s.id] ? `run status: ${runStatus[s.id]}` : "";
     const res = stepResults[s.id];
+    const resOut = res && res.outputs ? JSON.stringify(res.outputs, null, 2) : "";
     const resHtml = res
       ? `<div class="node-result ${res.error ? 'err' : ''}">
-           <span class="result-val">${esc(String(res.error || (res.outputs && JSON.stringify(res.outputs)).slice(0, 140)) || 'no output')}</span>
+           <span class="result-val">${esc(String(res.error || resOut || 'no output'))}</span>
          </div>`
       : "";
     const el = document.createElement("div");
@@ -1077,6 +1090,8 @@ function insInputsTab(s) {
 }
 
 function insOutputsTab(s) {
+  const res = stepResults[s.id];
+  const hasRes = res && (res.outputs || res.error || res.stdout || res.stderr);
   if (s.type === "shell") {
     const f = s.filter && s.filter.type === "none" ? { type: "none" } : (s.filter || { type: "grep", pattern: "" });
     const fields = namedGroups(f.pattern);
@@ -1091,7 +1106,17 @@ function insOutputsTab(s) {
       ${insLabel("Pattern", `<input class="select mono" id="insFilterPattern" value="${esc(f.pattern || "")}" placeholder='(?P<ip>[0-9]+\\.[0-9.]+)'>`,
         "Applies to the raw command output. Named groups become mapped fields — e.g. <code>(?P<host>[a-z0-9.-]+)</code> becomes <code>{{&lt;this step's id&gt;.host}}</code> for the next step.")}
       ${subLabel("Extracted fields", "Preview of what downstream steps can map — comes from the named <code>(?P&lt;group&gt;…)</code> groups above.")}
-      ${fields.length ? `<div class="chip-row">${fields.map((x) => `<span class="chip accent mono">${esc(s.id)}.${esc(x)}</span>`).join("")}</div>` : `<p class="dim">No named fields — downstream steps will only see raw text unless you add (?P&lt;name&gt;…) groups.</p>`}`;
+      ${fields.length ? `<div class="chip-row">${fields.map((x) => `<span class="chip accent mono">${esc(s.id)}.${esc(x)}</span>`).join("")}</div>` : `<p class="dim">No named fields — downstream steps will only see raw text unless you add (?P&lt;name&gt;…) groups.</p>`}
+      ${hasRes ? `
+        <div class="ins-subhead">Last run output</div>
+        <pre class="result" style="max-height:200px;overflow:auto;margin:8px 0">${esc(JSON.stringify(res, null, 2))}</pre>
+      ` : ''}`;
+  }
+  if (hasRes) {
+    return `
+      <div class="ins-subhead">Last run output</div>
+      <pre class="result" style="max-height:200px;overflow:auto;margin:8px 0">${esc(JSON.stringify(res, null, 2))}</pre>
+      <div class="ins-note">This step type produces its outputs internally — no manual output extraction to configure.</div>`;
   }
   return `<div class="ins-note">This step type produces its outputs internally (findings, correlations, scope checks or the assessment report) — no manual output extraction to configure.</div>`;
 }
@@ -1728,6 +1753,22 @@ async function runModal(id) {
         ${field}
       </div>`;
   }).join("");
+
+  /* placeholder reference — every {{...}} referenced anywhere in the playbook */
+  const allRefs = collectRunInputs(def);
+  const refList = allRefs.map((sp) => {
+    const deflt = sp.spec?.default;
+    const hint = deflt === undefined ? "" : ` (default: ${JSON.stringify(deflt)})`;
+    return `<span class="chip mono">${esc(sp.name)}${hint}</span>`;
+  }).join(" ");
+  const refHtml = allRefs.length
+    ? `<div class="run-row">
+       <div class="run-row-head"><b>Placeholders used in this playbook</b><span class="chip">{{name}} · optional unless marked required</span></div>
+       <p class="dim ins-note" style="margin:4px 0 0">These {{name}} references appear in step inputs, args, or commands. Provide them above or as extra JSON.</p>
+       <div style="display:flex;flex-wrap:wrap;gap:6px">${refList}</div>
+     </div>`
+    : "";
+
   const bd = document.createElement("div");
   bd.className = "modal-backdrop show";
   bd.innerHTML = `
@@ -1735,6 +1776,7 @@ async function runModal(id) {
       <h3>Run “${esc(id)}”</h3>
       <p class="dim">Runs the published version. This playbook takes ${specs.length} input${specs.length === 1 ? "" : "s"} — anything omitted falls back to its default.</p>
       ${rows || `<p class="dim">No declared inputs — start a run directly, or add extra ones as JSON below.</p>`}
+      ${refHtml}
       <div class="run-row">
         <div class="run-row-head"><b>Extra inputs</b><span class="chip">JSON · optional</span></div>
         <textarea class="select area" id="runExtra" spellcheck="false" style="min-height:64px;font-family:ui-monospace,Menlo,monospace">{}</textarea>
@@ -1785,6 +1827,8 @@ async function runModal(id) {
 async function startRun(id, inputs, opts = {}) {
   // Stop any previous live-poll timer
   if (runStatusTimer) { clearInterval(runStatusTimer); runStatusTimer = null; }
+  // A new run clears the reset marker so fresh results persist on refresh
+  localStorage.removeItem('kmcp_reset_' + id);
   runStatus = {};
   toast(`Starting ${id}${opts.debug ? " (debug)" : ""}…`);
   try {
@@ -2087,14 +2131,13 @@ async function refreshExecutions(status) {
   const list = d.executions || [];
   const el = $("#execTable");
   if (!el) return;
-  el.innerHTML = table(["Execution", "Playbook", "Trigger", "Status", "Started", "Completed"],
+  el.innerHTML = table(["Execution", "Playbook", "Trigger", "Status", "Completed"],
     list.map((e) => ({
       cells: [
         `<a href="#/executions/${esc(e.execution_id)}">${esc(e.execution_id)}</a>`,
         esc(e.playbook_id || "—"),
         `${esc(e.trigger || "—")}${Number(e.debug) ? " <span class=\"chip ck\">debug</span>" : ""}`,
         BADGE(e.status),
-        esc((e.started_at || "").slice(0, 19)),
         esc((e.completed_at || "").slice(0, 19) || "—"),
       ],
       menu: `<a href="#/executions/${esc(e.execution_id)}">detail</a>`,
@@ -2168,19 +2211,18 @@ async function pageExecutionDetail(id) {
     ${kpis([
       { label: "Steps", value: (d.steps || []).length },
       { label: "Artifacts", value: (d.artifacts || []).length },
-      { label: "Started", value: (e.started_at || "").slice(0, 19) },
       { label: "Completed", value: (e.completed_at || "").slice(0, 19) || "—" },
     ])}
-    <div class="panel" style="margin-top:14px;padding:14px"><pre class="result">${esc(JSON.stringify(e, null, 2))}</pre></div>
-    <div class="panel" style="min-height:120px">
+    <div class="panel" style="margin-top:10px;padding:10px"><pre class="result">${esc(JSON.stringify(e, null, 2))}</pre></div>
+    <div class="panel" style="min-height:auto;margin-top:10px">
       <div class="panel-head"><span>Steps</span></div>
-      <div style="padding:8px">${table(["Step", "Tool", "Status"], (d.steps || []).map((s) => ({
+      <div style="padding:6px">${table(["Step", "Tool", "Status"], (d.steps || []).map((s) => ({
         cells: [esc(s.step_id), esc(s.tool_id || "—"), BADGE(s.status)],
       })), "No steps recorded.")}</div>
     </div>
-    <div class="panel" style="min-height:120px;margin-top:14px">
+    <div class="panel" style="min-height:auto;margin-top:10px">
       <div class="panel-head"><span>Artifacts</span></div>
-      <div style="padding:8px">${table(["Artifact", "Category"], (d.artifacts || []).map((a) => ({
+      <div style="padding:6px">${table(["Artifact", "Category"], (d.artifacts || []).map((a) => ({
         cells: [esc(a.name || a.artifact_id || a.evidence_id || "—"), esc(a.category || "—")],
       })), "No artifacts recorded.")}</div>
     </div>`;
@@ -2522,29 +2564,6 @@ async function pageFindings() {
 
 /* ── route: scope ──────────────────────────────────────────────────── */
 
-async function pageScope() {
-  setPageMeta({ crumb: "Scopes & Policies", title: "Scopes & Policies", subtitle: "Scope enforcement (read-only)" });
-  const s = await api("/scope");
-  $("#pageHeadInfo").innerHTML = `
-    <div class="eyebrow">SCOPES &amp; POLICIES</div><h1>Scope enforcement</h1>
-    <div class="subtitle">Scope is controlled via MCP_SCOPE_* environment variables on the server process — this panel is read-only by design.</div>`;
-  $("#pageBody").innerHTML = `
-    ${kpis([
-      { label: "Scope", value: s.is_empty ? "unrestricted (allow-all)" : "restricted" },
-      { label: "Expired", value: s.is_expired ? "yes — all denied" : "no" },
-      { label: "Policy", value: s.policy || "safe_active" },
-      { label: "Expiration", value: s.expiration || "never" },
-    ])}
-    <div class="two-col" style="margin-top:14px">
-      <div class="panel"><div class="panel-head"><span>Allowed targets</span></div>
-        <div style="padding:12px">${(s.allowed_targets?.length ? s.allowed_targets : ["* (all targets)"]).map((t) => `<span class="chip" style="margin:2px">${esc(t)}</span>`).join("")}</div></div>
-      <div class="panel"><div class="panel-head"><span>Excluded targets</span></div>
-        <div style="padding:12px">${(s.excluded_targets?.length ? s.excluded_targets : ["none"]).map((t) => `<span class="chip" style="margin:2px">${esc(t)}</span>`).join("")}</div></div>
-      <div class="panel"><div class="panel-head"><span>Allowed operations</span></div>
-        <div style="padding:12px">${(s.allowed_operations?.length ? s.allowed_operations : ["* (all operations)"]).map((t) => `<span class="chip" style="margin:2px">${esc(t)}</span>`).join("")}</div></div>
-    </div>`;
-}
-
 /* ── route: settings ───────────────────────────────────────────────── */
 
 async function pageSettings() {
@@ -2607,7 +2626,6 @@ const ROUTES = {
   connections: { title: "MCP Connections", render: pageConnections, crumb: "MCP Connections" },
   agents: { title: "Agents", render: pageAgents, crumb: "Agents" },
   findings: { title: "Findings", render: pageFindings, crumb: "Findings" },
-  scope: { title: "Scopes & Policies", render: pageScope, crumb: "Scopes & Policies" },
   settings: { title: "Settings", render: pageSettings, crumb: "Settings" },
 };
 
@@ -2649,6 +2667,53 @@ function bootShell() {
   $("#tokenSave").addEventListener("click", saveTokenAndRetry);
   $("#tokenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") saveTokenAndRetry(); });
   window.addEventListener("hashchange", route);
+
+  /* ── global tooltip bubble (position: fixed so it never gets clipped) ── */
+  const bubble = document.createElement("div");
+  bubble.className = "tooltip-bubble";
+  document.body.appendChild(bubble);
+
+  let hoverTimer = null;
+  const showTip = (tip) => {
+    clearTimeout(hoverTimer);
+    const text = tip.getAttribute("data-tip");
+    if (!text) return;
+    bubble.textContent = text;
+    const rect = tip.getBoundingClientRect();
+    const bubbleW = bubble.offsetWidth || 200;
+    const bubbleH = bubble.offsetHeight || 40;
+    // try above, then below, staying within viewport
+    let top = rect.top - bubbleH - 8;
+    let placeBelow = false;
+    if (top < 8) {
+      top = rect.bottom + 8;
+      placeBelow = true;
+    }
+    if (top + bubbleH > window.innerHeight - 8) {
+      top = window.innerHeight - bubbleH - 8;
+    }
+    if (top < 8) top = 8;
+    // center horizontally, clamp to viewport
+    let left = rect.left + rect.width / 2 - bubbleW / 2;
+    left = Math.min(Math.max(left, 8), window.innerWidth - bubbleW - 8);
+    bubble.style.top = `${top}px`;
+    bubble.style.left = `${left}px`;
+    bubble.style.borderRadius = "9px";
+    bubble.style.display = "block";
+  };
+  const hideTip = () => {
+    hoverTimer = setTimeout(() => { bubble.style.display = "none"; }, 120);
+  };
+  document.body.addEventListener("mouseover", (e) => {
+    const tip = e.target.closest(".help-tip");
+    if (tip) { clearTimeout(hoverTimer); showTip(tip); }
+  });
+  document.body.addEventListener("mouseout", (e) => {
+    const tip = e.target.closest(".help-tip");
+    if (tip) hideTip();
+  });
+  bubble.addEventListener("mouseenter", () => { clearTimeout(hoverTimer); });
+  bubble.addEventListener("mouseleave", () => { hideTip(); });
 }
 
 bootShell();
