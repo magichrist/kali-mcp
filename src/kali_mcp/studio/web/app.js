@@ -723,7 +723,8 @@ function runStatusClass(id) {
 }
 
 function renderBuilder() {
-  const inner = $("#canvasInner");
+  try {
+    const inner = $("#canvasInner");
   if (!inner) return;
   if (!graphDef) loadGraphFromDSL();
   const steps = getGraphSteps();
@@ -817,6 +818,11 @@ function renderBuilder() {
   if (db) db.disabled = !graphSel;
 
   renderInspector();
+  } catch (err) {
+    const inner = $("#canvasInner");
+    if (inner) inner.innerHTML = `<p class="error" style="padding:20px">Render error: ${esc(err.message)}</p>`;
+    console.error("renderBuilder failed:", err);
+  }
 }
 
 /* ── inspector (tabbed, type-aware) ────────────────────────────────── */
