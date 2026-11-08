@@ -1066,6 +1066,16 @@ body.canvas-panning .canvas-area { cursor: grabbing; user-select: none; }
 .dsl-panel[hidden] { display: none; }
 
 /* ═══════════════════════════════════════════════════════════════════
+   JSON syntax coloring (used on node outputs, outputs tab, execution JSON)
+   ═══════════════════════════════════════════════════════════════════ */
+.json-key { color: var(--blue); }
+.json-str { color: var(--green); }
+.json-num { color: var(--amber); }
+.json-bool { color: var(--red); }
+.json-null { color: var(--purple); }
+.json-punc { color: var(--muted); }
+
+/* ═══════════════════════════════════════════════════════════════════
    Responsive
    ═══════════════════════════════════════════════════════════════════ */
 
