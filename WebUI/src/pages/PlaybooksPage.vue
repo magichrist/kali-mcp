@@ -46,6 +46,13 @@ const importFile = ref<File | null>(null);
 const deleteConfirm = ref(false);
 const deleteTarget = ref<Playbook | null>(null);
 
+function openCreate() { createModal.value = true; }
+function closeCreate() { createModal.value = false; }
+function openImport() { importModal.value = true; }
+function closeImport() { importModal.value = false; importFile.value = null; }
+function handleImportFile(e: Event) { const f = (e.target as HTMLInputElement).files?.[0] || null; if (f) importFile.value = f; }
+function closeDelete() { deleteConfirm.value = false; deleteTarget.value = null; }
+
 const categories = computed(() => {
   const set = new Set<string>();
   for (const p of playbooks.value) {
@@ -67,9 +74,9 @@ const filtered = computed(() => {
   if (sort.value === "name") {
     rows = rows.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   } else if (sort.value === "oldest") {
-    rows = rows.slice().sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+    rows = rows.slice().sort((a, b) => (a.playbook_id || "").localeCompare(b.playbook_id || ""));
   } else {
-    rows = rows.slice().sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
+    rows = rows.slice().sort((a, b) => (b.playbook_id || "").localeCompare(a.playbook_id || ""));
   }
   return rows;
 });
@@ -170,8 +177,8 @@ onMounted(() => {
     </div>
 
     <div id="pageHeadActions">
-      <BaseButton variant="ghost" @click="() => (importModal.value = true)">↙ Import</BaseButton>
-      <BaseButton variant="primary" @click="() => (createModal.value = true)">＋ New playbook</BaseButton>
+      <BaseButton variant="ghost" @click="openImport">↙ Import</BaseButton>
+      <BaseButton variant="primary" @click="openCreate">＋ New playbook</BaseButton>
     </div>
 
     <div class="filterbar lib-filter">
@@ -186,7 +193,7 @@ onMounted(() => {
       />
       <BaseSelect
         v-model="categoryFilter"
-        :options="[{ value: '', label: 'All categories' }, ...categories.value.map((c) => ({ value: c, label: c }))]"
+        :options="[{ value: '', label: 'All categories' }, ...categories.map((c) => ({ value: c, label: c }))]"
       />
       <BaseSelect
         v-model="sort"
@@ -199,26 +206,26 @@ onMounted(() => {
     </div>
 
     <div class="lib-grid" id="pbGrid">
-      <div v-if="playbooks.value.length === 0" class="lib-empty" style="grid-column:1 / -1; padding:72px 24px 56px; text-align:center">
+      <div v-if="playbooks.length === 0" class="lib-empty" style="grid-column:1 / -1; padding:72px 24px 56px; text-align:center">
         <div class="lib-empty-glyph">⌘</div>
         <h2>Create your first playbook</h2>
         <p>Build a security workflow out of registered tools, shell commands and internal stages — visually on the graph, in the DSL, or both.</p>
         <div class="lib-empty-actions" style="margin-top:18px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap">
-          <BaseButton variant="primary" @click="() => (createModal.value = true)">＋ Create playbook</BaseButton>
-          <BaseButton @click="() => (importModal.value = true)">↙ Import playbook</BaseButton>
+          <BaseButton variant="primary" @click="openCreate">＋ Create playbook</BaseButton>
+          <BaseButton @click="openImport">↙ Import playbook</BaseButton>
         </div>
       </div>
-      <div v-else-if="filtered.value.length === 0" class="empty" style="text-align:center; padding:24px">No playbooks match this filter.</div>
+      <div v-else-if="filtered.length === 0" class="empty" style="text-align:center; padding:24px">No playbooks match this filter.</div>
       <div v-else>
         <a
-          v-for="p in filtered.value"
+          v-for="p in filtered"
           :key="p.playbook_id"
           class="pb-card"
           :href="`#/playbooks/${encodeURIComponent(p.playbook_id)}`"
         >
           <div class="pb-card-top">
             <span class="pb-card-name">{{ p.name }}</span>
-            <BaseBadge :variant="p.status">{{ p.status }}</BaseBadge>
+            <BaseBadge :variant="p.status === 'published' ? 'ok' : 'default'">{{ p.status }}</BaseBadge>
           </div>
           <p class="pb-card-desc">{{ p.description || "No description yet." }}</p>
           <div class="pb-card-meta">
@@ -261,7 +268,7 @@ onMounted(() => {
       </div>
     </div>
     <template #footer>
-      <BaseButton @click="() => (createModal.value = false)">Cancel</BaseButton>
+      <BaseButton @click="closeCreate">Cancel</BaseButton>
       <BaseButton variant="primary" :disabled="creating" @click="submitCreate">Create playbook</BaseButton>
     </template>
   </BaseModal>
@@ -269,23 +276,23 @@ onMounted(() => {
   <BaseModal v-model:open="importModal" title="Import playbook">
     <div style="min-width:320px">
       <label style="display:block; font-weight:600; font-size:13px; margin-bottom:6px">JSON package file</label>
-      <input type="file" accept=".json" @change="($event: Event) => { const f = ($event.target as HTMLInputElement).files?.[0] || null; importFile.value = f; }" class="select" />
-      <p v-if="importFile.value" class="dim" style="font-size:12px; margin-top:6px">{{ importFile.value.name }}</p>
+      <input type="file" accept=".json" @change="handleImportFile" class="select" />
+      <p v-if="importFile" class="dim" style="font-size:12px; margin-top:6px">{{ importFile.name }}</p>
     </div>
     <template #footer>
-      <BaseButton @click="() => { importModal.value = false; importFile.value = null; }">Cancel</BaseButton>
-      <BaseButton variant="primary" :disabled="importing || !importFile.value" @click="handleImport">Import</BaseButton>
+      <BaseButton @click="closeImport">Cancel</BaseButton>
+      <BaseButton variant="primary" :disabled="importing || !importFile" @click="handleImport">Import</BaseButton>
     </template>
   </BaseModal>
 
   <ConfirmDialog
     v-model:open="deleteConfirm"
     title="Delete playbook"
-    :message="deleteTarget.value ? `Delete playbook ${deleteTarget.value.playbook_id}? This cannot be undone.` : 'Delete playbook?'"
+    :message="deleteTarget ? `Delete playbook ${deleteTarget.playbook_id}? This cannot be undone.` : 'Delete playbook?'"
     confirmLabel="Delete"
     cancelLabel="Cancel"
     dangerous
     @confirm="confirmDelete"
-    @cancel="() => { deleteConfirm.value = false; deleteTarget.value = null; }"
+    @cancel="closeDelete"
   />
 </template>
