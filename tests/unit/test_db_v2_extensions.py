@@ -93,9 +93,7 @@ class TestUpsertAsset:
         assert row["last_seen"] is not None
 
     def test_minimal_fields(self, db):
-        aid = db.upsert_asset(
-            asset_id="asset_min", asset_type="ip", name="127.0.0.1"
-        )
+        aid = db.upsert_asset(asset_id="asset_min", asset_type="ip", name="127.0.0.1")
         assert aid > 0
         row = db.conn.execute(
             "SELECT asset_type, name, first_seen, last_seen FROM assets WHERE id=?",
@@ -141,9 +139,7 @@ class TestAddService:
             version="OpenSSH 8.4",
         )
         assert sid2 == sid1
-        row = db.conn.execute(
-            "SELECT version FROM services WHERE id=?", (sid1,)
-        ).fetchone()
+        row = db.conn.execute("SELECT version FROM services WHERE id=?", (sid1,)).fetchone()
         assert row["version"] == "OpenSSH 8.4"
 
 
@@ -188,28 +184,24 @@ class TestAddTechnology:
             confidence=0.99,
         )
         assert tid2 == tid1
-        row = db.conn.execute(
-            "SELECT confidence FROM technologies WHERE id=?", (tid1,)
-        ).fetchone()
+        row = db.conn.execute("SELECT confidence FROM technologies WHERE id=?", (tid1,)).fetchone()
         assert row["confidence"] == 0.99
 
     def test_null_service_id_allowed(self, db):
         tid = db.add_technology(
-            tech_id="tech_lang", service_id=None, name="Python",
+            tech_id="tech_lang",
+            service_id=None,
+            name="Python",
             category="language",
         )
         assert tid > 0
-        row = db.conn.execute(
-            "SELECT service_id FROM technologies WHERE id=?", (tid,)
-        ).fetchone()
+        row = db.conn.execute("SELECT service_id FROM technologies WHERE id=?", (tid,)).fetchone()
         assert row["service_id"] is None
 
 
 class TestAddAssetRelationship:
     def test_insert_and_update(self, db):
-        aid_ip = db.upsert_asset(
-            asset_id="asset_ip_127.0.0.1", asset_type="ip", name="127.0.0.1"
-        )
+        aid_ip = db.upsert_asset(asset_id="asset_ip_127.0.0.1", asset_type="ip", name="127.0.0.1")
         aid_domain = db.upsert_asset(
             asset_id="asset_dom_example",
             asset_type="domain",
@@ -224,8 +216,7 @@ class TestAddAssetRelationship:
         )
         assert rid1 > 0
         row = db.conn.execute(
-            "SELECT relationship, confidence, source_tool "
-            "FROM asset_relationships WHERE id=?",
+            "SELECT relationship, confidence, source_tool FROM asset_relationships WHERE id=?",
             (rid1,),
         ).fetchone()
         assert row["relationship"] == "resolves_to"
@@ -252,11 +243,18 @@ class TestAddAssetRelationship:
 class TestAddEvidenceArtifact:
     def test_insert_row(self, db):
         tid = db.upsert_target("127.0.0.1", target_type="host")
-        sid = db.add_scan(
-            tid, "nmap", "nmap 127.0.0.1",
-            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
-            60.0, 1, 0, None,
-            assessment_id="assess_abc", job_id="job_xyz",
+        db.add_scan(
+            tid,
+            "nmap",
+            "nmap 127.0.0.1",
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:01:00Z",
+            60.0,
+            1,
+            0,
+            None,
+            assessment_id="assess_abc",
+            job_id="job_xyz",
         )
         aid = db.add_evidence_artifact(
             evidence_id="evidence_abc123def456",
@@ -285,7 +283,7 @@ class TestAddEvidenceArtifact:
 
 class TestAddFindingCorrelation:
     def test_insert_row(self, db):
-        tid, sid, fid = _add_target_scan_finding(db)
+        _tid, _sid, fid = _add_target_scan_finding(db)
         cid = db.add_finding_correlation(
             correlation_id="corr_1",
             finding_id=fid,
@@ -305,7 +303,7 @@ class TestAddFindingCorrelation:
         assert row["confidence_contribution"] == 0.7
 
     def test_insert_or_ignore_duplicate(self, db):
-        tid, sid, fid = _add_target_scan_finding(db)
+        _tid, _sid, fid = _add_target_scan_finding(db)
         cid1 = db.add_finding_correlation(
             correlation_id="corr_dup",
             finding_id=fid,
@@ -323,12 +321,8 @@ class TestAddFindingCorrelation:
 
 class TestGetAssetGraph:
     def test_unfiltered_returns_all_assets(self, db):
-        aid1 = db.upsert_asset(
-            asset_id="asset_a", asset_type="host", name="host_a"
-        )
-        aid2 = db.upsert_asset(
-            asset_id="asset_b", asset_type="domain", name="example.com"
-        )
+        aid1 = db.upsert_asset(asset_id="asset_a", asset_type="host", name="host_a")
+        aid2 = db.upsert_asset(asset_id="asset_b", asset_type="domain", name="example.com")
         db.add_asset_relationship(aid1, aid2, "contains")
         graph = db.get_asset_graph()
         assert len(graph["assets"]) == 2
@@ -336,16 +330,16 @@ class TestGetAssetGraph:
 
     def test_filtered_by_target_name(self, db):
         db.upsert_asset(asset_id="asset_a", asset_type="host", name="host_a")
-        db.upsert_asset(
-            asset_id="asset_b", asset_type="domain", name="example.com"
-        )
+        db.upsert_asset(asset_id="asset_b", asset_type="domain", name="example.com")
         graph = db.get_asset_graph(target="host_a")
         assert len(graph["assets"]) == 1
         assert graph["assets"][0]["name"] == "host_a"
 
     def test_filtered_by_target_ip(self, db):
         db.upsert_asset(
-            asset_id="asset_a", asset_type="ip", name="127.0.0.1",
+            asset_id="asset_a",
+            asset_type="ip",
+            name="127.0.0.1",
             ip_address="127.0.0.1",
         )
         graph = db.get_asset_graph(target="127.0.0.1")
@@ -353,7 +347,9 @@ class TestGetAssetGraph:
 
     def test_filtered_by_target_domain(self, db):
         db.upsert_asset(
-            asset_id="asset_a", asset_type="domain", name="example.com",
+            asset_id="asset_a",
+            asset_type="domain",
+            name="example.com",
             domain="example.com",
         )
         graph = db.get_asset_graph(target="example.com")
@@ -368,52 +364,91 @@ class TestGetAssetGraph:
 
 class TestQueryFindings:
     def test_insert_and_query_all(self, db):
-        tid, sid, fid = _add_target_scan_finding(db)
+        _tid, _sid, fid = _add_target_scan_finding(db)
         result = db.query_findings()
         assert result["count"] == 1
         assert len(result["findings"]) == 1
         assert result["findings"][0]["id"] == fid
 
     def test_filter_by_target(self, db):
-        tid, sid, fid = _add_target_scan_finding(db)
+        _tid, _sid, fid = _add_target_scan_finding(db)
         tid2 = db.upsert_target("otherhost.example", target_type="host")
         sid2 = db.add_scan(
-            tid2, "nmap", "nmap otherhost.example",
-            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
-            5.0, 1, 0, None,
+            tid2,
+            "nmap",
+            "nmap otherhost.example",
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:01:00Z",
+            5.0,
+            1,
+            0,
+            None,
         )
         db.add_finding(
-            tid2, sid2, "nmap", "open_port", "high", "Other", "d", "e",
+            tid2,
+            sid2,
+            "nmap",
+            "open_port",
+            "high",
+            "Other",
+            "d",
+            "e",
         )
         result = db.query_findings(target="127.0.0.1")
         assert result["count"] == 1
         assert result["findings"][0]["id"] == fid
 
     def test_filter_by_severity(self, db):
-        tid, sid, fid = _add_target_scan_finding(db)
+        _tid, _sid, _fid = _add_target_scan_finding(db)
         tid2 = db.upsert_target("127.0.0.1", target_type="host")
         sid2 = db.add_scan(
-            tid2, "nmap", "nmap 127.0.0.1",
-            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
-            5.0, 1, 0, None,
+            tid2,
+            "nmap",
+            "nmap 127.0.0.1",
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:01:00Z",
+            5.0,
+            1,
+            0,
+            None,
         )
         db.add_finding(
-            tid2, sid2, "nmap", "open_port", "high", "Other", "d", "e",
+            tid2,
+            sid2,
+            "nmap",
+            "open_port",
+            "high",
+            "Other",
+            "d",
+            "e",
         )
         result = db.query_findings(severity="high")
         assert result["count"] == 1
         assert result["findings"][0]["severity"] == "high"
 
     def test_filter_by_validation_status(self, db):
-        tid, sid, fid = _add_target_scan_finding(db)
+        _tid, _sid, fid = _add_target_scan_finding(db)
         tid2 = db.upsert_target("127.0.0.1", target_type="host")
         sid2 = db.add_scan(
-            tid2, "nmap", "nmap 127.0.0.1",
-            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
-            5.0, 1, 0, None,
+            tid2,
+            "nmap",
+            "nmap 127.0.0.1",
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:01:00Z",
+            5.0,
+            1,
+            0,
+            None,
         )
         db.add_finding(
-            tid2, sid2, "nmap", "open_port", "medium", "Other", "d", "e",
+            tid2,
+            sid2,
+            "nmap",
+            "open_port",
+            "medium",
+            "Other",
+            "d",
+            "e",
             validation_status="observed",
         )
         result = db.query_findings(validation_status="confirmed")
@@ -421,15 +456,28 @@ class TestQueryFindings:
         assert result["findings"][0]["id"] == fid
 
     def test_filter_by_tool(self, db):
-        tid, sid, fid = _add_target_scan_finding(db)
+        _tid, _sid, _fid = _add_target_scan_finding(db)
         tid2 = db.upsert_target("127.0.0.1", target_type="host")
         sid2 = db.add_scan(
-            tid2, "masscan", "masscan 127.0.0.1",
-            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
-            5.0, 1, 0, None,
+            tid2,
+            "masscan",
+            "masscan 127.0.0.1",
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:01:00Z",
+            5.0,
+            1,
+            0,
+            None,
         )
         db.add_finding(
-            tid2, sid2, "masscan", "open_port", "medium", "Other", "d", "e",
+            tid2,
+            sid2,
+            "masscan",
+            "open_port",
+            "medium",
+            "Other",
+            "d",
+            "e",
         )
         result = db.query_findings(tool="masscan")
         assert result["count"] == 1
@@ -439,7 +487,14 @@ class TestQueryFindings:
         tid, sid, _ = _add_target_scan_finding(db)
         for i in range(5):
             db.add_finding(
-                tid, sid, "nmap", "open_port", "low", f"Finding {i}", "d", "e",
+                tid,
+                sid,
+                "nmap",
+                "open_port",
+                "low",
+                f"Finding {i}",
+                "d",
+                "e",
             )
         result = db.query_findings(limit=3, offset=0)
         assert result["count"] == 6  # 1 seeded + 5 additional
@@ -448,7 +503,7 @@ class TestQueryFindings:
         assert len(result2["findings"]) == 3
 
     def test_v2_columns_default_and_values(self, db):
-        tid, sid, fid = _add_target_scan_finding(db)
+        _tid, _sid, fid = _add_target_scan_finding(db)
         row = db.conn.execute(
             "SELECT confidence, validation_status, source_tools, evidence_refs "
             "FROM findings WHERE id=?",
@@ -463,13 +518,20 @@ class TestQueryFindings:
 class TestGetEvidence:
     def test_get_evidence_row(self, db):
         tid = db.upsert_target("127.0.0.1", target_type="host")
-        sid = db.add_scan(
-            tid, "nmap", "nmap 127.0.0.1",
-            "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z",
-            60.0, 1, 0, None,
-            assessment_id="assess_abc", job_id="job_xyz",
+        db.add_scan(
+            tid,
+            "nmap",
+            "nmap 127.0.0.1",
+            "2026-01-01T00:00:00Z",
+            "2026-01-01T00:01:00Z",
+            60.0,
+            1,
+            0,
+            None,
+            assessment_id="assess_abc",
+            job_id="job_xyz",
         )
-        aid = db.add_evidence_artifact(
+        db.add_evidence_artifact(
             evidence_id="evidence_row123",
             tool="nmap",
             target="127.0.0.1",
@@ -503,8 +565,12 @@ class TestV2ColumnExtensions:
     def test_findings_v2_columns_exist(self, db):
         cols = {row[1] for row in db.conn.execute("PRAGMA table_info(findings)")}
         for col in (
-            "confidence", "validation_status", "source_tools",
-            "evidence_refs", "first_seen", "last_seen",
+            "confidence",
+            "validation_status",
+            "source_tools",
+            "evidence_refs",
+            "first_seen",
+            "last_seen",
         ):
             assert col in cols
 
@@ -522,9 +588,7 @@ class TestIdempotentMigrations:
     def test_existing_column_migration_skipped(self, db):
         # All v2 columns already exist from the fixture; re-running
         # ensure_schema must not attempt to re-add them (no duplicate error).
-        before = {
-            row[1] for row in db.conn.execute("PRAGMA table_info(targets)")
-        }
+        before = {row[1] for row in db.conn.execute("PRAGMA table_info(targets)")}
         db.ensure_schema()
         after = {row[1] for row in db.conn.execute("PRAGMA table_info(targets)")}
         assert before == after
