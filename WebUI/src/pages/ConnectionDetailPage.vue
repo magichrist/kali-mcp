@@ -11,6 +11,7 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import BaseBadge from "@/components/common/BaseBadge.vue";
+import { badgeVariant } from "@/components/common/badgeVariant";
 import BaseButton from "@/components/common/BaseButton.vue";
 
 const route = useRoute();
@@ -75,7 +76,7 @@ onMounted(() => {
       <div class="subtitle">
         {{ connection.name || "" }} · transport {{ connection.transport }}
         <span style="margin-left:8px">
-          <BaseBadge :variant="connection.enabled ? (connection.health_status || 'unknown') : 'internal'">
+          <BaseBadge :variant="badgeVariant(connection.enabled ? connection.health_status : undefined)">
             {{ connection.enabled ? (connection.health_status || 'unknown') : 'disabled' }}
           </BaseBadge>
         </span>
