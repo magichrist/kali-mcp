@@ -45,7 +45,12 @@ async def _resolve(ctx, target: str, tool: str = "dnsx") -> dict[str, Any]:
                 resolved = [resolved]
         else:
             resolved = []
-    return {"target": target, "tool": tool, "resolved": resolved, "raw": result if isinstance(result, dict) else {}}
+    return {
+        "target": target,
+        "tool": tool,
+        "resolved": resolved,
+        "raw": result if isinstance(result, dict) else {},
+    }
 
 
 def register() -> None:
@@ -53,8 +58,24 @@ def register() -> None:
     _mr.register(
         "dns.resolve",
         _resolve,
-        input_schema={"type": "object", "required": ["target"], "properties": {"target": {"type": "string"}, "tool": {"type": "string", "default": "dnsx"}}},
-        output_schema={"type": "object", "properties": {"target": {"type": "string"}, "tool": {"type": "string"}, "resolved": {"type": "array"}, "error": {"type": "string"}, "raw": {"type": "object"}}},
+        input_schema={
+            "type": "object",
+            "required": ["target"],
+            "properties": {
+                "target": {"type": "string"},
+                "tool": {"type": "string", "default": "dnsx"},
+            },
+        },
+        output_schema={
+            "type": "object",
+            "properties": {
+                "target": {"type": "string"},
+                "tool": {"type": "string"},
+                "resolved": {"type": "array"},
+                "error": {"type": "string"},
+                "raw": {"type": "object"},
+            },
+        },
     )
 
 
