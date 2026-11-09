@@ -25,7 +25,8 @@ from kali_mcp.db.manager import DBManager
 from kali_mcp.registry import (
     DEFAULT_VISIBILITY,
     VISIBILITY_MODES,
-    ToolDefinition,
+)
+from kali_mcp.registry import (
     registry as global_registry,
 )
 from kali_mcp.studio.mcp_client import ExternalMCPClient, MCPClientError
@@ -138,8 +139,7 @@ def upsert_tool_definition(
     """
     if visibility not in VISIBILITY_MODES:
         raise ValueError(
-            f"invalid visibility {visibility!r}; expected one of "
-            f"{sorted(VISIBILITY_MODES)}"
+            f"invalid visibility {visibility!r}; expected one of {sorted(VISIBILITY_MODES)}"
         )
     return db.upsert_tool_definition(
         tool_id=tool_id,
@@ -182,8 +182,7 @@ def set_tool_visibility(db: DBManager, tool_id: str, visibility: str) -> bool:
     """
     if visibility not in VISIBILITY_MODES:
         raise ValueError(
-            f"invalid visibility {visibility!r}; expected one of "
-            f"{sorted(VISIBILITY_MODES)}"
+            f"invalid visibility {visibility!r}; expected one of {sorted(VISIBILITY_MODES)}"
         )
     row = db.get_tool_definition(tool_id)
     if row is None:
@@ -262,8 +261,7 @@ async def import_external_mcp_tools(
     """
     if visibility not in VISIBILITY_MODES:
         raise ValueError(
-            f"invalid visibility {visibility!r}; expected one of "
-            f"{sorted(VISIBILITY_MODES)}"
+            f"invalid visibility {visibility!r}; expected one of {sorted(VISIBILITY_MODES)}"
         )
 
     imported: list[dict[str, Any]] = []
@@ -330,13 +328,13 @@ def import_external_mcp_tools_sync(
 __all__ = [
     "PROVIDER_EXTERNAL_MCP",
     "PROVIDER_NATIVE",
-    "sync_registry_to_db",
-    "sync_db_to_registry",
-    "upsert_tool_definition",
-    "get_tool_definition",
-    "list_tool_definitions",
-    "set_tool_visibility",
     "enable_tool",
+    "get_tool_definition",
     "import_external_mcp_tools",
     "import_external_mcp_tools_sync",
+    "list_tool_definitions",
+    "set_tool_visibility",
+    "sync_db_to_registry",
+    "sync_registry_to_db",
+    "upsert_tool_definition",
 ]
