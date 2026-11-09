@@ -94,13 +94,9 @@ def _literal_value(lit: Literal) -> Any:
 def _check_when_condition(cond: str, step_id: str) -> None:
     """Validate a when condition: structured refs only, no injection."""
     if _contains_injection(cond):
-        raise CompileError(
-            f"when condition contains rejected pattern: {cond}", step_id
-        )
+        raise CompileError(f"when condition contains rejected pattern: {cond}", step_id)
     # Must match field_ref OP literal
-    m = re.match(
-        r"^\{\{(?:steps|inputs|target)[^}]*\}\}\s*(>=|<=|==|!=|>|<)\s*.+$", cond
-    )
+    m = re.match(r"^\{\{(?:steps|inputs|target)[^}]*\}\}\s*(>=|<=|==|!=|>|<)\s*.+$", cond)
     if not m:
         raise CompileError(
             f"when condition must be 'field_ref OP literal', got: {cond}",
@@ -187,24 +183,18 @@ def compile(
         # Validate step type
         step_type = "custom" if step.kind == "module" else "tool"
         if step_type not in VALID_STEP_TYPES:
-            raise CompileError(
-                f"invalid step type {step_type!r}", step.id
-            )
+            raise CompileError(f"invalid step type {step_type!r}", step.id)
 
         # 4. Tool/module reference resolution
         if step.kind == "tool":
             if tool_catalog is not None and step.ref not in tool_catalog:
                 if for_publish:
-                    raise CompileError(
-                        f"tool {step.ref!r} is not registered", step.id
-                    )
+                    raise CompileError(f"tool {step.ref!r} is not registered", step.id)
                 # Non-publish: allow but note (validator will catch at publish)
         elif step.kind == "module":
             if module_catalog is not None and step.ref not in module_catalog:
                 if for_publish:
-                    raise CompileError(
-                        f"module {step.ref!r} is not registered", step.id
-                    )
+                    raise CompileError(f"module {step.ref!r} is not registered", step.id)
 
         # Validate depends_on are actual dependencies (engine guarantees order)
         for dep in step.depends_on:
@@ -254,21 +244,17 @@ def compile(
 
         # 7. foreach targets an array field (validated against dependency
         #    outputs if we know the type; otherwise a warning at publish)
-        if step.foreach is not None:
-            if step.foreach.kind == "steps":
-                ref_step = step.foreach.path[0] if step.foreach.path else ""
-                if ref_step not in step.depends_on:
-                    raise CompileError(
-                        f"step {step.id!r} foreach references {ref_step!r} "
-                        f"which is not in depends_on",
-                        step.id,
-                    )
+        if step.foreach is not None and step.foreach.kind == "steps":
+            ref_step = step.foreach.path[0] if step.foreach.path else ""
+            if ref_step not in step.depends_on:
+                raise CompileError(
+                    f"step {step.id!r} foreach references {ref_step!r} which is not in depends_on",
+                    step.id,
+                )
 
         # on_failure validation
         if step.on_failure not in VALID_ON_FAILURE:
-            raise CompileError(
-                f"invalid on_failure {step.on_failure!r}", step.id
-            )
+            raise CompileError(f"invalid on_failure {step.on_failure!r}", step.id)
 
         step_defs.append(
             StepDefinition(
