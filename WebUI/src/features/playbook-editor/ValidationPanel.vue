@@ -41,6 +41,7 @@ const summaryChipClass = computed(() => {
 });
 
 function sevClass(f: any) {
-  return { "sev-error": f.severity === "error", "sev-warning": f.severity === "warning", "sev-info": f.severity === "info" }[f.severity] || "";
+  const sev = f.severity;
+  return sev === "error" ? "sev-error" : sev === "warning" ? "sev-warning" : sev === "info" ? "sev-info" : "";
 }
 </script>
