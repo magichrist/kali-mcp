@@ -11,6 +11,7 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import BaseBadge from "@/components/common/BaseBadge.vue";
+import { badgeVariant } from "@/components/common/badgeVariant";
 import BaseButton from "@/components/common/BaseButton.vue";
 import BaseSelect from "@/components/common/BaseSelect.vue";
 
@@ -163,7 +164,7 @@ onUnmounted(() => {
             <span v-if="e.debug" class="chip ck" style="font-size:11px; margin-left:6px">debug</span>
           </span>
           <span>
-            <BaseBadge :variant="e.status">{{ e.status }}</BaseBadge>
+            <BaseBadge :variant="badgeVariant(e.status)">{{ e.status }}</BaseBadge>
           </span>
           <span>{{ (e.completed_at || "").slice(0, 19) || "—" }}</span>
           <span>
