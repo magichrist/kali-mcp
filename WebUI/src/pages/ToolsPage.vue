@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, computed } from "vue";
 import { useNotificationsStore } from "@/stores/notifications";
 import { fetchTools, setToolVisibility, type Tool } from "@/api/client";
 import LoadingState from "@/components/common/LoadingState.vue";
@@ -126,26 +126,3 @@ onMounted(() => {
     </div>
   </div>
 </template>
-
-<script lang="ts">
-import { defineComponent, computed } from "vue";
-import LoadingState from "@/components/common/LoadingState.vue";
-import EmptyState from "@/components/common/EmptyState.vue";
-import ErrorState from "@/components/common/ErrorState.vue";
-import BaseBadge from "@/components/common/BaseBadge.vue";
-import BaseButton from "@/components/common/BaseButton.vue";
-import BaseInput from "@/components/common/BaseInput.vue";
-import BaseSelect from "@/components/common/BaseSelect.vue";
-
-export default defineComponent({
-  components: {
-    LoadingState,
-    EmptyState,
-    ErrorState,
-    BaseBadge,
-    BaseButton,
-    BaseInput,
-    BaseSelect,
-  },
-});
-</script>
