@@ -8,6 +8,5 @@ Object.assign(window, {
 });
 
 if (typeof ResizeObserver === "undefined") {
-  // @ts-expect-error test shim
   globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 }
