@@ -126,9 +126,9 @@ def test_full_studio_flow_publish_catalog_run_result(patch_db):
         assert catalog["playbooks"][0]["inputs"] == ["depth", "target"]
 
         # 2. Run through the DAG engine (MCP contract, Studio backing)
-        run_res = _run(PlaybookRunTool().execute(
-            {"playbook": "pb.flow", "target": "flow.example.org"}
-        ))
+        run_res = _run(
+            PlaybookRunTool().execute({"playbook": "pb.flow", "target": "flow.example.org"})
+        )
         run = _payload_text(run_res)
         assert run["status"] == "completed"
         assert run["playbook"] == "pb.flow"
@@ -145,9 +145,7 @@ def test_full_studio_flow_publish_catalog_run_result(patch_db):
         assert all(s["status"] == "completed" for s in steps)
 
         # 4. playbook_result serves the durable execution by job_id
-        result = _payload_text(_run(PlaybookResultTool().execute(
-            {"job_id": run["job_id"]}
-        )))
+        result = _payload_text(_run(PlaybookResultTool().execute({"job_id": run["job_id"]})))
         assert result["status"] == "completed"
         assert result["engine"] == "studio_dag"
         assert result["execution_id"] == run["execution_id"]
@@ -173,9 +171,9 @@ def test_unassigned_profile_cannot_run_flow(patch_db):
         assert catalog["playbooks"] == []
 
         # Running the assigned-to-others playbook is forbidden
-        run_res = _run(PlaybookRunTool().execute(
-            {"playbook": "pb.flow", "target": "flow.example.org"}
-        ))
+        run_res = _run(
+            PlaybookRunTool().execute({"playbook": "pb.flow", "target": "flow.example.org"})
+        )
         out = _payload_text(run_res)
         assert run_res.get("isError") is True
         assert out["forbidden"] is True
@@ -199,9 +197,7 @@ def test_no_agent_context_unchanged_legacy_surface(patch_db):
     assert "pb.flow" not in {p["id"] for p in catalog["playbooks"]}
 
     # Studio playbook ids are resolved via the Studio path — operator context
-    run_res = _run(PlaybookRunTool().execute(
-        {"playbook": "pb.flow", "target": "flow.example.org"}
-    ))
+    run_res = _run(PlaybookRunTool().execute({"playbook": "pb.flow", "target": "flow.example.org"}))
     run = _payload_text(run_res)
     assert run["status"] == "completed"
     row = patch_db.get_workflow_execution(run["execution_id"])
