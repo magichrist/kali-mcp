@@ -20,7 +20,9 @@ HYDRA_OUT = (
 MEDUSA_OUT = "[ssh] host: 127.0.0.1 user: root password: toor: SUCCESS\n"
 JOHN_OUT = "5f4dcc3b5aa765d61d8327deb882cf99:password\n1 session opened\n"
 HASHCAT_OUT = "5f4dcc3b5aa765d61d8327deb882cf99:monkey\n"
-MASSCAN_OUT = "Discovered open port 80/tcp on 127.0.0.1\nDiscovered open port 443/tcp on 127.0.0.1\n"
+MASSCAN_OUT = (
+    "Discovered open port 80/tcp on 127.0.0.1\nDiscovered open port 443/tcp on 127.0.0.1\n"
+)
 GOBUSTER_OUT = "/admin (Status: 200)\n/backup (Status: 403)\n"
 DIRB_OUT = "+ http://x/cgi-bin/ (CODE:200)\n==> DIRECTORY: http://x/uploads/\n"
 WFUZZ_OUT = "000001:   200  28 L   55 W      5 Ch   'http://x/admin'\n"
