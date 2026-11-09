@@ -113,12 +113,20 @@ def test_eval_suite_write_results(tmp_path):
         duration_s=10.0,
         calls=[
             CallRecord(
-                call_id="c1", timestamp=now, tool="nmap",
-                arguments={"target": "juice_shop"}, duration_s=3.0, success=True
+                call_id="c1",
+                timestamp=now,
+                tool="nmap",
+                arguments={"target": "juice_shop"},
+                duration_s=3.0,
+                success=True,
             ),
             CallRecord(
-                call_id="c2", timestamp=now, tool="nuclei",
-                arguments={"target": "juice_shop"}, duration_s=3.0, success=True
+                call_id="c2",
+                timestamp=now,
+                tool="nuclei",
+                arguments={"target": "juice_shop"},
+                duration_s=3.0,
+                success=True,
             ),
         ],
         findings=[{"title": "Open HTTP port 80"}],
@@ -136,9 +144,12 @@ def test_eval_suite_write_results(tmp_path):
         duration_s=3.0,
         calls=[
             CallRecord(
-                call_id="c1", timestamp=now, tool="assessment_run",
+                call_id="c1",
+                timestamp=now,
+                tool="assessment_run",
                 arguments={"workflow": "web_assessment", "targets": ["juice_shop"]},
-                duration_s=3.0, success=True
+                duration_s=3.0,
+                success=True,
             ),
         ],
         findings=[{"title": "Open HTTP port 80"}],
@@ -169,23 +180,50 @@ def test_success_criteria():
 
     # v1: many calls, low completion
     r1 = AssessmentResult(
-        run_id="v1_run", model_name="small", interface="v1", target="juice_shop",
-        start_time=now, end_time=now, duration_s=10.0,
-        calls=[CallRecord(call_id=f"c{i}", timestamp=now, tool="nmap",
-                          arguments={"target": "x"}, duration_s=1.0, success=True)
-               for i in range(10)],
-        findings=[], completed=False,
+        run_id="v1_run",
+        model_name="small",
+        interface="v1",
+        target="juice_shop",
+        start_time=now,
+        end_time=now,
+        duration_s=10.0,
+        calls=[
+            CallRecord(
+                call_id=f"c{i}",
+                timestamp=now,
+                tool="nmap",
+                arguments={"target": "x"},
+                duration_s=1.0,
+                success=True,
+            )
+            for i in range(10)
+        ],
+        findings=[],
+        completed=False,
     )
     r1.compute_metrics(LAB_TARGETS["juice_shop"].expected_findings)
 
     # v2: fewer calls, high completion
     r2 = AssessmentResult(
-        run_id="v2_run", model_name="small", interface="v2", target="juice_shop",
-        start_time=now, end_time=now, duration_s=3.0,
-        calls=[CallRecord(call_id="c1", timestamp=now, tool="assessment_run",
-                          arguments={"workflow": "w", "targets": ["x"]},
-                          duration_s=3.0, success=True)],
-        findings=[], completed=True,
+        run_id="v2_run",
+        model_name="small",
+        interface="v2",
+        target="juice_shop",
+        start_time=now,
+        end_time=now,
+        duration_s=3.0,
+        calls=[
+            CallRecord(
+                call_id="c1",
+                timestamp=now,
+                tool="assessment_run",
+                arguments={"workflow": "w", "targets": ["x"]},
+                duration_s=3.0,
+                success=True,
+            )
+        ],
+        findings=[],
+        completed=True,
     )
     r2.compute_metrics(LAB_TARGETS["juice_shop"].expected_findings)
 
