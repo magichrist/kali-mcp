@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useNotificationsStore } from "@/stores/notifications";
 import {
@@ -9,11 +9,13 @@ import {
   discoverConnection,
   deleteConnection,
   type Connection,
+  type Transport,
 } from "@/api/client";
 import LoadingState from "@/components/common/LoadingState.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import BaseBadge from "@/components/common/BaseBadge.vue";
+import { badgeVariant } from "@/components/common/badgeVariant";
 import BaseButton from "@/components/common/BaseButton.vue";
 import BaseInput from "@/components/common/BaseInput.vue";
 import BaseSelect from "@/components/common/BaseSelect.vue";
@@ -32,7 +34,7 @@ const addModal = ref(false);
 const adding = ref(false);
 const newConnId = ref("");
 const newConnName = ref("");
-const newConnTransport = ref("sse");
+const newConnTransport = ref<Transport>("sse");
 const newConnEndpoint = ref("");
 const newConnCommand = ref("");
 
@@ -43,6 +45,11 @@ const deleteMessage = computed(() => {
   const c = deleteTarget.value;
   return c ? `Delete connection ${c.connection_id}?` : "Delete connection?";
 });
+
+function openAddModal() { addModal.value = true; }
+function closeAddModal() { addModal.value = false; }
+function startDelete(c: Connection) { deleteTarget.value = c; deleteConfirm.value = true; }
+function closeDeleteConfirm() { deleteConfirm.value = false; deleteTarget.value = null; }
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -137,7 +144,7 @@ onMounted(() => {
 
     <div id="pageHeadActions">
       <BaseButton variant="ghost" @click="load">Refresh</BaseButton>
-      <BaseButton variant="primary" @click="() => (addModal.value = true)">＋ Add connection</BaseButton>
+      <BaseButton variant="primary" @click="openAddModal">＋ Add connection</BaseButton>
     </div>
 
     <div style="padding:8px">
@@ -166,7 +173,7 @@ onMounted(() => {
           <span>{{ c.transport || "—" }}</span>
           <span>{{ c.endpoint_url || c.command || "—" }}</span>
           <span>
-            <BaseBadge :variant="c.enabled ? (c.health_status || 'unknown') : 'internal'">
+            <BaseBadge :variant="badgeVariant(c.enabled ? c.health_status : undefined)">
               {{ c.enabled ? (c.health_status || 'unknown') : 'disabled' }}
             </BaseBadge>
           </span>
@@ -174,7 +181,7 @@ onMounted(() => {
           <span style="display:flex; gap:6px">
             <BaseButton size="sm" variant="ghost" @click="() => handleTest(c)">Test</BaseButton>
             <BaseButton size="sm" variant="ghost" @click="() => handleDiscover(c)">Discover</BaseButton>
-            <BaseButton size="sm" variant="danger" @click="() => { deleteTarget.value = c; deleteConfirm.value = true; }">Delete</BaseButton>
+            <BaseButton size="sm" variant="danger" @click="() => startDelete(c)">Delete</BaseButton>
           </span>
         </div>
       </div>
@@ -209,7 +216,7 @@ onMounted(() => {
       </div>
     </div>
     <template #footer>
-      <BaseButton @click="() => (addModal.value = false)">Cancel</BaseButton>
+      <BaseButton @click="closeAddModal">Cancel</BaseButton>
       <BaseButton variant="primary" :disabled="adding" @click="handleAdd">Add connection</BaseButton>
     </template>
   </BaseModal>
@@ -222,33 +229,6 @@ onMounted(() => {
     cancelLabel="Cancel"
     dangerous
     @confirm="confirmDelete"
-    @cancel="() => { deleteConfirm.value = false; deleteTarget.value = null; }"
+    @cancel="closeDeleteConfirm"
   />
 </template>
-
-<script lang="ts">
-import { defineComponent, computed } from "vue";
-import LoadingState from "@/components/common/LoadingState.vue";
-import EmptyState from "@/components/common/EmptyState.vue";
-import ErrorState from "@/components/common/ErrorState.vue";
-import BaseBadge from "@/components/common/BaseBadge.vue";
-import BaseButton from "@/components/common/BaseButton.vue";
-import BaseInput from "@/components/common/BaseInput.vue";
-import BaseSelect from "@/components/common/BaseSelect.vue";
-import BaseModal from "@/components/common/BaseModal.vue";
-import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
-
-export default defineComponent({
-  components: {
-    LoadingState,
-    EmptyState,
-    ErrorState,
-    BaseBadge,
-    BaseButton,
-    BaseInput,
-    BaseSelect,
-    BaseModal,
-    ConfirmDialog,
-  },
-});
-</script>
