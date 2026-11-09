@@ -27,6 +27,9 @@ kmcp = "kali_mcp.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+kali_mcp = ["studio/web/**/*"]
+
 [tool.setuptools_scm]
 write_to = "src/kali_mcp/_version.py"
 tag_regex = '^(?:v)?(?P<version>[^\+]+)$'
