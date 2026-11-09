@@ -17,6 +17,7 @@ def _now_utc() -> str:
 @dataclass
 class Asset:
     """A discovered asset with type, provenance, and confidence."""
+
     asset_id: str
     asset_type: str  # domain | ip | subdomain | service | url | certificate
     name: str
@@ -31,6 +32,7 @@ class Asset:
 @dataclass
 class Finding:
     """A normalized finding."""
+
     finding_id: str
     title: str
     severity: str  # critical | high | medium | low | informational
@@ -47,6 +49,7 @@ class Finding:
 @dataclass
 class AssessmentContext:
     """Full state of an in-progress assessment."""
+
     assessment_id: str
     job_id: str
     playbook_id: str
@@ -111,7 +114,9 @@ class AssessmentContext:
                 "high": sum(1 for f in self.findings.values() if f.severity == "high"),
                 "medium": sum(1 for f in self.findings.values() if f.severity == "medium"),
                 "low": sum(1 for f in self.findings.values() if f.severity == "low"),
-                "informational": sum(1 for f in self.findings.values() if f.severity == "informational"),
+                "informational": sum(
+                    1 for f in self.findings.values() if f.severity == "informational"
+                ),
             },
             "gap_count": 0,
         }
@@ -123,12 +128,14 @@ class AssessmentContext:
         return self.module_results.get(module_id)
 
     def log(self, module_id: str, message: str, level: str = "info") -> None:
-        self.execution_log.append({
-            "module": module_id,
-            "message": message,
-            "level": level,
-            "at": _now_utc(),
-        })
+        self.execution_log.append(
+            {
+                "module": module_id,
+                "message": message,
+                "level": level,
+                "at": _now_utc(),
+            }
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -146,7 +153,9 @@ class AssessmentContext:
                     "high": sum(1 for f in self.findings.values() if f.severity == "high"),
                     "medium": sum(1 for f in self.findings.values() if f.severity == "medium"),
                     "low": sum(1 for f in self.findings.values() if f.severity == "low"),
-                    "informational": sum(1 for f in self.findings.values() if f.severity == "informational"),
+                    "informational": sum(
+                        1 for f in self.findings.values() if f.severity == "informational"
+                    ),
                 },
                 "total_findings": len(self.findings),
             },
@@ -173,12 +182,11 @@ class AssessmentContext:
         """Suggest follow-up playbooks based on discoveries."""
         recs: list[str] = []
         has_web = any(
-            a.asset_type in ("service", "url") and "http" in str(a.attributes.get("protocol", "")).lower()
+            a.asset_type in ("service", "url")
+            and "http" in str(a.attributes.get("protocol", "")).lower()
             for a in self.assets.values()
         )
-        has_tls = any(
-            a.asset_type == "certificate" for a in self.assets.values()
-        )
+        has_tls = any(a.asset_type == "certificate" for a in self.assets.values())
         if has_web:
             recs.append("web_recon")
         if has_tls:
