@@ -106,13 +106,13 @@ def require_approval_for(
 
 
 __all__ = [
-    "GATE_PUBLISH",
     "GATE_IMPORT",
-    "GATE_VISIBILITY_AGENT_CALLABLE",
     "GATE_PLAYBOOK_ASSIGN",
-    "request_approval",
+    "GATE_PUBLISH",
+    "GATE_VISIBILITY_AGENT_CALLABLE",
+    "approve",
     "get_pending_approval",
     "is_approved",
-    "approve",
+    "request_approval",
     "require_approval_for",
 ]
