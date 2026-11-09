@@ -34,6 +34,39 @@ import type {
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
 const TOKEN_KEY = "kmcp_token";
 
+/* Re-export the shared API types so page components can import them from
+   the single client barrel (e.g. `import { Playbook } from "@/api/client"`). */
+export type {
+  Agent,
+  Agent as AgentProfile,
+  AgentDetailResponse,
+  AgentListResponse,
+  Connection,
+  ConnectionDetailResponse,
+  ConnectionListResponse,
+  Execution,
+  ExecutionDetailResponse,
+  ExecutionListResponse,
+  FindingsResponse,
+  Playbook,
+  PlaybookDetail,
+  PlaybookDefinition,
+  PlaybookListResponse,
+  PlaybookStep,
+  RecentExecutionSummary,
+  RecentFindingSummary,
+  OverviewResponse,
+  ServerInfo,
+  StartExecutionResponse,
+  TestConnectionResponse,
+  Tool,
+  ToolListResponse,
+  Visibility,
+  Transport,
+  Finding,
+  ValidateDefinitionResult,
+} from "@/types/api";
+
 export class ApiError extends Error {
   status?: number;
   body?: unknown;
@@ -192,6 +225,37 @@ export async function deletePlaybook(id: string): Promise<unknown> {
   return apiRequest(`/playbooks/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+}
+
+export async function updatePlaybookDefinition(
+  id: string,
+  definition: unknown,
+): Promise<unknown> {
+  return apiRequest(`/playbooks/${encodeURIComponent(id)}/definition`, {
+    method: "PUT",
+    body: JSON.stringify({ definition }),
+  });
+}
+
+export async function publishPlaybook(
+  id: string,
+  definition: unknown,
+  version: string,
+): Promise<unknown> {
+  return apiRequest(`/playbooks/${encodeURIComponent(id)}/publish`, {
+    method: "POST",
+    body: JSON.stringify({ definition, version }),
+  });
+}
+
+export async function validateDefinition(
+  id: string,
+  definition: unknown,
+): Promise<{ valid: boolean; details?: unknown }> {
+  return apiRequest(`/playbooks/${encodeURIComponent(id)}/validate-definition`, {
+    method: "POST",
+    body: JSON.stringify({ definition }),
+  }) as Promise<{ valid: boolean; details?: unknown }>;
 }
 
 /* Executions */
