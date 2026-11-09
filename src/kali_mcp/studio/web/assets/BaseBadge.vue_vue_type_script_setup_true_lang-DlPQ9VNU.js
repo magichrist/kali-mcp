@@ -1,2 +1,0 @@
-import{d as n,a as r,c as t,$ as s,X as o}from"./index-RZghr7do.js";const c=n({__name:"BaseBadge",props:{variant:{}},setup(a){return(e,i)=>(r(),t("span",{class:s(["run-state",{ok:a.variant==="ok",failed:a.variant==="failed",warn:a.variant==="warn","run-run":a.variant==="ok"}])},[o(e.$slots,"default")],2))}});export{c as _};
-//# sourceMappingURL=BaseBadge.vue_vue_type_script_setup_true_lang-DlPQ9VNU.js.map
