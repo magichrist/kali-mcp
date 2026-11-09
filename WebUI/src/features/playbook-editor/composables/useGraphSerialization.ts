@@ -1,7 +1,7 @@
 import type { PlaybookDefinition } from "@/types/api";
 import type { GraphStep } from "@/features/playbook-editor/types/graph";
 import { edgesFromSteps } from "@/features/playbook-editor/composables/useGraphValidation";
-export interface VueFlowNodeLike { id: string; data: { step: GraphStep }; }
+export interface VueFlowNodeLike { id: string; type: string; position: { x: number; y: number }; data: { step: GraphStep }; }
 export interface VueFlowEdgeLike { id: string; source: string; target: string; }
 export function cloneStep(step: GraphStep): GraphStep { return JSON.parse(JSON.stringify(step)); }
 export function graphToDefinition(nodes: VueFlowNodeLike[], edges: VueFlowEdgeLike[], definition: PlaybookDefinition): PlaybookDefinition {
@@ -36,7 +36,13 @@ export function definitionToGraph(definition: PlaybookDefinition, graphPos: Reco
 }
 export function collectRunInputNames(definition: PlaybookDefinition): string[] {
   const names = new Set<string>();
-  const add = (v: unknown) => { if (typeof v !== "string") return; for (const m of v.matchAll(/\{\{\s*([a-zA-Z_][\w]*)\s*\}\}/g)) names.add(m[1]); };
+  const add = (v: unknown) => {
+    if (typeof v !== "string") return;
+    for (const m of v.matchAll(/\{\{\s*([a-zA-Z_][\w]*)\s*\}\}/g)) {
+      const name = m[1];
+      if (name) names.add(name);
+    }
+  };
   for (const s of Array.isArray(definition.steps) ? definition.steps : []) {
     if (s.inputs) for (const v of Object.values(s.inputs)) add(v);
     if (s.command) add(s.command);
