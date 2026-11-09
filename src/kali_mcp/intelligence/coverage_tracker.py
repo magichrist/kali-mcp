@@ -106,41 +106,42 @@ class CoverageTracker:
         # Assets discovered but never scanned
         for asset_id in assets_seen:
             if asset_id not in scanned_assets:
-                gaps.append({
-                    "type": "asset_unscanned",
-                    "asset_id": asset_id,
-                    "service": None,
-                    "description": f"Asset {asset_id} was discovered but never scanned",
-                })
+                gaps.append(
+                    {
+                        "type": "asset_unscanned",
+                        "asset_id": asset_id,
+                        "service": None,
+                        "description": f"Asset {asset_id} was discovered but never scanned",
+                    }
+                )
 
         # Services discovered but never scanned
-        for (asset_id, service) in services_scanned:
+        for asset_id, service in services_scanned:
             if service is None:
                 continue
-            has_scan = any(
-                r.asset_id == asset_id and r.service == service
-                for r in records
-            )
+            has_scan = any(r.asset_id == asset_id and r.service == service for r in records)
             if not has_scan:
-                gaps.append({
-                    "type": "service_unscanned",
-                    "asset_id": asset_id,
-                    "service": service,
-                    "description": f"Service {service} on {asset_id} was discovered but never scanned",
-                })
+                gaps.append(
+                    {
+                        "type": "service_unscanned",
+                        "asset_id": asset_id,
+                        "service": service,
+                        "description": f"Service {service} on {asset_id} was discovered but never scanned",
+                    }
+                )
 
         # Assets with scans but zero findings (potential coverage gap)
         for asset_id in scanned_assets:
-            asset_findings = sum(
-                r.findings_count for r in records if r.asset_id == asset_id
-            )
+            asset_findings = sum(r.findings_count for r in records if r.asset_id == asset_id)
             if asset_findings == 0:
-                gaps.append({
-                    "type": "asset_no_findings",
-                    "asset_id": asset_id,
-                    "service": None,
-                    "description": f"Asset {asset_id} was scanned but produced no findings",
-                })
+                gaps.append(
+                    {
+                        "type": "asset_no_findings",
+                        "asset_id": asset_id,
+                        "service": None,
+                        "description": f"Asset {asset_id} was scanned but produced no findings",
+                    }
+                )
 
         return gaps
 
