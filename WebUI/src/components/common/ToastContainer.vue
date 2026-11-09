@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { useNotificationsStore } from "@/stores/notifications";
 const notifications = useNotificationsStore();
-function dismiss(id: number) { notifications.dismiss(id); }
+function dismiss(id: string) { notifications.dismiss(id); }
 </script>
 
 <template>
-  <transition-group name="toast" tag="div" class="toasts-container">
-    <div v-for="toast in notifications.toasts" :key="toast.id" class="toast" :class="`toast--${toast.type}`" @click="dismiss(toast.id)">
+  <transition-group name="toast" tag="div" class="toasts-container" role="status" aria-live="polite" aria-label="Notifications">
+    <div
+      v-for="toast in notifications.notifications"
+      :key="toast.id"
+      class="toast"
+      :class="`toast--${toast.type}`"
+      :aria-label="`${toast.type} notification: ${toast.message}`"
+      @click="dismiss(toast.id)"
+    >
       {{ toast.message }}
     </div>
   </transition-group>
