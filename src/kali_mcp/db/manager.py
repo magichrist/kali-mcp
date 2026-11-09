@@ -458,9 +458,7 @@ class DBManager:
         # are created in the v2 script above, so migrate after it.
         self._migrate_add_column(cur, "playbooks", "draft_definition", "TEXT")
         self._migrate_add_column(cur, "workflow_executions", "trigger", "TEXT")
-        self._migrate_add_column(
-            cur, "workflow_executions", "debug", "INTEGER DEFAULT 0"
-        )
+        self._migrate_add_column(cur, "workflow_executions", "debug", "INTEGER DEFAULT 0")
 
     # ── migration helpers ────────────────────────────────────────────────
 
@@ -510,8 +508,16 @@ class DBManager:
                 WHERE id=?
                 """,
                 (
-                    asset_type, name, domain, ip_address, target_id,
-                    scope, tags, notes, now, aid,
+                    asset_type,
+                    name,
+                    domain,
+                    ip_address,
+                    target_id,
+                    scope,
+                    tags,
+                    notes,
+                    now,
+                    aid,
                 ),
             )
         else:
@@ -523,8 +529,17 @@ class DBManager:
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    asset_id, asset_type, name, domain, ip_address, target_id,
-                    now, now, scope, tags, notes,
+                    asset_id,
+                    asset_type,
+                    name,
+                    domain,
+                    ip_address,
+                    target_id,
+                    now,
+                    now,
+                    scope,
+                    tags,
+                    notes,
                 ),
             )
             aid = int(cur.lastrowid)
@@ -563,8 +578,7 @@ class DBManager:
                  banner, first_seen, last_seen)
                 VALUES (?,?,?,?,?,?,?,?,?)
                 """,
-                (service_id, asset_id, port, protocol, service_name, version,
-                 banner, now, now),
+                (service_id, asset_id, port, protocol, service_name, version, banner, now, now),
             )
             sid = int(cur.lastrowid)
         self.conn.commit()
@@ -601,8 +615,7 @@ class DBManager:
                  first_seen, last_seen)
                 VALUES (?,?,?,?,?,?,?,?)
                 """,
-                (tech_id, service_id, name, version, category, confidence,
-                 now, now),
+                (tech_id, service_id, name, version, category, confidence, now, now),
             )
             tid = int(cur.lastrowid)
         self.conn.commit()
@@ -645,8 +658,7 @@ class DBManager:
                  first_seen, last_seen, source_tool)
                 VALUES (?,?,?,?,?,?,?)
                 """,
-                (source_asset_id, target_asset_id, relationship, confidence,
-                 now, now, source_tool),
+                (source_asset_id, target_asset_id, relationship, confidence, now, now, source_tool),
             )
             rid = int(cur.lastrowid)
         self.conn.commit()
@@ -673,8 +685,15 @@ class DBManager:
             VALUES (?,?,?,?,?,?,?,?,?)
             """,
             (
-                evidence_id, assessment_id, job_id, tool, target, artifact_type,
-                content_path, content_size, now,
+                evidence_id,
+                assessment_id,
+                job_id,
+                tool,
+                target,
+                artifact_type,
+                content_path,
+                content_size,
+                now,
             ),
         )
         aid = int(cur.lastrowid)
@@ -698,8 +717,7 @@ class DBManager:
              confidence_contribution, created_at)
             VALUES (?,?,?,?,?,?)
             """,
-            (correlation_id, finding_id, observation_id, tool,
-             confidence_contribution, now),
+            (correlation_id, finding_id, observation_id, tool, confidence_contribution, now),
         )
         cid = int(cur.lastrowid)
         self.conn.commit()
@@ -765,9 +783,7 @@ class DBManager:
             clauses.append("tool = ?")
             params.append(tool)
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        total = cur.execute(
-            f"SELECT COUNT(*) FROM findings {where}", params
-        ).fetchone()[0]
+        total = cur.execute(f"SELECT COUNT(*) FROM findings {where}", params).fetchone()[0]
         rows = cur.execute(
             f"SELECT * FROM findings {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (*params, limit, offset),
@@ -855,8 +871,11 @@ class DBManager:
             (validation_status,),
         ).fetchall()
         findings = [dict(r) for r in rows]
-        return {"count": len(findings), "findings": findings,
-                "validation_status": validation_status}
+        return {
+            "count": len(findings),
+            "findings": findings,
+            "validation_status": validation_status,
+        }
 
     # ── studio helpers: shared JSON serialization ────────────────────────
 
@@ -913,10 +932,20 @@ class DBManager:
                 WHERE id=?
                 """,
                 (
-                    name, description, provider, provider_ref, in_json,
-                    out_json, visibility, int(bool(enabled)), requires_binary,
-                    default_timeout, execution_policy, int(bool(scope_required)),
-                    now, tdid,
+                    name,
+                    description,
+                    provider,
+                    provider_ref,
+                    in_json,
+                    out_json,
+                    visibility,
+                    int(bool(enabled)),
+                    requires_binary,
+                    default_timeout,
+                    execution_policy,
+                    int(bool(scope_required)),
+                    now,
+                    tdid,
                 ),
             )
         else:
@@ -930,10 +959,21 @@ class DBManager:
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    tool_id, name, description, provider, provider_ref, in_json,
-                    out_json, visibility, int(bool(enabled)), requires_binary,
-                    default_timeout, execution_policy, int(bool(scope_required)),
-                    now, now,
+                    tool_id,
+                    name,
+                    description,
+                    provider,
+                    provider_ref,
+                    in_json,
+                    out_json,
+                    visibility,
+                    int(bool(enabled)),
+                    requires_binary,
+                    default_timeout,
+                    execution_policy,
+                    int(bool(scope_required)),
+                    now,
+                    now,
                 ),
             )
             tdid = int(cur.lastrowid)
@@ -943,9 +983,7 @@ class DBManager:
     def get_tool_definition(self, tool_id: str) -> dict | None:
         """Return one tool definition row by tool_id, or None."""
         cur = self.conn.cursor()
-        row = cur.execute(
-            "SELECT * FROM tool_definitions WHERE tool_id = ?", (tool_id,)
-        ).fetchone()
+        row = cur.execute("SELECT * FROM tool_definitions WHERE tool_id = ?", (tool_id,)).fetchone()
         return dict(row) if row else None
 
     def list_tool_definitions(
@@ -1015,11 +1053,16 @@ class DBManager:
                 WHERE id=?
                 """,
                 (
-                    name, description, default_visibility,
-                    max_parallel_operations, max_execution_seconds,
+                    name,
+                    description,
+                    default_visibility,
+                    max_parallel_operations,
+                    max_execution_seconds,
                     self._dump_json(allowed_scopes),
                     self._dump_json(excluded_targets),
-                    self._dump_json(allowed_operations), now, pid,
+                    self._dump_json(allowed_operations),
+                    now,
+                    pid,
                 ),
             )
         else:
@@ -1032,11 +1075,17 @@ class DBManager:
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    profile_id, name, description, default_visibility,
-                    max_parallel_operations, max_execution_seconds,
+                    profile_id,
+                    name,
+                    description,
+                    default_visibility,
+                    max_parallel_operations,
+                    max_execution_seconds,
                     self._dump_json(allowed_scopes),
                     self._dump_json(excluded_targets),
-                    self._dump_json(allowed_operations), now, now,
+                    self._dump_json(allowed_operations),
+                    now,
+                    now,
                 ),
             )
             pid = int(cur.lastrowid)
@@ -1054,9 +1103,7 @@ class DBManager:
     def list_agent_profiles(self) -> list[dict]:
         """List all agent profiles ordered by profile_id."""
         cur = self.conn.cursor()
-        rows = cur.execute(
-            "SELECT * FROM agent_profiles ORDER BY profile_id"
-        ).fetchall()
+        rows = cur.execute("SELECT * FROM agent_profiles ORDER BY profile_id").fetchall()
         return [dict(r) for r in rows]
 
     def update_agent_profile(
@@ -1091,17 +1138,21 @@ class DBManager:
             (
                 name if name is not None else row["name"],
                 description if description is not None else row["description"],
-                default_visibility if default_visibility is not None
-                else row["default_visibility"],
-                max_parallel_operations if max_parallel_operations is not None
+                default_visibility if default_visibility is not None else row["default_visibility"],
+                max_parallel_operations
+                if max_parallel_operations is not None
                 else row["max_parallel_operations"],
-                max_execution_seconds if max_execution_seconds is not None
+                max_execution_seconds
+                if max_execution_seconds is not None
                 else row["max_execution_seconds"],
-                self._dump_json(allowed_scopes) if allowed_scopes is not None
+                self._dump_json(allowed_scopes)
+                if allowed_scopes is not None
                 else row["allowed_scopes"],
-                self._dump_json(excluded_targets) if excluded_targets is not None
+                self._dump_json(excluded_targets)
+                if excluded_targets is not None
                 else row["excluded_targets"],
-                self._dump_json(allowed_operations) if allowed_operations is not None
+                self._dump_json(allowed_operations)
+                if allowed_operations is not None
                 else row["allowed_operations"],
                 self._now_utc(),
                 profile_id,
@@ -1116,9 +1167,7 @@ class DBManager:
         Returns True when the profile row was removed.
         """
         cur = self.conn.cursor()
-        cur.execute(
-            "DELETE FROM agent_tool_permissions WHERE profile_id = ?", (profile_id,)
-        )
+        cur.execute("DELETE FROM agent_tool_permissions WHERE profile_id = ?", (profile_id,))
         cur.execute(
             "DELETE FROM agent_playbook_assignments WHERE profile_id = ?",
             (profile_id,),
@@ -1130,9 +1179,7 @@ class DBManager:
 
     # ── studio: permissions & playbook assignments ───────────────────────
 
-    def grant_tool_permission(
-        self, profile_id: str, tool_id: str, granted: bool = True
-    ) -> None:
+    def grant_tool_permission(self, profile_id: str, tool_id: str, granted: bool = True) -> None:
         """Grant (or explicitly deny with granted=False) a tool to a profile."""
         now = self._now_utc()
         cur = self.conn.cursor()
@@ -1167,9 +1214,7 @@ class DBManager:
         )
         self.conn.commit()
 
-    def list_tool_permission_rows(
-        self, profile_id: str, granted_only: bool = False
-    ) -> list[dict]:
+    def list_tool_permission_rows(self, profile_id: str, granted_only: bool = False) -> list[dict]:
         """List tool permission rows for one profile, optionally granted only."""
         cur = self.conn.cursor()
         sql = "SELECT tool_id, granted, granted_at FROM agent_tool_permissions WHERE profile_id = ?"
@@ -1177,7 +1222,6 @@ class DBManager:
             sql += " AND granted = 1"
         rows = cur.execute(sql + " ORDER BY tool_id", (profile_id,)).fetchall()
         return [dict(r) for r in rows]
-
 
     def can_agent_call_tool(self, profile_id: str, tool_id: str) -> bool:
         """Return True only when the profile has an explicit grant for the tool.
@@ -1266,7 +1310,6 @@ class DBManager:
         ).fetchall()
         return [dict(r) for r in rows]
 
-
     # ── studio: playbooks & versions ─────────────────────────────────────
 
     def create_playbook(
@@ -1297,8 +1340,14 @@ class DBManager:
                 WHERE id=?
                 """,
                 (
-                    name, description, category, author, int(bool(is_builtin)),
-                    status, now, pbid,
+                    name,
+                    description,
+                    category,
+                    author,
+                    int(bool(is_builtin)),
+                    status,
+                    now,
+                    pbid,
                 ),
             )
         else:
@@ -1310,8 +1359,15 @@ class DBManager:
                 VALUES (?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    playbook_id, name, description, category, author,
-                    int(bool(is_builtin)), status, now, now,
+                    playbook_id,
+                    name,
+                    description,
+                    category,
+                    author,
+                    int(bool(is_builtin)),
+                    status,
+                    now,
+                    now,
                 ),
             )
             pbid = int(cur.lastrowid)
@@ -1335,9 +1391,7 @@ class DBManager:
                 (status,),
             ).fetchall()
         else:
-            rows = cur.execute(
-                "SELECT * FROM playbooks ORDER BY id DESC"
-            ).fetchall()
+            rows = cur.execute("SELECT * FROM playbooks ORDER BY id DESC").fetchall()
         return [dict(r) for r in rows]
 
     def update_playbook(
@@ -1376,10 +1430,10 @@ class DBManager:
                 category if category is not None else row["category"],
                 author if author is not None else row["author"],
                 status if status is not None else row["status"],
-                current_version_id if current_version_id is not None
-                else row["current_version_id"],
+                current_version_id if current_version_id is not None else row["current_version_id"],
                 self._dump_json(draft_definition)
-                if draft_definition is not None else row["draft_definition"],
+                if draft_definition is not None
+                else row["draft_definition"],
                 self._now_utc(),
                 playbook_id,
             ),
@@ -1396,19 +1450,17 @@ class DBManager:
         # playbook_versions rows may carry either parent key on legacy
         # databases (integer playbooks.id) or current ones (text playbook_id).
         cur.execute(
-            "DELETE FROM playbook_versions WHERE playbook_id IN (%s)"
-            % ",".join("?" * len(self._playbook_fk_values(playbook_id))),
+            "DELETE FROM playbook_versions WHERE playbook_id IN ({})".format(
+                ",".join("?" * len(self._playbook_fk_values(playbook_id)))
+            ),
             tuple(self._playbook_fk_values(playbook_id)),
         )
         cur.execute(
             "DELETE FROM agent_playbook_assignments WHERE playbook_id = ?",
             (playbook_id,),
         )
-        cur.execute(
-            "DELETE FROM playbook_validations WHERE playbook_id = ?", (playbook_id,)
-        )
-        cur.execute(
-            "DELETE FROM playbooks WHERE playbook_id = ?", (playbook_id,))
+        cur.execute("DELETE FROM playbook_validations WHERE playbook_id = ?", (playbook_id,))
+        cur.execute("DELETE FROM playbooks WHERE playbook_id = ?", (playbook_id,))
         deleted = cur.rowcount > 0
         self.conn.commit()
         return deleted
@@ -1429,9 +1481,11 @@ class DBManager:
     def _playbook_fk_values(self, playbook_id: str) -> tuple[str]:
         """Return all key values a playbook_versions row can use for this playbook."""
         if self._playbook_fk_parent(playbook_id) == "id":
-            row = self.conn.cursor().execute(
-                "SELECT id FROM playbooks WHERE playbook_id=?", (playbook_id,)
-            ).fetchone()
+            row = (
+                self.conn.cursor()
+                .execute("SELECT id FROM playbooks WHERE playbook_id=?", (playbook_id,))
+                .fetchone()
+            )
             if row is not None:
                 return (str(int(row[0])), playbook_id)
         return (playbook_id,)
@@ -1474,8 +1528,14 @@ class DBManager:
             VALUES (?,?,?,?,?,?,?,?)
             """,
             (
-                version_id, fk_value, version, self._dump_json(definition),
-                self._dump_json(inputs_schema), notes, now, published_by,
+                version_id,
+                fk_value,
+                version,
+                self._dump_json(definition),
+                self._dump_json(inputs_schema),
+                notes,
+                now,
+                published_by,
             ),
         )
         vid = int(cur.lastrowid)
@@ -1556,8 +1616,14 @@ class DBManager:
             VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
-                execution_id, job_id, assessment_id, playbook_id, version_id,
-                profile_id, status, self._dump_json(inputs),
+                execution_id,
+                job_id,
+                assessment_id,
+                playbook_id,
+                version_id,
+                profile_id,
+                status,
+                self._dump_json(inputs),
                 started_at or self._now_utc(),
                 trigger,
                 1 if debug else 0,
@@ -1594,8 +1660,7 @@ class DBManager:
             """,
             (
                 status if status is not None else row["status"],
-                self._dump_json(outputs) if outputs is not None
-                else row["outputs"],
+                self._dump_json(outputs) if outputs is not None else row["outputs"],
                 error if error is not None else row["error"],
                 completed_at if completed_at is not None else row["completed_at"],
                 execution_id,
@@ -1668,9 +1733,17 @@ class DBManager:
             VALUES (?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
-                execution_id, step_id, step_type, tool_id, status,
-                self._dump_json(inputs), self._dump_json(outputs), error,
-                started_at, completed_at, duration_ms,
+                execution_id,
+                step_id,
+                step_type,
+                tool_id,
+                status,
+                self._dump_json(inputs),
+                self._dump_json(outputs),
+                error,
+                started_at,
+                completed_at,
+                duration_ms,
             ),
         )
         sid = int(cur.lastrowid)
@@ -1705,8 +1778,7 @@ class DBManager:
             """,
             (
                 status if status is not None else row["status"],
-                self._dump_json(outputs) if outputs is not None
-                else row["outputs"],
+                self._dump_json(outputs) if outputs is not None else row["outputs"],
                 error if error is not None else row["error"],
                 completed_at if completed_at is not None else row["completed_at"],
                 duration_ms if duration_ms is not None else row["duration_ms"],
@@ -1745,8 +1817,12 @@ class DBManager:
             VALUES (?,?,?,?,?,?)
             """,
             (
-                version_id, playbook_id, status, self._dump_json(errors),
-                self._now_utc(), validated_by,
+                version_id,
+                playbook_id,
+                status,
+                self._dump_json(errors),
+                self._now_utc(),
+                validated_by,
             ),
         )
         rid = int(cur.lastrowid)
@@ -1772,7 +1848,11 @@ class DBManager:
             VALUES (?,?,?,?,?,?)
             """,
             (
-                event, entity_type, entity_id, actor, self._dump_json(data),
+                event,
+                entity_type,
+                entity_id,
+                actor,
+                self._dump_json(data),
                 self._now_utc(),
             ),
         )
@@ -1912,9 +1992,18 @@ class DBManager:
         cur.execute(
             "INSERT INTO scans (target_id, tool, command, started_at, completed_at, duration, success, findings_count, artifact_uri, assessment_id, job_id, workflow_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                target_id, tool, command, started_at, completed_at, duration,
-                int(bool(success)), int(findings_count), artifact_uri,
-                assessment_id, job_id, workflow_name,
+                target_id,
+                tool,
+                command,
+                started_at,
+                completed_at,
+                duration,
+                int(bool(success)),
+                int(findings_count),
+                artifact_uri,
+                assessment_id,
+                job_id,
+                workflow_name,
             ),
         )
         sid = cur.lastrowid
@@ -1945,10 +2034,26 @@ class DBManager:
         cur.execute(
             "INSERT INTO findings (target_id, scan_id, tool, finding_type, severity, title, description, evidence, port, service, url, status, created_at, updated_at, confidence, validation_status, source_tools, evidence_refs, first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                target_id, scan_id, tool, finding_type, severity, title,
-                description, evidence, port, service, url, status,
-                now, now, confidence, validation_status,
-                source_tools or "[]", evidence_refs or "[]", now, now,
+                target_id,
+                scan_id,
+                tool,
+                finding_type,
+                severity,
+                title,
+                description,
+                evidence,
+                port,
+                service,
+                url,
+                status,
+                now,
+                now,
+                confidence,
+                validation_status,
+                source_tools or "[]",
+                evidence_refs or "[]",
+                now,
+                now,
             ),
         )
         fid = cur.lastrowid
@@ -1972,17 +2077,27 @@ class DBManager:
         cur.execute(
             "INSERT INTO credentials (target_id, service, username, password, hash, source_tool, captured_at, notes, asset_id, service_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
-                target_id, service, username, password, hash_value, source_tool,
-                now, notes, asset_id, service_id,
+                target_id,
+                service,
+                username,
+                password,
+                hash_value,
+                source_tool,
+                now,
+                notes,
+                asset_id,
+                service_id,
             ),
         )
         cid = cur.lastrowid
         self.conn.commit()
         return int(cid)
 
-    def save_workflow_run(self, run_id: str, playbook_name: str, status: str,
-                         completed_steps: list, state: dict) -> None:
+    def save_workflow_run(
+        self, run_id: str, playbook_name: str, status: str, completed_steps: list, state: dict
+    ) -> None:
         import json as _json
+
         now = self._now_utc()
         cur = self.conn.cursor()
         cur.execute(
@@ -1996,17 +2111,23 @@ class DBManager:
                 state_json=excluded.state_json,
                 finished_at=excluded.finished_at
             """,
-            (run_id, playbook_name, status, _json.dumps(completed_steps),
-             _json.dumps(state, default=str), now, now if status != "running" else None),
+            (
+                run_id,
+                playbook_name,
+                status,
+                _json.dumps(completed_steps),
+                _json.dumps(state, default=str),
+                now,
+                now if status != "running" else None,
+            ),
         )
         self.conn.commit()
 
     def load_workflow_run(self, run_id: str) -> dict | None:
         import json as _json
+
         cur = self.conn.cursor()
-        row = cur.execute(
-            "SELECT * FROM workflow_runs WHERE run_id = ?", (run_id,)
-        ).fetchone()
+        row = cur.execute("SELECT * FROM workflow_runs WHERE run_id = ?", (run_id,)).fetchone()
         if not row:
             return None
         d = dict(row)
@@ -2025,6 +2146,7 @@ class DBManager:
             self.conn.close()
         except Exception:  # noqa: BLE001, S110
             pass
+
 
 _db_singleton: DBManager | None = None
 
