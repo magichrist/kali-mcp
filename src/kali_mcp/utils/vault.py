@@ -567,7 +567,7 @@ def resolve_secret_ref(ref: str) -> str | None:
     """Resolve a secret reference handle to its stored value (best-effort)."""
     if not ref.startswith("secret:"):
         return None
-    name = ref[len("secret:"):]
+    name = ref[len("secret:") :]
     try:
         raw = vault_read("secrets", name)
         data = json.loads(raw) if isinstance(raw, str) else raw
@@ -581,8 +581,13 @@ def resolve_secret_ref(ref: str) -> str | None:
 import re as _re
 
 _SECRET_PATTERNS = [
-    _re.compile(r"(?i)(api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*['\"]?([A-Za-z0-9_\-]{8,})['\"]?"),
-    _re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH |)PRIVATE KEY-----", _re.S),
+    _re.compile(
+        r"(?i)(api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*['\"]?([A-Za-z0-9_\-]{8,})['\"]?"
+    ),
+    _re.compile(
+        r"-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH |)PRIVATE KEY-----",
+        _re.DOTALL,
+    ),
     _re.compile(r"(?i)bearer\s+[A-Za-z0-9_\-\.]{10,}"),
 ]
 
@@ -595,7 +600,11 @@ def redact_secrets(text: str) -> str:
     # key=value / key: value secrets
     out = _re.sub(
         r"(?i)(api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{8,}['\"]?",
-        lambda m: m.group(0).split(m.group(1) if False else "", 1)[0] + "[REDACTED]" if False else _re.sub(r"([:=]\s*['\"]?)[A-Za-z0-9_\-]{8,}", r"\1[REDACTED]", m.group(0)),
+        lambda m: (
+            m.group(0).split(m.group(1) if False else "", 1)[0] + "[REDACTED]"
+            if False
+            else _re.sub(r"([:=]\s*['\"]?)[A-Za-z0-9_\-]{8,}", r"\1[REDACTED]", m.group(0))
+        ),
         out,
     )
     # private keys
@@ -603,7 +612,7 @@ def redact_secrets(text: str) -> str:
         r"-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH |)PRIVATE KEY-----",
         "[REDACTED PRIVATE KEY]",
         out,
-        flags=_re.S,
+        flags=_re.DOTALL,
     )
     # bearer tokens
     out = _re.sub(r"(?i)bearer\s+[A-Za-z0-9_\-\.]{10,}", "Bearer [REDACTED]", out)
@@ -615,7 +624,10 @@ def redact_dict(obj: Any) -> Any:
     if isinstance(obj, str):
         return redact_secrets(obj)
     if isinstance(obj, dict):
-        return {k: ("[REDACTED]" if _looks_like_secret_key(k) else redact_dict(v)) for k, v in obj.items()}
+        return {
+            k: ("[REDACTED]" if _looks_like_secret_key(k) else redact_dict(v))
+            for k, v in obj.items()
+        }
     if isinstance(obj, list):
         return [redact_dict(v) for v in obj]
     return obj
@@ -634,10 +646,14 @@ def can_access(assessment_id: str, caller_id: str | None = None) -> bool:
     owner (or an empty/None caller in dev mode) may access.
     """
     try:
-        row = _connect().execute(
-            f"SELECT tags, target FROM {TABLE} WHERE category='assessments' AND name=?",
-            (str(assessment_id).strip(),),
-        ).fetchone()
+        row = (
+            _connect()
+            .execute(
+                f"SELECT tags, target FROM {TABLE} WHERE category='assessments' AND name=?",
+                (str(assessment_id).strip(),),
+            )
+            .fetchone()
+        )
     except Exception:  # noqa: BLE001
         return True
     if row is None:
@@ -647,7 +663,7 @@ def can_access(assessment_id: str, caller_id: str | None = None) -> bool:
     owner = None
     for part in tags.split(","):
         if part.startswith("owner:"):
-            owner = part[len("owner:"):]
+            owner = part[len("owner:") :]
     if not owner:
         return True
     if caller_id is None:
