@@ -45,7 +45,6 @@ playbook_definition:
       tool: nuclei
       type: tool
       depends_on: [httpx]
-      when: "httpx.http_services_count > 0"
       args:
         target: "{{target}}"
         timeout: 300
