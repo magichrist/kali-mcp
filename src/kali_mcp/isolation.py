@@ -32,13 +32,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import platform
 import resource
 import shlex
 import shutil
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 logger = logging.getLogger("kali_mcp.isolation")
 
@@ -176,15 +174,13 @@ async def spawn_isolated(
             f"Binary not found: {binary}",
             round(time.monotonic() - start, 3),
         )
-    except Exception as exc:  # noqa: BLE001 — isolation must not crash the caller
+    except Exception as exc:
         logger.exception("isolation: failed to spawn %s", binary)
         return -1, "", f"Internal error: {type(exc).__name__}", round(time.monotonic() - start, 3)
 
     timeout = limits.timeout
     try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout
-        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         exit_code = proc.returncode or 0
     except asyncio.TimeoutError:
         # Kill the whole process tree (the child runs in its own session, so
@@ -200,9 +196,11 @@ async def spawn_isolated(
         except Exception:  # noqa: BLE001
             stdout_bytes, stderr_bytes = b"", b""
         exit_code = -1
-        stderr_text = (stderr_bytes.decode("utf-8", "replace") if stderr_bytes else "")
+        stderr_text = stderr_bytes.decode("utf-8", "replace") if stderr_bytes else ""
         stderr_text = (
-            f"Timed out after {timeout}s\n{stderr_text}".strip() if stderr_text else f"Timed out after {timeout}s"
+            f"Timed out after {timeout}s\n{stderr_text}".strip()
+            if stderr_text
+            else f"Timed out after {timeout}s"
         )
         duration = round(time.monotonic() - start, 3)
         return exit_code, "", stderr_text, duration
