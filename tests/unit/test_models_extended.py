@@ -9,18 +9,18 @@ from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
 
 def _make_result(**overrides):
     ts = utc_now_iso()
-    defaults = dict(
-        tool="nmap",
-        command="nmap -sV 127.0.0.1",
-        stdout="PORT   STATE SERVICE\n",
-        stderr="",
-        exit_code=0,
-        success=True,
-        timed_out=False,
-        duration=1.5,
-        start_time=ts,
-        end_time=ts,
-    )
+    defaults = {
+        "tool": "nmap",
+        "command": "nmap -sV 127.0.0.1",
+        "stdout": "PORT   STATE SERVICE\n",
+        "stderr": "",
+        "exit_code": 0,
+        "success": True,
+        "timed_out": False,
+        "duration": 1.5,
+        "start_time": ts,
+        "end_time": ts,
+    }
     defaults.update(overrides)
     return ExecutionResult(**defaults)
 
@@ -28,7 +28,7 @@ def _make_result(**overrides):
 def test_utc_now_iso_is_utc_isoformat() -> None:
     ts = utc_now_iso()
     assert "T" in ts
-    assert ts.endswith("+00:00") or ts.endswith("Z")
+    assert ts.endswith(("+00:00", "Z"))
     parsed = datetime.fromisoformat(ts)
     assert parsed.tzinfo is not None
 
@@ -52,10 +52,18 @@ def test_execution_result_to_dict_full_shape() -> None:
 
 def test_execution_result_dataclass_equality() -> None:
     ts = utc_now_iso()
-    kwargs = dict(
-        tool="t", command="c", stdout="o", stderr="e", exit_code=0,
-        success=True, timed_out=False, duration=0.1, start_time=ts, end_time=ts,
-    )
+    kwargs = {
+        "tool": "t",
+        "command": "c",
+        "stdout": "o",
+        "stderr": "e",
+        "exit_code": 0,
+        "success": True,
+        "timed_out": False,
+        "duration": 0.1,
+        "start_time": ts,
+        "end_time": ts,
+    }
     assert ExecutionResult(**kwargs) == ExecutionResult(**kwargs)
 
 
