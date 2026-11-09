@@ -29,6 +29,7 @@ class TestParser:
         args = parser.parse_args(["studio", "--no-browser"])
         assert args.no_browser is True
 
+
 class TestStudioPortSelection:
     def test_explicit_url_wins_over_port_flag(self, monkeypatch) -> None:
         monkeypatch.setenv("MCP_PORT", "8399")
@@ -125,7 +126,9 @@ class TestWildcardHostResolution:
             lambda: (_ for _ in ()).throw(AssertionError("must not be called")),
         )
         assert _browser_url_for_host("127.0.0.1", 8399) == "http://127.0.0.1:8399/studio"
-        assert _browser_url_for_host("staging.internal", 8399) == "http://staging.internal:8399/studio"
+        assert (
+            _browser_url_for_host("staging.internal", 8399) == "http://staging.internal:8399/studio"
+        )
 
     def test_port_env_still_applies_with_wildcard(self, monkeypatch) -> None:
         from kali_mcp.cli import _browser_url_for_host
