@@ -109,14 +109,12 @@ class TestEngineIntegration:
     async def test_scope_violation_marks_step_failed(self, monkeypatch):
         scope = Scope(allowed_targets=("*.example.com",))
         monkeypatch.setattr(de, "load_scope", lambda: scope, raising=False)
-        monkeypatch.setattr(
-            "kali_mcp.workflow.scope_gate.load_scope", lambda: scope
-        )
+        monkeypatch.setattr("kali_mcp.workflow.scope_gate.load_scope", lambda: scope)
         steps = [
             StepDefinition(id="probe", tool="dnsx", args={"target": "evil.com"}),
-            StepDefinition(id="after", tool="httpx",
-                           args={"url": "http://example.com"},
-                           depends_on=["probe"]),
+            StepDefinition(
+                id="after", tool="httpx", args={"url": "http://example.com"}, depends_on=["probe"]
+            ),
         ]
         result = await _run(_defn(steps))
         payload = __import__("json").loads(result.stdout)
@@ -138,9 +136,7 @@ class TestEngineIntegration:
     async def test_foreach_cap_exceeded(self, monkeypatch):
         # foreach over more than MAX_ITERATIONS items → step fails, tool never runs
         big = [f"host{i}.com" for i in range(MAX_ITERATIONS + 10)]
-        step = StepDefinition(
-            id="iter", tool="dnsx", foreach="dns.resolved_hosts"
-        )
+        step = StepDefinition(id="iter", tool="dnsx", foreach="dns.resolved_hosts")
         engine = PlaybookEngine()
         engine._step_results["dns"] = {"resolved_hosts": big}
         res = await engine._run_foreach(step, [step], {})
@@ -153,15 +149,14 @@ class TestEngineIntegration:
         engine = PlaybookEngine()
         engine._step_results["dns"] = {"resolved_hosts": small}
         # gate must be permissive
-        monkeypatch.setattr(
-            "kali_mcp.workflow.scope_gate.load_scope", lambda: Scope()
-        )
+        monkeypatch.setattr("kali_mcp.workflow.scope_gate.load_scope", lambda: Scope())
         monkeypatch.setattr(
             "kali_mcp.workflow.dag_executor.gate_step_args",
             lambda *a, **kw: None,
         )
         monkeypatch.setattr(
-            engine, "_execute_single_step",
+            engine,
+            "_execute_single_step",
             lambda iter_step, state: _fake_tool(iter_step, state),
         )
         res = await engine._run_foreach(step, [step], {})
@@ -170,9 +165,7 @@ class TestEngineIntegration:
 
     async def test_foreach_item_out_of_scope_flags_item(self, monkeypatch):
         scope = Scope(allowed_targets=("*.example.com",))
-        monkeypatch.setattr(
-            "kali_mcp.workflow.scope_gate.load_scope", lambda: scope
-        )
+        monkeypatch.setattr("kali_mcp.workflow.scope_gate.load_scope", lambda: scope)
         step = StepDefinition(
             id="iter",
             tool="dnsx",
@@ -197,9 +190,7 @@ class TestEngineIntegration:
     def test_custom_step_unregistered_module(self, monkeypatch):
         step = StepDefinition(id="mod", tool="ghost.module", type="custom")
         engine = PlaybookEngine()
-        result = __import__(
-            "asyncio"
-        ).run(engine._run_custom_step(step, {"playbook_name": "x"}))
+        result = __import__("asyncio").run(engine._run_custom_step(step, {"playbook_name": "x"}))
         assert "module not registered: ghost.module" in result["error"]
 
 
