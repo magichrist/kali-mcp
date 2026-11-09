@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
 from kali_mcp.models import ExecutionResult
 from kali_mcp.tools.zighound import ZighoundTool
 
@@ -88,7 +86,13 @@ class TestBuildCommand:
     def test_scan_no_optional_flags(self) -> None:
         # stealth False, jitter 0, ports empty -> none appended
         cmd = ZighoundTool().build_command(
-            {"command": "scan", "target": "127.0.0.0/24", "stealth": False, "jitter": 0, "ports": ""}
+            {
+                "command": "scan",
+                "target": "127.0.0.0/24",
+                "stealth": False,
+                "jitter": 0,
+                "ports": "",
+            }
         )
         assert cmd == ["zighound", "scan", "--target", "127.0.0.0/24"]
 
