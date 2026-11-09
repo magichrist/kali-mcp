@@ -116,14 +116,39 @@ TOOL_LAYERS: dict[str, str] = {
 # Agent mode: compact tool set (layers discovery + workflows + intelligence,
 # excluding escape hatches and most operations)
 AGENT_MODE_TOOLS = {
-    "assessment_run", "batch_run", "job_control", "findings_query",
-    "evidence_get", "asset_graph", "report_generate", "tool_catalog",
-    "finding_transition", "assessment_diff", "coverage_summary",
-    "subfinder", "amass", "theharvester", "spiderfoot", "farsight",
-    "nmap", "nuclei", "httpx", "whatweb", "ffuf", "katana",
-    "playbook_recon", "playbook_webapp", "playbook_ad", "playbook_engine",
-    "playbook_list", "playbook_status",
-    "vault_write", "vault_read", "vault_query", "vault_list", "vault_stats",
+    "assessment_run",
+    "batch_run",
+    "job_control",
+    "findings_query",
+    "evidence_get",
+    "asset_graph",
+    "report_generate",
+    "tool_catalog",
+    "finding_transition",
+    "assessment_diff",
+    "coverage_summary",
+    "subfinder",
+    "amass",
+    "theharvester",
+    "spiderfoot",
+    "farsight",
+    "nmap",
+    "nuclei",
+    "httpx",
+    "whatweb",
+    "ffuf",
+    "katana",
+    "playbook_recon",
+    "playbook_webapp",
+    "playbook_ad",
+    "playbook_engine",
+    "playbook_list",
+    "playbook_status",
+    "vault_write",
+    "vault_read",
+    "vault_query",
+    "vault_list",
+    "vault_stats",
 }
 
 # Expert mode: everything
@@ -131,6 +156,7 @@ EXPERT_MODE_TOOLS: set[str] = set(TOOL_LAYERS.keys())
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
 
 def _new_id(prefix: str) -> str:
     """Generate an opaque identifier: <prefix>_<uuid hex>."""
@@ -206,6 +232,7 @@ def _extract_assets_from_findings(findings: list[dict[str, Any]]) -> list[dict[s
 
 
 # ── 1. assessment_run ────────────────────────────────────────────────────
+
 
 class AssessmentRunTool(BaseTool):
     """Execute a complete assessment workflow in a single MCP call."""
@@ -377,8 +404,18 @@ class AssessmentRunTool(BaseTool):
                     "assessment_id, job_id, workflow_name) "
                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
-                        tid, workflow, f"assessment_run:{workflow}", _now_utc(),
-                        _now_utc(), 0.0, 0, 0, None, assessment_id, job_id, workflow,
+                        tid,
+                        workflow,
+                        f"assessment_run:{workflow}",
+                        _now_utc(),
+                        _now_utc(),
+                        0.0,
+                        0,
+                        0,
+                        None,
+                        assessment_id,
+                        job_id,
+                        workflow,
                     ),
                 )
             db.conn.commit()
@@ -391,29 +428,52 @@ class AssessmentRunTool(BaseTool):
             # Fire-and-forget the actual execution in background
             asyncio.create_task(
                 self._run_assessment_background(
-                    assessment_id, job_id, workflow, targets, scope_id, profile,
-                    max_parallel, max_duration, resume, detail, include_raw,
+                    assessment_id,
+                    job_id,
+                    workflow,
+                    targets,
+                    scope_id,
+                    profile,
+                    max_parallel,
+                    max_duration,
+                    resume,
+                    detail,
+                    include_raw,
                 )
             )
             return _make_assessment_result(
-                self.name, assessment_id, "accepted", {"assets_discovered": 0,
-                 "services_discovered": 0, "findings": {"critical": 0, "high": 0,
-                 "medium": 0, "low": 0}},
-                [], ["Assessment accepted. Use job_control with job_id to track progress."],
-                job_id=job_id, detail=detail, raw_included=include_raw,
+                self.name,
+                assessment_id,
+                "accepted",
+                {
+                    "assets_discovered": 0,
+                    "services_discovered": 0,
+                    "findings": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+                },
+                [],
+                ["Assessment accepted. Use job_control with job_id to track progress."],
+                job_id=job_id,
+                detail=detail,
+                raw_included=include_raw,
             )
 
         # Short assessment: execute inline
         findings, assets, next_actions = await self._run_assessment_inline(
-            workflow, targets, scope_id, profile, max_parallel, max_duration,
-            resume, detail, include_raw, assessment_id,
+            workflow,
+            targets,
+            scope_id,
+            profile,
+            max_parallel,
+            max_duration,
+            resume,
+            detail,
+            include_raw,
+            assessment_id,
         )
 
         summary = {
             "assets_discovered": len(assets),
-            "services_discovered": sum(
-                len(a.get("services", [])) for a in assets
-            ),
+            "services_discovered": sum(len(a.get("services", [])) for a in assets),
             "findings": {
                 "critical": sum(1 for f in findings if f.get("severity") == "critical"),
                 "high": sum(1 for f in findings if f.get("severity") == "high"),
@@ -435,8 +495,15 @@ class AssessmentRunTool(BaseTool):
         )
 
         return _make_assessment_result(
-            self.name, assessment_id, "completed", summary, findings, next_actions,
-            job_id=job_id, detail=detail, raw_included=include_raw,
+            self.name,
+            assessment_id,
+            "completed",
+            summary,
+            findings,
+            next_actions,
+            job_id=job_id,
+            detail=detail,
+            raw_included=include_raw,
         )
 
     # ── internal: inline execution for short assessments ─────────────
@@ -482,16 +549,19 @@ class AssessmentRunTool(BaseTool):
         return findings, assets, next_actions
 
     def _load_workflow_playbook(self, workflow: str) -> PlaybookDefinition:
-        """Load the YAML playbook definition backing a workflow name."""
+        """Load the YAML playbook definition backing a workflow name.
+
+        All playbook definitions live under ``resources/playbooks/`` so that
+        built-in and user-authored playbooks share one location.
+        """
         from kali_mcp.workflow import load_playbook
 
-        definitions_dir = (
-            Path(__file__).resolve().parent.parent / "playbooks" / "definitions"
-        )
+        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        playbooks_dir = project_root / "resources" / "playbooks"
         filename = self._WORKFLOW_PLAYBOOKS.get(workflow)
         if not filename:
             raise ValueError(f"Unknown workflow: {workflow}")
-        return load_playbook(str(definitions_dir / filename))
+        return load_playbook(str(playbooks_dir / filename))
 
     def _extract_findings_assets(
         self, res: ExecutionResult
@@ -522,9 +592,7 @@ class AssessmentRunTool(BaseTool):
 
         # Fallback: correlated findings from the correlation step.
         if not findings:
-            correlate = (
-                step_results.get("correlate", {}) if isinstance(step_results, dict) else {}
-            )
+            correlate = step_results.get("correlate", {}) if isinstance(step_results, dict) else {}
             if isinstance(correlate, dict) and correlate.get("correlated_findings"):
                 findings.extend(correlate["correlated_findings"])
 
@@ -593,7 +661,9 @@ class AssessmentRunTool(BaseTool):
         if "katana" in tools or "endpoint" in title:
             return "Apply authentication and authorization to exposed endpoints; restrict to internal networks where possible."
         if "arjun" in tools or "parameter" in title:
-            return "Validate and sanitize all request parameters; use allow-lists for expected inputs."
+            return (
+                "Validate and sanitize all request parameters; use allow-lists for expected inputs."
+            )
         if "nuclei" in tools or "vuln" in title:
             return "Apply vendor patches or mitigations indicated by the matched template; verify with a re-scan."
         if "subfinder" in tools or "httpx" in tools or "subdomain" in title:
@@ -642,21 +712,36 @@ class AssessmentRunTool(BaseTool):
     # ── background execution for long assessments ──────────────────────
 
     async def _run_assessment_background(
-        self, assessment_id: str, job_id: str, workflow: str, targets: list[str],
-        scope_id: str | None, profile: str, max_parallel: int, max_duration: int,
-        resume: bool, detail: str, include_raw: bool,
+        self,
+        assessment_id: str,
+        job_id: str,
+        workflow: str,
+        targets: list[str],
+        scope_id: str | None,
+        profile: str,
+        max_parallel: int,
+        max_duration: int,
+        resume: bool,
+        detail: str,
+        include_raw: bool,
     ) -> None:
         """Background task for long-running assessments."""
         try:
             findings, assets, next_actions = await self._run_assessment_inline(
-                workflow, targets, scope_id, profile, max_parallel, max_duration,
-                resume, detail, include_raw, assessment_id,
+                workflow,
+                targets,
+                scope_id,
+                profile,
+                max_parallel,
+                max_duration,
+                resume,
+                detail,
+                include_raw,
+                assessment_id,
             )
             summary = {
                 "assets_discovered": len(assets),
-                "services_discovered": sum(
-                    len(a.get("services", [])) for a in assets
-                ),
+                "services_discovered": sum(len(a.get("services", [])) for a in assets),
                 "findings": {
                     "critical": sum(1 for f in findings if f.get("severity") == "critical"),
                     "high": sum(1 for f in findings if f.get("severity") == "high"),
@@ -677,13 +762,17 @@ class AssessmentRunTool(BaseTool):
         except Exception:  # noqa: BLE001
             payload = {"assessment_id": assessment_id, "job_id": job_id, "status": "failed"}
             vault_write(
-                category="assessments", name=assessment_id, content=payload,
-                target=",".join(targets), tool=self.name,
+                category="assessments",
+                name=assessment_id,
+                content=payload,
+                target=",".join(targets),
+                tool=self.name,
                 tags=f"assessment:{assessment_id},job:{job_id}",
             )
 
 
 # ── 2. batch_run ─────────────────────────────────────────────────────────
+
 
 class BatchRunTool(BaseTool):
     """Run multiple independent operations concurrently and aggregate outputs."""
@@ -790,18 +879,33 @@ class BatchRunTool(BaseTool):
             tool_name = op["tool"]
             args = op.get("args", {})
             from kali_mcp.registry import registry
+
             tool = registry.get(tool_name)
             if tool is None:
-                return {"tool": tool_name, "target_ref": op.get("target_ref"),
-                        "error": "unknown tool", "batch_id": batch_id}
+                return {
+                    "tool": tool_name,
+                    "target_ref": op.get("target_ref"),
+                    "error": "unknown tool",
+                    "batch_id": batch_id,
+                }
             async with semaphore:
                 try:
                     res = await tool.safe_execute(args)
-                    return {"tool": tool_name, "target_ref": op.get("target_ref"),
-                            "result": res, "batch_id": batch_id, "success": True}
+                    return {
+                        "tool": tool_name,
+                        "target_ref": op.get("target_ref"),
+                        "result": res,
+                        "batch_id": batch_id,
+                        "success": True,
+                    }
                 except Exception as e:  # noqa: BLE001
-                    return {"tool": tool_name, "target_ref": op.get("target_ref"),
-                            "error": str(e), "batch_id": batch_id, "success": False}
+                    return {
+                        "tool": tool_name,
+                        "target_ref": op.get("target_ref"),
+                        "error": str(e),
+                        "batch_id": batch_id,
+                        "success": False,
+                    }
 
         results = await asyncio.gather(*[run_one(op) for op in unique_ops])
 
@@ -820,15 +924,22 @@ class BatchRunTool(BaseTool):
         }
 
         result = ExecutionResult(
-            tool=self.name, command=self.name, stdout=json.dumps(payload, indent=2),
-            stderr="", exit_code=0, success=failed == 0 or continue_on_error,
-            timed_out=False, duration=0.0, start_time=utc_now_iso(),
+            tool=self.name,
+            command=self.name,
+            stdout=json.dumps(payload, indent=2),
+            stderr="",
+            exit_code=0,
+            success=failed == 0 or continue_on_error,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
             end_time=utc_now_iso(),
         )
         return success_response(result)
 
 
 # ── 3. job_control ───────────────────────────────────────────────────────
+
 
 class JobControlTool(BaseTool):
     """Check, wait for, or cancel execution jobs by job_id."""
@@ -931,29 +1042,42 @@ class JobControlTool(BaseTool):
                         "elapsed_seconds": aj.get("elapsed_seconds"),
                     }
                     result = ExecutionResult(
-                        tool=self.name, command=self.name,
-                        stdout=json.dumps(payload, indent=2), stderr="",
-                        exit_code=0, success=True, timed_out=False,
-                        duration=0.0, start_time=utc_now_iso(),
+                        tool=self.name,
+                        command=self.name,
+                        stdout=json.dumps(payload, indent=2),
+                        stderr="",
+                        exit_code=0,
+                        success=True,
+                        timed_out=False,
+                        duration=0.0,
+                        start_time=utc_now_iso(),
                         end_time=utc_now_iso(),
                     )
                     return success_response(result)
             payload = {"job_id": job_id, "status": "not_found"}
             result = ExecutionResult(
-                tool=self.name, command=self.name,
-                stdout=json.dumps(payload, indent=2), stderr="",
-                exit_code=0, success=True, timed_out=False,
-                duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+                tool=self.name,
+                command=self.name,
+                stdout=json.dumps(payload, indent=2),
+                stderr="",
+                exit_code=0,
+                success=True,
+                timed_out=False,
+                duration=0.0,
+                start_time=utc_now_iso(),
+                end_time=utc_now_iso(),
             )
             return success_response(result)
 
         if action == "status":
             aid = job_entry.get("name", job_id)
             if not can_access(aid):
-                return error_response(ToolError(
-                    error="access denied",
-                    details=f"assessment {aid} access denied",
-                ))
+                return error_response(
+                    ToolError(
+                        error="access denied",
+                        details=f"assessment {aid} access denied",
+                    )
+                )
             try:
                 content = vault_read("assessments", aid)
                 data = json.loads(content) if content else {}
@@ -967,25 +1091,34 @@ class JobControlTool(BaseTool):
             if data.get("status") == "completed":
                 payload["result"] = data
             result = ExecutionResult(
-                tool=self.name, command=self.name,
-                stdout=json.dumps(payload, indent=2), stderr="",
-                exit_code=0, success=True, timed_out=False,
-                duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+                tool=self.name,
+                command=self.name,
+                stdout=json.dumps(payload, indent=2),
+                stderr="",
+                exit_code=0,
+                success=True,
+                timed_out=False,
+                duration=0.0,
+                start_time=utc_now_iso(),
+                end_time=utc_now_iso(),
             )
             return success_response(result)
 
         if action == "wait":
             # Poll vault for completion
             import asyncio as _asyncio
+
             deadline = _asyncio.get_event_loop().time() + timeout
             while _asyncio.get_event_loop().time() < deadline:
                 try:
                     aid = job_entry.get("name", job_id)
                     if not can_access(aid):
-                        return error_response(ToolError(
-                            error="access denied",
-                            details=f"assessment {aid} access denied",
-                        ))
+                        return error_response(
+                            ToolError(
+                                error="access denied",
+                                details=f"assessment {aid} access denied",
+                            )
+                        )
                     content = vault_read("assessments", aid)
                     data = json.loads(content) if content else {}
                     if data.get("status") in ("completed", "failed"):
@@ -993,23 +1126,36 @@ class JobControlTool(BaseTool):
                         if data.get("status") == "completed":
                             payload["result"] = data
                         result = ExecutionResult(
-                            tool=self.name, command=self.name,
-                            stdout=json.dumps(payload, indent=2), stderr="",
-                            exit_code=0, success=True, timed_out=False,
-                            duration=0.0, start_time=utc_now_iso(),
+                            tool=self.name,
+                            command=self.name,
+                            stdout=json.dumps(payload, indent=2),
+                            stderr="",
+                            exit_code=0,
+                            success=True,
+                            timed_out=False,
+                            duration=0.0,
+                            start_time=utc_now_iso(),
                             end_time=utc_now_iso(),
                         )
                         return success_response(result)
                 except Exception:
                     pass
                 await _asyncio.sleep(2)
-            payload = {"job_id": job_id, "status": "timeout",
-                       "message": f"Job did not complete within {timeout}s"}
+            payload = {
+                "job_id": job_id,
+                "status": "timeout",
+                "message": f"Job did not complete within {timeout}s",
+            }
             result = ExecutionResult(
-                tool=self.name, command=self.name,
-                stdout=json.dumps(payload, indent=2), stderr="",
-                exit_code=0, success=False, timed_out=True,
-                duration=float(timeout), start_time=utc_now_iso(),
+                tool=self.name,
+                command=self.name,
+                stdout=json.dumps(payload, indent=2),
+                stderr="",
+                exit_code=0,
+                success=False,
+                timed_out=True,
+                duration=float(timeout),
+                start_time=utc_now_iso(),
                 end_time=utc_now_iso(),
             )
             return success_response(result)
@@ -1017,12 +1163,21 @@ class JobControlTool(BaseTool):
         if action == "cancel":
             # Cancel via engine if active
             killed = await engine.kill_job(job_id)
-            payload = {"job_id": job_id, "status": "cancelled" if killed else "not_found_or_already_done"}
+            payload = {
+                "job_id": job_id,
+                "status": "cancelled" if killed else "not_found_or_already_done",
+            }
             result = ExecutionResult(
-                tool=self.name, command=self.name,
-                stdout=json.dumps(payload, indent=2), stderr="",
-                exit_code=0, success=True, timed_out=False,
-                duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+                tool=self.name,
+                command=self.name,
+                stdout=json.dumps(payload, indent=2),
+                stderr="",
+                exit_code=0,
+                success=True,
+                timed_out=False,
+                duration=0.0,
+                start_time=utc_now_iso(),
+                end_time=utc_now_iso(),
             )
             return success_response(result)
 
@@ -1030,6 +1185,7 @@ class JobControlTool(BaseTool):
 
 
 # ── 4. findings_query ────────────────────────────────────────────────────
+
 
 class FindingsQueryTool(BaseTool):
     """Search and filter normalized findings from the asset/finding model."""
@@ -1068,22 +1224,28 @@ class FindingsQueryTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string",
-                           "description": "Filter by target string"},
-                "severity": {"type": "string",
-                             "description": "critical | high | medium | low | informational"},
-                "validation_status": {"type": "string",
-                                      "description": "observed | suspected | validated | remediated | false_positive | accepted_risk"},
-                "tool": {"type": "string",
-                         "description": "Filter by source tool name"},
-                "asset_id": {"type": "string",
-                             "description": "Filter by asset identifier"},
-                "search": {"type": "string",
-                           "description": "Free-text search over findings"},
-                "limit": {"type": "integer", "description": "Max results (default 100, max 1000)",
-                          "default": 100},
-                "offset": {"type": "integer", "description": "Pagination offset (default 0)",
-                           "default": 0},
+                "target": {"type": "string", "description": "Filter by target string"},
+                "severity": {
+                    "type": "string",
+                    "description": "critical | high | medium | low | informational",
+                },
+                "validation_status": {
+                    "type": "string",
+                    "description": "observed | suspected | validated | remediated | false_positive | accepted_risk",
+                },
+                "tool": {"type": "string", "description": "Filter by source tool name"},
+                "asset_id": {"type": "string", "description": "Filter by asset identifier"},
+                "search": {"type": "string", "description": "Free-text search over findings"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default 100, max 1000)",
+                    "default": 100,
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Pagination offset (default 0)",
+                    "default": 0,
+                },
             },
         }
 
@@ -1103,10 +1265,12 @@ class FindingsQueryTool(BaseTool):
 
         db = dbm.get_db()
         if db is None:
-            return error_response(ToolError(
-                error="database unavailable",
-                details="SQLite database is not enabled or could not be opened",
-            ))
+            return error_response(
+                ToolError(
+                    error="database unavailable",
+                    details="SQLite database is not enabled or could not be opened",
+                )
+            )
 
         result = db.query_findings(
             target=arguments.get("target"),
@@ -1133,15 +1297,22 @@ class FindingsQueryTool(BaseTool):
             "findings": findings,
         }
         result_obj = ExecutionResult(
-            tool=self.name, command=self.name,
-            stdout=json.dumps(payload, indent=2), stderr="",
-            exit_code=0, success=True, timed_out=False,
-            duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool=self.name,
+            command=self.name,
+            stdout=json.dumps(payload, indent=2),
+            stderr="",
+            exit_code=0,
+            success=True,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         return success_response(result_obj)
 
 
 # ── 5. evidence_get ──────────────────────────────────────────────────────
+
 
 class EvidenceGetTool(BaseTool):
     """Retrieve detailed evidence for selected findings by evidence_ref."""
@@ -1176,12 +1347,9 @@ class EvidenceGetTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "evidence_id": {"type": "string",
-                                "description": "Evidence identifier (required)"},
-                "category": {"type": "string",
-                             "description": "Optional vault category filter"},
-                "name": {"type": "string",
-                         "description": "Optional vault name filter"},
+                "evidence_id": {"type": "string", "description": "Evidence identifier (required)"},
+                "category": {"type": "string", "description": "Optional vault category filter"},
+                "name": {"type": "string", "description": "Optional vault name filter"},
             },
             "required": ["evidence_id"],
         }
@@ -1226,10 +1394,16 @@ class EvidenceGetTool(BaseTool):
                     "truncated": len(content) > 100_000 if content else False,
                 }
                 result = ExecutionResult(
-                    tool=self.name, command=self.name,
-                    stdout=json.dumps(payload, indent=2), stderr="",
-                    exit_code=0, success=True, timed_out=False,
-                    duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+                    tool=self.name,
+                    command=self.name,
+                    stdout=json.dumps(payload, indent=2),
+                    stderr="",
+                    exit_code=0,
+                    success=True,
+                    timed_out=False,
+                    duration=0.0,
+                    start_time=utc_now_iso(),
+                    end_time=utc_now_iso(),
                 )
                 return success_response(result)
 
@@ -1248,22 +1422,31 @@ class EvidenceGetTool(BaseTool):
                     "truncated": len(content) > 100_000,
                 }
                 result = ExecutionResult(
-                    tool=self.name, command=self.name,
-                    stdout=json.dumps(payload, indent=2), stderr="",
-                    exit_code=0, success=True, timed_out=False,
-                    duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+                    tool=self.name,
+                    command=self.name,
+                    stdout=json.dumps(payload, indent=2),
+                    stderr="",
+                    exit_code=0,
+                    success=True,
+                    timed_out=False,
+                    duration=0.0,
+                    start_time=utc_now_iso(),
+                    end_time=utc_now_iso(),
                 )
                 return success_response(result)
             except Exception:
                 pass
 
-        return error_response(ToolError(
-            error="evidence not found",
-            details=f"No evidence found for id={evidence_id}",
-        ))
+        return error_response(
+            ToolError(
+                error="evidence not found",
+                details=f"No evidence found for id={evidence_id}",
+            )
+        )
 
 
 # ── 6. asset_graph ───────────────────────────────────────────────────────
+
 
 class AssetGraphTool(BaseTool):
     """Retrieve discovered assets and their relationships."""
@@ -1299,14 +1482,20 @@ class AssetGraphTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "target": {"type": "string",
-                           "description": "Filter by target/domain/IP"},
-                "asset_id": {"type": "string",
-                             "description": "Filter by specific asset identifier"},
-                "relationship_type": {"type": "string",
-                                      "description": "resolves_to | contains | uses_technology | shared_by | child_of | supports"},
-                "limit": {"type": "integer", "description": "Max results (default 100)",
-                          "default": 100},
+                "target": {"type": "string", "description": "Filter by target/domain/IP"},
+                "asset_id": {
+                    "type": "string",
+                    "description": "Filter by specific asset identifier",
+                },
+                "relationship_type": {
+                    "type": "string",
+                    "description": "resolves_to | contains | uses_technology | shared_by | child_of | supports",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default 100)",
+                    "default": 100,
+                },
             },
         }
 
@@ -1323,10 +1512,12 @@ class AssetGraphTool(BaseTool):
 
         db = dbm.get_db()
         if db is None:
-            return error_response(ToolError(
-                error="database unavailable",
-                details="SQLite database is not enabled or could not be opened",
-            ))
+            return error_response(
+                ToolError(
+                    error="database unavailable",
+                    details="SQLite database is not enabled or could not be opened",
+                )
+            )
 
         graph = db.get_asset_graph(target=arguments.get("target"))
 
@@ -1355,15 +1546,22 @@ class AssetGraphTool(BaseTool):
             "relationships": relationships,
         }
         result = ExecutionResult(
-            tool=self.name, command=self.name,
-            stdout=json.dumps(payload, indent=2), stderr="",
-            exit_code=0, success=True, timed_out=False,
-            duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool=self.name,
+            command=self.name,
+            stdout=json.dumps(payload, indent=2),
+            stderr="",
+            exit_code=0,
+            success=True,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         return success_response(result)
 
 
 # ── 7. tool_catalog ──────────────────────────────────────────────────────
+
 
 class ToolCatalogTool(BaseTool):
     """Search available tools and their capabilities."""
@@ -1397,13 +1595,19 @@ class ToolCatalogTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "layer": {"type": "string",
-                          "description": "discovery | operations | workflows | intelligence | escape_hatch"},
-                "mode": {"type": "string",
-                         "description": "agent (compact) | expert (full)",
-                         "default": "agent"},
-                "search": {"type": "string",
-                           "description": "Free-text search over tool names and descriptions"},
+                "layer": {
+                    "type": "string",
+                    "description": "discovery | operations | workflows | intelligence | escape_hatch",
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "agent (compact) | expert (full)",
+                    "default": "agent",
+                },
+                "search": {
+                    "type": "string",
+                    "description": "Free-text search over tool names and descriptions",
+                },
             },
         }
 
@@ -1412,7 +1616,13 @@ class ToolCatalogTool(BaseTool):
         if mode not in ("agent", "expert"):
             raise ValueError("mode must be agent or expert")
         layer = arguments.get("layer")
-        if layer and layer not in ("discovery", "operations", "workflows", "intelligence", "escape_hatch"):
+        if layer and layer not in (
+            "discovery",
+            "operations",
+            "workflows",
+            "intelligence",
+            "escape_hatch",
+        ):
             raise ValueError("invalid layer")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
@@ -1447,6 +1657,7 @@ class ToolCatalogTool(BaseTool):
             allowed &= granted_names
 
         from kali_mcp.registry import registry
+
         tools = registry.list_all()
 
         catalog: list[dict[str, Any]] = []
@@ -1459,14 +1670,16 @@ class ToolCatalogTool(BaseTool):
                 continue
             if search and search not in tname.lower() and search not in tool.description.lower():
                 continue
-            catalog.append({
-                "name": tname,
-                "description": tool.description,
-                "layer": tlayer,
-                "input_schema": tool.input_schema(),
-                "default_timeout": tool.default_timeout,
-                "mode": "agent" if tname in AGENT_MODE_TOOLS else "expert",
-            })
+            catalog.append(
+                {
+                    "name": tname,
+                    "description": tool.description,
+                    "layer": tlayer,
+                    "input_schema": tool.input_schema(),
+                    "default_timeout": tool.default_timeout,
+                    "mode": "agent" if tname in AGENT_MODE_TOOLS else "expert",
+                }
+            )
 
         catalog.sort(key=lambda t: (t["layer"], t["name"]))
 
@@ -1478,15 +1691,22 @@ class ToolCatalogTool(BaseTool):
             "tools": catalog,
         }
         result = ExecutionResult(
-            tool=self.name, command=self.name,
-            stdout=json.dumps(payload, indent=2), stderr="",
-            exit_code=0, success=True, timed_out=False,
-            duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool=self.name,
+            command=self.name,
+            stdout=json.dumps(payload, indent=2),
+            stderr="",
+            exit_code=0,
+            success=True,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         return success_response(result)
 
 
 # ── 8. report_generate ───────────────────────────────────────────────────
+
 
 class ReportGenerateTool(BaseTool):
     """Produce an assessment report from findings and asset data."""
@@ -1523,14 +1743,20 @@ class ReportGenerateTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "assessment_id": {"type": "string",
-                                  "description": "Assessment identifier (required)"},
-                "format": {"type": "string",
-                           "description": "json | markdown | html | sarif | pdf | csv | stix",
-                           "default": "json"},
-                "include_raw": {"type": "boolean",
-                                "description": "Include raw evidence content",
-                                "default": False},
+                "assessment_id": {
+                    "type": "string",
+                    "description": "Assessment identifier (required)",
+                },
+                "format": {
+                    "type": "string",
+                    "description": "json | markdown | html | sarif | pdf | csv | stix",
+                    "default": "json",
+                },
+                "include_raw": {
+                    "type": "boolean",
+                    "description": "Include raw evidence content",
+                    "default": False,
+                },
             },
             "required": ["assessment_id"],
             "outputSchema": {
@@ -1572,19 +1798,23 @@ class ReportGenerateTool(BaseTool):
 
         entries = rows.get("entries", [])
         if not entries:
-            return error_response(ToolError(
-                error="assessment not found",
-                details=f"No assessment data found for id={assessment_id}",
-            ))
+            return error_response(
+                ToolError(
+                    error="assessment not found",
+                    details=f"No assessment data found for id={assessment_id}",
+                )
+            )
 
         # Use the most recent entry
         entry = entries[0]
         aid = entry.get("name", assessment_id)
         if not can_access(aid):
-            return error_response(ToolError(
-                error="access denied",
-                details=f"assessment {aid} access denied",
-            ))
+            return error_response(
+                ToolError(
+                    error="access denied",
+                    details=f"assessment {aid} access denied",
+                )
+            )
         try:
             content = vault_read("assessments", aid)
             data = json.loads(content) if content else {}
@@ -1612,15 +1842,23 @@ class ReportGenerateTool(BaseTool):
         elif fmt == "csv":
             content_out = self._csv_report(assessment_id, findings, base)
         elif fmt == "stix":
-            content_out = json.dumps(self._stix_report(assessment_id, findings, summary, base), indent=2)
+            content_out = json.dumps(
+                self._stix_report(assessment_id, findings, summary, base), indent=2
+            )
         else:
             content_out = json.dumps({"error": "unsupported format"}, indent=2)
 
         result = ExecutionResult(
-            tool=self.name, command=self.name,
-            stdout=content_out, stderr="",
-            exit_code=0, success=True, timed_out=False,
-            duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool=self.name,
+            command=self.name,
+            stdout=content_out,
+            stderr="",
+            exit_code=0,
+            success=True,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         return success_response(result)
 
@@ -1657,26 +1895,26 @@ class ReportGenerateTool(BaseTool):
         """Build the common report structure shared by every output format."""
         normalized_findings: list[dict[str, Any]] = []
         for f in findings:
-            normalized_findings.append({
-                "id": f.get("id") or f.get("finding_id") or "unknown",
-                "title": f.get("title", "Untitled finding"),
-                "severity": f.get("severity", "informational"),
-                "confidence": f.get("confidence", 0.5),
-                "validation_status": f.get("validation_status", "observed"),
-                "asset_id": f.get("asset_id"),
-                "source_tools": list(f.get("source_tools") or f.get("source_modules") or []),
-                "evidence_refs": list(f.get("evidence_refs") or []),
-                "description": f.get("description", ""),
-                "remediation": f.get("remediation") or self._remediation_for(f),
-            })
+            normalized_findings.append(
+                {
+                    "id": f.get("id") or f.get("finding_id") or "unknown",
+                    "title": f.get("title", "Untitled finding"),
+                    "severity": f.get("severity", "informational"),
+                    "confidence": f.get("confidence", 0.5),
+                    "validation_status": f.get("validation_status", "observed"),
+                    "asset_id": f.get("asset_id"),
+                    "source_tools": list(f.get("source_tools") or f.get("source_modules") or []),
+                    "evidence_refs": list(f.get("evidence_refs") or []),
+                    "description": f.get("description", ""),
+                    "remediation": f.get("remediation") or self._remediation_for(f),
+                }
+            )
         return {
             "assessment_id": assessment_id,
             "generated_at": utc_now_iso(),
             "summary": summary,
             "findings": normalized_findings,
-            "remediation": {
-                nf["id"]: nf["remediation"] for nf in normalized_findings
-            },
+            "remediation": {nf["id"]: nf["remediation"] for nf in normalized_findings},
             "next_actions": list(data.get("next_actions") or []),
             "artifacts": list(data.get("artifacts") or []),
             "recommended_next_playbooks": list(data.get("recommended_next_playbooks") or []),
@@ -1694,21 +1932,27 @@ class ReportGenerateTool(BaseTool):
         results = []
         for f in findings:
             level = "error" if f.get("severity") in ("critical", "high") else "warning"
-            results.append({
-                "ruleId": f.get("id", "unknown"),
-                "level": level,
-                "message": {"text": f.get("title", "Untitled finding")},
-                "locations": [{"physicalLocation": {
-                    "artifactLocation": {"uri": f.get("asset_id", "unknown")},
-                }}],
-                "properties": {
-                    "severity": f.get("severity"),
-                    "confidence": f.get("confidence"),
-                    "validation_status": f.get("validation_status"),
-                    "source_tools": f.get("source_tools", []),
-                    "evidence_refs": f.get("evidence_refs", []),
-                },
-            })
+            results.append(
+                {
+                    "ruleId": f.get("id", "unknown"),
+                    "level": level,
+                    "message": {"text": f.get("title", "Untitled finding")},
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {"uri": f.get("asset_id", "unknown")},
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "severity": f.get("severity"),
+                        "confidence": f.get("confidence"),
+                        "validation_status": f.get("validation_status"),
+                        "source_tools": f.get("source_tools", []),
+                        "evidence_refs": f.get("evidence_refs", []),
+                    },
+                }
+            )
         return {
             "$schema": "https://docs.oasis-open.org/sarif/sarif-2.1.0/csprd01/schemas/sarif-schema-2.1.0.json",
             "version": "2.1.0",
@@ -1719,11 +1963,13 @@ class ReportGenerateTool(BaseTool):
             "next_actions": base.get("next_actions", []),
             "artifacts": base.get("artifacts", []),
             "recommended_next_playbooks": base.get("recommended_next_playbooks", []),
-            "runs": [{
-                "tool": {"driver": {"name": "kali-mcp", "version": "2.0.0"}},
-                "results": results,
-                "properties": {"assessment_id": assessment_id, "summary": summary},
-            }],
+            "runs": [
+                {
+                    "tool": {"driver": {"name": "kali-mcp", "version": "2.0.0"}},
+                    "results": results,
+                    "properties": {"assessment_id": assessment_id, "summary": summary},
+                }
+            ],
         }
 
     def _pdf_report(
@@ -1765,22 +2011,28 @@ class ReportGenerateTool(BaseTool):
                 f"validation={f.get('validation_status')} | asset={f.get('asset_id')} | "
                 f"tools={','.join(f.get('source_tools', []))} | evidence={','.join(f.get('evidence_refs', []))}"
             )
-        lines.extend([
-            "",
-            "--- Next Actions ---",
-        ])
+        lines.extend(
+            [
+                "",
+                "--- Next Actions ---",
+            ]
+        )
         for action in base.get("next_actions", []):
             lines.append(f"- {action}")
-        lines.extend([
-            "",
-            "--- Artifacts ---",
-        ])
+        lines.extend(
+            [
+                "",
+                "--- Artifacts ---",
+            ]
+        )
         for artifact in base.get("artifacts", []):
             lines.append(f"- {artifact}")
-        lines.extend([
-            "",
-            "--- Recommended Next Playbooks ---",
-        ])
+        lines.extend(
+            [
+                "",
+                "--- Recommended Next Playbooks ---",
+            ]
+        )
         for pb in base.get("recommended_next_playbooks", []):
             lines.append(f"- {pb}")
         lines.append("")
@@ -1800,23 +2052,35 @@ class ReportGenerateTool(BaseTool):
 
         buf = io.StringIO()
         writer = csv.writer(buf)
-        writer.writerow([
-            "assessment_id", "finding_id", "title", "severity", "confidence",
-            "validation_status", "asset_id", "source_tools", "evidence_refs", "description",
-        ])
+        writer.writerow(
+            [
+                "assessment_id",
+                "finding_id",
+                "title",
+                "severity",
+                "confidence",
+                "validation_status",
+                "asset_id",
+                "source_tools",
+                "evidence_refs",
+                "description",
+            ]
+        )
         for f in findings:
-            writer.writerow([
-                assessment_id,
-                f.get("id", ""),
-                f.get("title", ""),
-                f.get("severity", ""),
-                f.get("confidence", ""),
-                f.get("validation_status", ""),
-                f.get("asset_id", ""),
-                ";".join(f.get("source_tools", [])),
-                ";".join(f.get("evidence_refs", [])),
-                f.get("description", ""),
-            ])
+            writer.writerow(
+                [
+                    assessment_id,
+                    f.get("id", ""),
+                    f.get("title", ""),
+                    f.get("severity", ""),
+                    f.get("confidence", ""),
+                    f.get("validation_status", ""),
+                    f.get("asset_id", ""),
+                    ";".join(f.get("source_tools", [])),
+                    ";".join(f.get("evidence_refs", [])),
+                    f.get("description", ""),
+                ]
+            )
         return buf.getvalue()
 
     def _stix_report(
@@ -1863,24 +2127,28 @@ class ReportGenerateTool(BaseTool):
 
         for f in findings:
             indicator_id = f"indicator--{uuid.uuid4()}"
-            objects.append({
-                "type": "indicator",
-                "id": indicator_id,
-                "spec_version": "2.1",
-                "created": base.get("generated_at"),
-                "modified": base.get("generated_at"),
-                "labels": ["anomalous-activity"],
-                "pattern_type": "stix",
-                "pattern": f"[kali-mcp:finding.id = '{f.get('id')}']",
-                "valid_from": base.get("generated_at"),
-                "confidence": int(round(float(f.get("confidence", 0.5) * 100))),
-                "marking_refs": [marking_id],
-                "external_references": [{
-                    "source_name": "kali-mcp",
-                    "external_id": f.get("id"),
-                    "description": f.get("title"),
-                }],
-            })
+            objects.append(
+                {
+                    "type": "indicator",
+                    "id": indicator_id,
+                    "spec_version": "2.1",
+                    "created": base.get("generated_at"),
+                    "modified": base.get("generated_at"),
+                    "labels": ["anomalous-activity"],
+                    "pattern_type": "stix",
+                    "pattern": f"[kali-mcp:finding.id = '{f.get('id')}']",
+                    "valid_from": base.get("generated_at"),
+                    "confidence": round(float(f.get("confidence", 0.5) * 100)),
+                    "marking_refs": [marking_id],
+                    "external_references": [
+                        {
+                            "source_name": "kali-mcp",
+                            "external_id": f.get("id"),
+                            "description": f.get("title"),
+                        }
+                    ],
+                }
+            )
             objects[2]["object_refs"].append(indicator_id)  # append to report object_refs
 
         return {
@@ -1902,8 +2170,11 @@ class ReportGenerateTool(BaseTool):
         }
 
     def _markdown_report(
-        self, assessment_id: str, findings: list[dict[str, Any]],
-        summary: dict[str, Any], base: dict[str, Any],
+        self,
+        assessment_id: str,
+        findings: list[dict[str, Any]],
+        summary: dict[str, Any],
+        base: dict[str, Any],
     ) -> str:
         lines = [
             f"# Assessment Report — {assessment_id}",
@@ -1920,40 +2191,51 @@ class ReportGenerateTool(BaseTool):
             "## Findings",
         ]
         for f in findings:
-            lines.extend([
-                f"### {f.get('id')} — {f.get('title')}",
-                f"- Severity: {f.get('severity')}",
-                f"- Confidence: {f.get('confidence')}",
-                f"- Validation: {f.get('validation_status')}",
-                f"- Asset: {f.get('asset_id')}",
-                f"- Source tools: {', '.join(f.get('source_tools', []))}",
-                f"- Evidence refs: {', '.join(f.get('evidence_refs', []))}",
-                f"- Description: {f.get('description', '')}",
-                f"- Remediation: {f.get('remediation', '')}",
-                "",
-            ])
-        lines.extend([
-            "## Next Actions",
-        ])
+            lines.extend(
+                [
+                    f"### {f.get('id')} — {f.get('title')}",
+                    f"- Severity: {f.get('severity')}",
+                    f"- Confidence: {f.get('confidence')}",
+                    f"- Validation: {f.get('validation_status')}",
+                    f"- Asset: {f.get('asset_id')}",
+                    f"- Source tools: {', '.join(f.get('source_tools', []))}",
+                    f"- Evidence refs: {', '.join(f.get('evidence_refs', []))}",
+                    f"- Description: {f.get('description', '')}",
+                    f"- Remediation: {f.get('remediation', '')}",
+                    "",
+                ]
+            )
+        lines.extend(
+            [
+                "## Next Actions",
+            ]
+        )
         for action in base.get("next_actions", []):
             lines.append(f"- {action}")
-        lines.extend([
-            "",
-            "## Artifacts",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Artifacts",
+            ]
+        )
         for artifact in base.get("artifacts", []):
             lines.append(f"- {artifact}")
-        lines.extend([
-            "",
-            "## Recommended Next Playbooks",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Recommended Next Playbooks",
+            ]
+        )
         for pb in base.get("recommended_next_playbooks", []):
             lines.append(f"- {pb}")
         return "\n".join(lines)
 
     def _html_report(
-        self, assessment_id: str, findings: list[dict[str, Any]],
-        summary: dict[str, Any], base: dict[str, Any],
+        self,
+        assessment_id: str,
+        findings: list[dict[str, Any]],
+        summary: dict[str, Any],
+        base: dict[str, Any],
     ) -> str:
         rows = ""
         for f in findings:
@@ -1989,6 +2271,7 @@ class ReportGenerateTool(BaseTool):
 
 
 # ── 9. finding_transition ──────────────────────────────────────────────────
+
 
 class FindingTransitionTool:
     """Change the validation_status (lifecycle state) of a finding."""
@@ -2029,7 +2312,10 @@ class FindingTransitionTool:
                     "type": "string",
                     "description": "observed | suspected | validated | remediated | false_positive | accepted_risk",
                 },
-                "source": {"type": "string", "description": "Tool or analyst initiating the transition"},
+                "source": {
+                    "type": "string",
+                    "description": "Tool or analyst initiating the transition",
+                },
                 "reason": {"type": "string", "description": "Reason for the state change"},
             },
             "required": ["finding_id", "new_state"],
@@ -2039,7 +2325,14 @@ class FindingTransitionTool:
         if not arguments.get("finding_id"):
             raise ValueError("finding_id is required")
         state = arguments.get("new_state")
-        valid = {"observed", "suspected", "validated", "remediated", "false_positive", "accepted_risk"}
+        valid = {
+            "observed",
+            "suspected",
+            "validated",
+            "remediated",
+            "false_positive",
+            "accepted_risk",
+        }
         if state not in valid:
             raise ValueError(f"new_state must be one of: {sorted(valid)}")
 
@@ -2088,10 +2381,16 @@ class FindingTransitionTool:
                 "error": f"Invalid transition from {previous_state} to {new_state}",
             }
             result = ExecutionResult(
-                tool=self.name, command=self.name,
-                stdout=json.dumps(payload, indent=2), stderr="",
-                exit_code=0, success=False, timed_out=False,
-                duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+                tool=self.name,
+                command=self.name,
+                stdout=json.dumps(payload, indent=2),
+                stderr="",
+                exit_code=0,
+                success=False,
+                timed_out=False,
+                duration=0.0,
+                start_time=utc_now_iso(),
+                end_time=utc_now_iso(),
             )
             return success_response(result)
 
@@ -2108,15 +2407,22 @@ class FindingTransitionTool:
             "transition_history": history,
         }
         result = ExecutionResult(
-            tool=self.name, command=self.name,
-            stdout=json.dumps(payload, indent=2), stderr="",
-            exit_code=0, success=ok, timed_out=False,
-            duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool=self.name,
+            command=self.name,
+            stdout=json.dumps(payload, indent=2),
+            stderr="",
+            exit_code=0,
+            success=ok,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         return success_response(result)
 
 
 # ── 10. assessment_diff ────────────────────────────────────────────────────
+
 
 class AssessmentDiffTool:
     """Compare two assessment runs and surface what changed."""
@@ -2184,15 +2490,22 @@ class AssessmentDiffTool:
 
         payload = diff_result.to_dict()
         result = ExecutionResult(
-            tool=self.name, command=self.name,
-            stdout=json.dumps(payload, indent=2), stderr="",
-            exit_code=0, success=True, timed_out=False,
-            duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool=self.name,
+            command=self.name,
+            stdout=json.dumps(payload, indent=2),
+            stderr="",
+            exit_code=0,
+            success=True,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         return success_response(result)
 
 
 # ── 11. coverage_summary ───────────────────────────────────────────────────
+
 
 class CoverageSummaryTool:
     """Show coverage gaps and summary for an assessment."""
@@ -2297,10 +2610,16 @@ class CoverageSummaryTool:
             "coverage_gaps": gaps,
         }
         result = ExecutionResult(
-            tool=self.name, command=self.name,
-            stdout=json.dumps(payload, indent=2), stderr="",
-            exit_code=0, success=True, timed_out=False,
-            duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+            tool=self.name,
+            command=self.name,
+            stdout=json.dumps(payload, indent=2),
+            stderr="",
+            exit_code=0,
+            success=True,
+            timed_out=False,
+            duration=0.0,
+            start_time=utc_now_iso(),
+            end_time=utc_now_iso(),
         )
         return success_response(result)
 
