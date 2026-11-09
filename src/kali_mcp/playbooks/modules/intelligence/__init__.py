@@ -26,7 +26,11 @@ async def _correlate(
     for finding in findings:
         if not isinstance(finding, dict):
             continue
-        dedup_key = finding.get("id") or finding.get("finding_id") or f"{finding.get('target','')}:{finding.get('type','')}:{finding.get('name','')}"
+        dedup_key = (
+            finding.get("id")
+            or finding.get("finding_id")
+            or f"{finding.get('target', '')}:{finding.get('type', '')}:{finding.get('name', '')}"
+        )
         if dedup_key in seen:
             continue
         seen.add(dedup_key)
@@ -58,7 +62,11 @@ def register() -> None:
     _mr.register(
         "intelligence.correlate",
         _correlate,
-        input_schema={"type": "object", "required": ["findings"], "properties": {"findings": {"type": "array"}}},
+        input_schema={
+            "type": "object",
+            "required": ["findings"],
+            "properties": {"findings": {"type": "array"}},
+        },
         output_schema={
             "type": "object",
             "properties": {
