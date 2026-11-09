@@ -15,34 +15,34 @@ from kali_mcp.workflow.yaml_loader import (
 
 
 def _make_step(**overrides) -> StepDefinition:
-    base = dict(
-        id="s1",
-        tool="dns.resolve",
-        type="custom",
-        depends_on=[],
-        when=None,
-        parallel=False,
-        foreach=None,
-        output_mapping={},
-        retry=0,
-        on_failure="abort",
-        checkpoint=False,
-        budget={},
-        args={},
-    )
+    base = {
+        "id": "s1",
+        "tool": "dns.resolve",
+        "type": "custom",
+        "depends_on": [],
+        "when": None,
+        "parallel": False,
+        "foreach": None,
+        "output_mapping": {},
+        "retry": 0,
+        "on_failure": "abort",
+        "checkpoint": False,
+        "budget": {},
+        "args": {},
+    }
     base.update(overrides)
     return StepDefinition(**base)
 
 
 def _make_defn(**overrides) -> PlaybookDefinition:
-    base = dict(
-        name="test-playbook",
-        version="1.0",
-        inputs={},
-        execution={},
-        steps=[],
-        raw={},
-    )
+    base = {
+        "name": "test-playbook",
+        "version": "1.0",
+        "inputs": {},
+        "execution": {},
+        "steps": [],
+        "raw": {},
+    }
     base.update(overrides)
     return PlaybookDefinition(**base)
 
@@ -54,7 +54,7 @@ class TestDeserializerHeaderAndInputs:
             version="2.3.0",
         )
         text = deserialize(defn)
-        assert 'id: pb.hello' in text
+        assert "id: pb.hello" in text
         assert 'name: "test-playbook"' in text
         assert 'version: "2.3.0"' in text
         assert 'description: "A playbook"' in text
@@ -87,7 +87,7 @@ class TestDeserializerHeaderAndInputs:
         # A non-scalar default falls to _quote(str(value)).
         defn = _make_defn(inputs={"cfg": {"type": "string", "default": {"a": 1}}})
         text = deserialize(defn)
-        assert 'default: ' in text
+        assert "default: " in text
         assert "{'a': 1}" in text
 
 
