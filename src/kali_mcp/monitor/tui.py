@@ -68,6 +68,7 @@ def _panel_name(panel: int) -> str:
 # Panel builders (with optional row highlight)
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 def _sessions_panel(
     sessions: list[dict[str, Any]],
     selected_index: int = -1,
@@ -209,6 +210,7 @@ def build_layout(
 # HTTP helpers
 # ═════════════════════════════════════════════════════════════════════════════
 
+
 async def _http_post(base_url: str, payload: dict[str, Any]) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=10.0) as http:
         resp = await http.post(f"{base_url}/monitor/action", json=payload)
@@ -234,9 +236,7 @@ async def _kill_selected(
         if not req_id:
             return "No request id for selected job"
         try:
-            res = await _http_post(
-                base_url, {"action": "kill_job", "request_id": req_id}
-            )
+            res = await _http_post(base_url, {"action": "kill_job", "request_id": req_id})
             if res.get("killed"):
                 return f"Killed job {req_id}"
             return f"Job {req_id}: not found"
@@ -316,8 +316,8 @@ async def run(url: str, token: str | None = None) -> None:
     # Show connection error if the SSE stream is failing
     conn_err = client.last_error
     status_msg = (
-        f"q: quit · r: refresh · f: force cleanup · k k: kill selected · "
-        f"←→: switch panel · ↑↓: move selection"
+        "q: quit · r: refresh · f: force cleanup · k k: kill selected · "
+        "←→: switch panel · ↑↓: move selection"
     )
     if conn_err:
         status_msg = f"Connection error: {conn_err} · q: quit · r: retry"
@@ -394,9 +394,7 @@ async def run(url: str, token: str | None = None) -> None:
                         if items:
                             index = (index - 1) % len(items)
                         escape_buf = ""
-                        layout = build_layout(
-                            snapshot, status_msg, panel, index
-                        )
+                        layout = build_layout(snapshot, status_msg, panel, index)
                         live.update(layout, refresh=True)
                         continue
                     elif escape_buf == "\x1b[B":  # Down
@@ -407,9 +405,7 @@ async def run(url: str, token: str | None = None) -> None:
                         if items:
                             index = (index + 1) % len(items)
                         escape_buf = ""
-                        layout = build_layout(
-                            snapshot, status_msg, panel, index
-                        )
+                        layout = build_layout(snapshot, status_msg, panel, index)
                         live.update(layout, refresh=True)
                         continue
                     elif escape_buf == "\x1b[C":  # Right → switch to jobs panel
@@ -420,9 +416,7 @@ async def run(url: str, token: str | None = None) -> None:
                             index = -1
                         escape_buf = ""
                         status_msg = "Panel: Jobs — k k to kill selected job"
-                        layout = build_layout(
-                            snapshot, status_msg, panel, index
-                        )
+                        layout = build_layout(snapshot, status_msg, panel, index)
                         live.update(layout, refresh=True)
                         continue
                     elif escape_buf == "\x1b[D":  # Left → switch to sessions panel
@@ -433,9 +427,7 @@ async def run(url: str, token: str | None = None) -> None:
                             index = -1
                         escape_buf = ""
                         status_msg = "Panel: Sessions — k k has no effect (no kill endpoint)"
-                        layout = build_layout(
-                            snapshot, status_msg, panel, index
-                        )
+                        layout = build_layout(snapshot, status_msg, panel, index)
                         live.update(layout, refresh=True)
                         continue
                     else:
@@ -523,12 +515,8 @@ async def run(url: str, token: str | None = None) -> None:
 
                 elif key == "f":
                     try:
-                        res = await _http_post(
-                            f"{url}/monitor/action", {"action": "force_cleanup"}
-                        )
-                        status_msg = (
-                            f"force_cleanup: {res.get('cleaned', 0)} cleaned"
-                        )
+                        res = await _http_post(f"{url}/monitor/action", {"action": "force_cleanup"})
+                        status_msg = f"force_cleanup: {res.get('cleaned', 0)} cleaned"
                     except Exception as exc:  # noqa: BLE001
                         status_msg = f"force_cleanup: error — {exc}"
                     layout = build_layout(snapshot, status_msg, panel, index)
