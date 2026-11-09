@@ -29,19 +29,19 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useNotifications } from "@/stores/notifications";
-import { apiRequest } from "@/api/client";
+import { useNotificationsStore } from "@/stores/notifications";
+import { apiRequest, type OverviewResponse } from "@/api/client";
 
-const notify = useNotifications();
+const { notify } = useNotificationsStore();
 const kpis = ref<any[]>([]);
 const recentExecutionsHtml = ref("");
 const recentFindingsHtml = ref("");
 
-function esc(v: any) { return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function esc(v: any) { return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? "")); }
 
 async function load() {
   try {
-    const o = await apiRequest("/overview");
+    const o = (await apiRequest("/overview")) as OverviewResponse;
     const execState = o.executions?.by_status || {};
     const fnd = o.findings?.by_severity || {};
     const runState = ["running","completed","failed","cancelled"]
@@ -63,7 +63,7 @@ async function load() {
       cells: [esc(f.port_state || f.status || "—"), esc(f.tool), esc(f.severity || f.validation_status || "—"), esc(f.test_name || f.checkname || f.validation_status || "—")],
     }));
     recentFindingsHtml.value = `<div style="padding:6px">${table(["Target hint","Tool","Severity","Test"], frows, "No findings yet.")}</div>`;
-  } catch (err: any) { notify.toast(`Failed to load overview: ${err?.message ?? err}`, "error"); }
+  } catch (err: any) { notify(`Failed to load overview: ${err?.message ?? err}`, "error"); }
 }
 
 function table(headers: string[], rows: any[], emptyText = "Nothing here yet.") {
