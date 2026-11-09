@@ -74,6 +74,9 @@ function handleKeydown(e: KeyboardEvent) {
 }
 .token-input:focus {
   border-color: var(--green-strong);
-  outline: none;
+}
+.token-input:focus-visible {
+  outline: 2px solid var(--green-strong);
+  outline-offset: 1px;
 }
 </style>
