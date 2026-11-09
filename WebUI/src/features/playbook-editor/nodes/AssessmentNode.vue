@@ -7,7 +7,7 @@ const step = props.data.step;
 </script>
 
 <template>
-  <BaseNode :id="id" :data="data" :selected="selected" v-slot="{ type }">
+  <BaseNode :id="id" :data="data" :selected="selected">
     <div class="node-body"><div class="shell-line"><i>report</i><span>{{ step.report || "assessment report" }}</span></div><div class="shell-line"><i>in</i><span v-if="step.inputs && Object.keys(step.inputs).length">{{ Object.keys(step.inputs).length }} mapped</span><span v-else class="dim">no inputs</span></div></div>
   </BaseNode>
 </template>
