@@ -12,6 +12,7 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import BaseBadge from "@/components/common/BaseBadge.vue";
+import { badgeVariant } from "@/components/common/badgeVariant";
 import BaseButton from "@/components/common/BaseButton.vue";
 
 const route = useRoute();
@@ -93,7 +94,7 @@ onMounted(() => {
       <div class="subtitle">
         {{ execution.playbook_id || "" }}
         <span style="margin-left:8px">
-          <BaseBadge :variant="execution.status">{{ execution.status }}</BaseBadge>
+          <BaseBadge :variant="badgeVariant(execution.status)">{{ execution.status }}</BaseBadge>
         </span>
         <span v-if="execution.trigger" style="margin-left:8px">trigger: <b class="mono">{{ execution.trigger }}</b></span>
         <span v-if="execution.debug" style="margin-left:8px" class="chip ck">debug</span>
@@ -139,7 +140,7 @@ onMounted(() => {
               <span>{{ s.step_id }}</span>
               <span>{{ s.tool_id || "—" }}</span>
               <span>
-                <BaseBadge :variant="s.status">{{ s.status }}</BaseBadge>
+                <BaseBadge :variant="badgeVariant(s.status)">{{ s.status }}</BaseBadge>
               </span>
             </div>
           </div>
