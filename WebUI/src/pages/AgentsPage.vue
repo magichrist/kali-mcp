@@ -32,6 +32,9 @@ const newProfileDesc = ref("");
 const deleteConfirm = ref(false);
 const deleteTarget = ref<AgentProfile | null>(null);
 
+function openCreate() { createModal.value = true; }
+function closeCreate() { createModal.value = false; }
+
 /* ── actions ── */
 async function load(): Promise<void> {
   loading.value = true;
@@ -104,7 +107,7 @@ onMounted(() => {
 
     <div id="pageHeadActions">
       <BaseButton variant="ghost" @click="load">Refresh</BaseButton>
-      <BaseButton variant="primary" @click="() => (createModal.value = true)">＋ New profile</BaseButton>
+      <BaseButton variant="primary" @click="openCreate">＋ New profile</BaseButton>
     </div>
 
     <div style="padding:8px">
@@ -155,7 +158,7 @@ onMounted(() => {
       </div>
     </div>
     <template #footer>
-      <BaseButton @click="() => (createModal.value = false)">Cancel</BaseButton>
+      <BaseButton @click="closeCreate">Cancel</BaseButton>
       <BaseButton variant="primary" :disabled="creating" @click="handleCreate">Create profile</BaseButton>
     </template>
   </BaseModal>
