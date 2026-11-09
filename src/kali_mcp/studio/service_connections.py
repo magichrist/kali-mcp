@@ -19,9 +19,7 @@ logger = logging.getLogger("kali_mcp.studio.service_connections")
 def list_connections(db: DBManager) -> list[dict[str, Any]]:
     """List all registered external MCP connections, newest first."""
     cur = db.conn.cursor()
-    rows = cur.execute(
-        "SELECT * FROM mcp_connections ORDER BY updated_at DESC"
-    ).fetchall()
+    rows = cur.execute("SELECT * FROM mcp_connections ORDER BY updated_at DESC").fetchall()
     out: list[dict[str, Any]] = []
     for r in rows:
         row = dict(r)
@@ -66,9 +64,7 @@ def upsert_connection(
         command = " ".join(str(c) for c in command)
     now = db._now_utc()
     cur = db.conn.cursor()
-    cur.execute(
-        "SELECT id FROM mcp_connections WHERE connection_id = ?", (connection_id,)
-    )
+    cur.execute("SELECT id FROM mcp_connections WHERE connection_id = ?", (connection_id,))
     exists = cur.fetchone() is not None
     if exists:
         cur.execute(
@@ -79,11 +75,17 @@ def upsert_connection(
             WHERE connection_id=?
             """,
             (
-                name, description, transport, endpoint_url, command,
+                name,
+                description,
+                transport,
+                endpoint_url,
+                command,
                 json.dumps(args) if args else None,
                 auth_type,
                 json.dumps(auth_config) if auth_config else None,
-                int(bool(enabled)), now, connection_id,
+                int(bool(enabled)),
+                now,
+                connection_id,
             ),
         )
     else:
@@ -95,26 +97,29 @@ def upsert_connection(
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
-                connection_id, name, description, transport, endpoint_url, command,
+                connection_id,
+                name,
+                description,
+                transport,
+                endpoint_url,
+                command,
                 json.dumps(args) if args else None,
                 auth_type,
                 json.dumps(auth_config) if auth_config else None,
-                int(bool(enabled)), now, now,
+                int(bool(enabled)),
+                now,
+                now,
             ),
         )
     db.conn.commit()
-    cur.execute(
-        "SELECT * FROM mcp_connections WHERE connection_id = ?", (connection_id,)
-    )
+    cur.execute("SELECT * FROM mcp_connections WHERE connection_id = ?", (connection_id,))
     return dict(cur.fetchone() or {})
 
 
 def delete_connection(db: DBManager, connection_id: str) -> bool:
     """Delete a connection row. Returns True when a row was removed."""
     cur = db.conn.cursor()
-    cur.execute(
-        "DELETE FROM mcp_connections WHERE connection_id = ?", (connection_id,)
-    )
+    cur.execute("DELETE FROM mcp_connections WHERE connection_id = ?", (connection_id,))
     deleted = cur.rowcount > 0
     db.conn.commit()
     return deleted
@@ -138,8 +143,8 @@ def set_health(db: DBManager, connection_id: str, ok: bool) -> None:
 
 
 __all__ = [
-    "list_connections",
-    "upsert_connection",
     "delete_connection",
+    "list_connections",
     "set_health",
+    "upsert_connection",
 ]
