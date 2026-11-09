@@ -9,9 +9,7 @@ from kali_mcp.evidence import EVIDENCE_DIR, get_evidence, store_evidence
 
 
 class TestStoreEvidence:
-    def test_writes_artifact_file_and_records_row(
-        self, tmp_path, monkeypatch
-    ):
+    def test_writes_artifact_file_and_records_row(self, tmp_path, monkeypatch):
         from kali_mcp.config import config as real_config
         from kali_mcp.db import manager as dbm
 
@@ -74,17 +72,13 @@ class TestStoreEvidence:
     def test_constant_points_at_artifacts_evidence(self):
         assert str(EVIDENCE_DIR).endswith("artifacts/evidence")
 
-    def test_get_evidence_unknown_returns_none(
-        self, tmp_path, monkeypatch
-    ):
+    def test_get_evidence_unknown_returns_none(self, tmp_path, monkeypatch):
         from kali_mcp.db import manager as dbm
 
         monkeypatch.setattr(dbm, "_db_singleton", None)
         assert get_evidence("evidence_000000000000") is None
 
-    def test_store_evidence_without_db_returns_id(
-        self, tmp_path, monkeypatch
-    ):
+    def test_store_evidence_without_db_returns_id(self, tmp_path, monkeypatch):
         from kali_mcp.db import manager as dbm
 
         monkeypatch.setattr(dbm, "get_db", lambda: None)
