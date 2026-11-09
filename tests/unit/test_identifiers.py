@@ -11,7 +11,7 @@ class TestGenerateAssessmentId:
     def test_format_is_opaque_uuid_based(self):
         aid = identifiers.generate_assessment_id()
         assert aid.startswith("assessment_")
-        suffix = aid[len("assessment_"):]
+        suffix = aid[len("assessment_") :]
         assert re.fullmatch(r"[0-9a-f]{12}", suffix)
 
     def test_unique_per_call(self):
@@ -23,7 +23,7 @@ class TestGenerateJobId:
     def test_format_is_opaque_uuid_based(self):
         jid = identifiers.generate_job_id()
         assert jid.startswith("job_")
-        suffix = jid[len("job_"):]
+        suffix = jid[len("job_") :]
         assert re.fullmatch(r"[0-9a-f]{12}", suffix)
 
     def test_unique_per_call(self):
@@ -33,9 +33,7 @@ class TestGenerateJobId:
 
 class TestAssessmentContext:
     def test_set_and_get_context(self):
-        tokens = identifiers.set_assessment_context(
-            "assessment_abc", "job_xyz"
-        )
+        tokens = identifiers.set_assessment_context("assessment_abc", "job_xyz")
         try:
             assert isinstance(tokens, dict)
             aid, jid = identifiers.get_assessment_context()
@@ -55,17 +53,13 @@ class TestAssessmentContext:
 
     def test_partial_context(self):
         # Set both, then override only assessment; job is preserved.
-        tokens = identifiers.set_assessment_context(
-            "assessment_first", "job_first"
-        )
+        tokens = identifiers.set_assessment_context("assessment_first", "job_first")
         try:
             assert identifiers.get_assessment_context() == (
                 "assessment_first",
                 "job_first",
             )
-            tokens2 = identifiers.set_assessment_context(
-                assessment_id="assessment_only"
-            )
+            tokens2 = identifiers.set_assessment_context(assessment_id="assessment_only")
             assert identifiers.get_assessment_context() == (
                 "assessment_only",
                 "job_first",
