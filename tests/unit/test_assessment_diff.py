@@ -21,27 +21,54 @@ class MockDB:
 
 @pytest.fixture()
 def db_both() -> MockDB:
-    return MockDB({
-        "assess_a": {
-            "findings": [
-                {"id": "f1", "title": "SSL Expired", "severity": "high",
-                 "confidence": 0.7, "asset_id": "example.com", "validation_status": "observed"},
-                {"id": "f2", "title": "Open SSH", "severity": "medium",
-                 "confidence": 0.5, "asset_id": "127.0.0.1", "validation_status": "observed"},
-            ]
-        },
-        "assess_b": {
-            "findings": [
-                {"id": "f1", "title": "SSL Expired", "severity": "critical",
-                 "confidence": 0.9, "asset_id": "example.com", "validation_status": "validated"},
-                {"id": "f3", "title": "Reflected XSS", "severity": "high",
-                 "confidence": 0.8, "asset_id": "example.com", "validation_status": "observed"},
-            ]
+    return MockDB(
+        {
+            "assess_a": {
+                "findings": [
+                    {
+                        "id": "f1",
+                        "title": "SSL Expired",
+                        "severity": "high",
+                        "confidence": 0.7,
+                        "asset_id": "example.com",
+                        "validation_status": "observed",
+                    },
+                    {
+                        "id": "f2",
+                        "title": "Open SSH",
+                        "severity": "medium",
+                        "confidence": 0.5,
+                        "asset_id": "127.0.0.1",
+                        "validation_status": "observed",
+                    },
+                ]
+            },
+            "assess_b": {
+                "findings": [
+                    {
+                        "id": "f1",
+                        "title": "SSL Expired",
+                        "severity": "critical",
+                        "confidence": 0.9,
+                        "asset_id": "example.com",
+                        "validation_status": "validated",
+                    },
+                    {
+                        "id": "f3",
+                        "title": "Reflected XSS",
+                        "severity": "high",
+                        "confidence": 0.8,
+                        "asset_id": "example.com",
+                        "validation_status": "observed",
+                    },
+                ]
+            },
         }
-    })
+    )
 
 
 # ── diff: new findings ───────────────────────────────────────────────
+
 
 def test_diff_detects_new_findings(db_both):
     differ = AssessmentDiffer(db_manager=db_both)
@@ -52,6 +79,7 @@ def test_diff_detects_new_findings(db_both):
 
 # ── diff: resolved findings ──────────────────────────────────────────
 
+
 def test_diff_detects_resolved_findings(db_both):
     differ = AssessmentDiffer(db_manager=db_both)
     result = differ.diff("assess_a", "assess_b")
@@ -60,6 +88,7 @@ def test_diff_detects_resolved_findings(db_both):
 
 
 # ── diff: changed findings ───────────────────────────────────────────
+
 
 def test_diff_detects_changed_severity_and_confidence(db_both):
     differ = AssessmentDiffer(db_manager=db_both)
@@ -78,6 +107,7 @@ def test_diff_detects_changed_severity_and_confidence(db_both):
 
 # ── diff: no changes ─────────────────────────────────────────────────
 
+
 def test_diff_no_changes_when_identical(db_both):
     differ = AssessmentDiffer(db_manager=db_both)
     result = differ.diff("assess_a", "assess_a")
@@ -89,6 +119,7 @@ def test_diff_no_changes_when_identical(db_both):
 
 # ── diff: empty assessments ──────────────────────────────────────────
 
+
 def test_diff_empty_baseline():
     db = MockDB({"assess_a": {"findings": []}, "assess_b": {"findings": []}})
     differ = AssessmentDiffer(db_manager=db)
@@ -99,9 +130,11 @@ def test_diff_empty_baseline():
 
 # ── DiffResult ───────────────────────────────────────────────────────
 
+
 def test_diff_result_to_dict():
     dr = DiffResult(
-        assessment_id_a="a", assessment_id_b="b",
+        assessment_id_a="a",
+        assessment_id_b="b",
         new_findings=[{"id": "f1"}],
         resolved_findings=[{"id": "f2"}],
         summary={"new_findings_count": 1, "resolved_findings_count": 1},
