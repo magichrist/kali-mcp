@@ -7,6 +7,19 @@ export interface GraphPos { [stepId: string]: { x: number; y: number }; }
 export interface RunState { [stepId: string]: "pending" | "running" | "completed" | "failed" | "cancelled"; }
 export interface StepResult { outputs?: unknown; error?: string; tool_id?: string; }
 export interface StepResults { [stepId: string]: StepResult; }
+export interface GraphStep {
+  id: string;
+  type: StepType;
+  tool?: string;
+  command?: string;
+  depends_on?: string[];
+  inputs?: Record<string, string>;
+  args?: Record<string, unknown>;
+  filter?: { type: "grep" | "regex" | "none"; pattern?: string; first_only?: boolean };
+  when?: string;
+  checkpoint?: boolean;
+  [key: string]: unknown;
+}
 export const NODE_W = 280; export const NODE_H = 140; export const X_GAP = 360; export const Y_GAP = 200;
 export const LAYOUT_PAD_X = 40; export const LAYOUT_PAD_Y = 40;
 export const TYPE_ICONS: Record<StepType, { cls: string; glyph: string; color: string }> = {
