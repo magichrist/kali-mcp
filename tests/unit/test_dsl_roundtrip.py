@@ -14,7 +14,8 @@ import pytest
 
 from kali_mcp.workflow import modules_runtime as mr
 from kali_mcp.workflow.dsl import compile_dsl, deserialize, parse, roundtrip
-from kali_mcp.workflow.dsl.compiler import CompileError, compile as dsl_compile
+from kali_mcp.workflow.dsl.compiler import CompileError
+from kali_mcp.workflow.dsl.compiler import compile as dsl_compile
 from kali_mcp.workflow.yaml_loader import PlaybookDefinition
 
 VALID_DSL = """id: custom.domain_recon
@@ -81,7 +82,7 @@ class TestRoundTrip:
         assert dsl_text  # something renders
 
         # Re-parse the serialized DSL
-        ast2 = parse(dsl_text)
+        parse(dsl_text)
         defn2 = compile_dsl(VALID_DSL)  # recompile original for comparison
 
         # Same number of steps, same ids, same types
