@@ -106,7 +106,9 @@ class TestSqliteStorage:
         assert count == 1 and total == 1
 
     def test_metadata_columns_stored(self, vault_env):
-        vault.vault_write("handoff", "meta", {"x": 1}, target="127.0.0.1", tool="nmap", tags="recon")
+        vault.vault_write(
+            "handoff", "meta", {"x": 1}, target="127.0.0.1", tool="nmap", tags="recon"
+        )
         entry = vault.vault_query(target="127.0.0.1")["entries"][0]
         assert entry["tool"] == "nmap"
         assert entry["tags"] == "recon"
