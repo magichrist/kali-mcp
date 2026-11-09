@@ -7,10 +7,12 @@ export function wouldCreateCycle(steps: GraphStep[], sourceId: string, targetId:
   const stack: string[] = [sourceId];
   while (stack.length) {
     const cur = stack.pop();
+    if (!cur) continue;
     if (cur === targetId) return true;
     if (seen.has(cur)) continue;
     seen.add(cur);
-    (byId.get(cur)?.depends_on || []).forEach((d) => stack.push(d));
+    const deps: string[] = byId.get(cur)?.depends_on ?? [];
+    deps.forEach((d: string) => stack.push(d));
   }
   return false;
 }
