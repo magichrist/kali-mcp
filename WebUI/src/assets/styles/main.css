@@ -46,6 +46,18 @@ a { color: inherit; text-decoration: none; }
 :focus-visible { outline: 2px solid var(--green-strong); outline-offset: 1px; }
 body.resizing { cursor: col-resize; user-select: none; }
 
+/* Reduced motion — disable transitions/animations for users who prefer it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
 .dim { color: var(--dim); }
 
@@ -120,7 +132,8 @@ body.resizing { cursor: col-resize; user-select: none; }
   color: var(--text);
   font-size: 13px;
 }
-.input:focus, textarea:focus, select:focus { outline: none; border-color: var(--green-strong); }
+.input:focus, textarea:focus, select:focus { border-color: var(--green-strong); }
+.input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--green-strong); outline-offset: 1px; }
 
 .label {
   font-size: 12px;
