@@ -36,9 +36,7 @@ def test_definitions_exist():
     )
 
 
-@pytest.mark.parametrize(
-    "definition", ALL_DEFINITIONS, ids=lambda d: d["id"]
-)
+@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=lambda d: d["id"])
 def test_required_fields(definition):
     assert definition["id"]
     assert definition.get("name"), f"{definition['id']}: missing name"
@@ -58,20 +56,15 @@ def test_definition_ids_unique():
     assert len(ids) == len(set(ids)), f"duplicate playbook ids: {sorted(ids)}"
 
 
-@pytest.mark.parametrize(
-    "definition", ALL_DEFINITIONS, ids=lambda d: d["id"]
-)
+@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=lambda d: d["id"])
 def test_first_step_is_scope_check(definition):
     first = definition["steps"][0]
     assert first.get("type") == "scope_check", (
-        f"{definition['id']}: first step must be scope_check, "
-        f"got {first.get('type')}"
+        f"{definition['id']}: first step must be scope_check, got {first.get('type')}"
     )
 
 
-@pytest.mark.parametrize(
-    "definition", ALL_DEFINITIONS, ids=lambda d: d["id"]
-)
+@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=lambda d: d["id"])
 def test_module_steps_reference_registered_modules(definition):
     """Every module: step must exist in the module registry (black-box wiring)."""
     pb_registry._ensure_loaded()
@@ -79,31 +72,23 @@ def test_module_steps_reference_registered_modules(definition):
         mod_id = step.get("module")
         if mod_id is not None:
             assert mod_id in pb_registry._modules, (
-                f"{definition['id']}: step {step['id']} references unknown "
-                f"module {mod_id}"
+                f"{definition['id']}: step {step['id']} references unknown module {mod_id}"
             )
 
 
-@pytest.mark.parametrize(
-    "definition", ALL_DEFINITIONS, ids=lambda d: d["id"]
-)
+@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=lambda d: d["id"])
 def test_step_depends_on_resolvable(definition):
     steps = definition["steps"]
     step_ids = [s["id"] for s in steps]
-    assert len(step_ids) == len(set(step_ids)), (
-        f"{definition['id']}: duplicate step ids"
-    )
+    assert len(step_ids) == len(set(step_ids)), f"{definition['id']}: duplicate step ids"
     for step in steps:
         for dep in step.get("depends_on", []) or []:
             assert dep in step_ids, (
-                f"{definition['id']}: step {step['id']} depends on unknown "
-                f"step {dep}"
+                f"{definition['id']}: step {step['id']} depends on unknown step {dep}"
             )
 
 
-@pytest.mark.parametrize(
-    "definition", ALL_DEFINITIONS, ids=lambda d: d["id"]
-)
+@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=lambda d: d["id"])
 def test_topological_sort_resolves_dag(definition):
     """The playbook engine's DAG sort must terminate for every definition."""
     engine = PlaybookEngine()
@@ -120,22 +105,14 @@ def test_definitions_in_registry():
         assert pb.get("steps"), f"{d['id']}: registered definition has no steps"
 
 
-@pytest.mark.parametrize(
-    "definition", ALL_DEFINITIONS, ids=lambda d: d["id"]
-)
+@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=lambda d: d["id"])
 def test_at_least_one_correlation_and_report(definition):
     types = {s.get("type") for s in definition["steps"]}
-    assert "finding_correlation" in types, (
-        f"{definition['id']}: missing finding_correlation step"
-    )
-    assert "assessment_report" in types, (
-        f"{definition['id']}: missing assessment_report step"
-    )
+    assert "finding_correlation" in types, f"{definition['id']}: missing finding_correlation step"
+    assert "assessment_report" in types, f"{definition['id']}: missing assessment_report step"
 
 
-@pytest.mark.parametrize(
-    "definition", ALL_DEFINITIONS, ids=lambda d: d["id"]
-)
+@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=lambda d: d["id"])
 def test_black_box_metadata_only(definition):
     """Playbook definitions must not declare raw tool names at the playbook
     level — tools are the modules' concern (black-box contract). Only applies
