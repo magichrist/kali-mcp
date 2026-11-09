@@ -15,7 +15,7 @@
 
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { computed, ref } from "vue";
-import type { PlaybookDefinition, PlaybookStep, Tool } from "@/types/api";
+import type { Execution, ExecutionStep, PlaybookDefinition, PlaybookStep, Tool } from "@/types/api";
 import { useGraphHistory } from "@/features/playbook-editor/composables/useGraphHistory";
 import { useAutoLayout, type LayoutPoint } from "@/features/playbook-editor/composables/useAutoLayout";
 import {
@@ -33,6 +33,7 @@ import {
 } from "@/features/playbook-editor/composables/useGraphSerialization";
 import type { StepType } from "@/features/playbook-editor/types/graph";
 import {
+  fetchExecution,
   fetchPlaybook,
   fetchPlaybookDefinition,
   fetchTools,
@@ -72,6 +73,12 @@ export const usePlaybookEditorStore = defineStore("playbookEditor", () => {
   const dslError = ref<{ message: string; line?: number; col?: number } | null>(null);
   const runStatus = ref<Record<string, string>>({});
   const stepResults = ref<Record<string, { outputs?: unknown; error?: string; tool_id?: string }>>({});
+  /* Live execution polling state. */
+  const pollingActive = ref(false);
+  const pollingExecutionId = ref<string | null>(null);
+  const executionStatus = ref<string | null>(null);
+  const pollingInFlight = ref(false);
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
   const dirty = ref(false);
   const tools = ref<Tool[]>([]);
   const loading = ref(false);
@@ -266,7 +273,9 @@ export const usePlaybookEditorStore = defineStore("playbookEditor", () => {
     Object.assign(step, patch);
     if (patch.id && patch.id !== id) {
       for (const s of definition.value.steps || []) {
-        if (Array.isArray(s.depends_on)) s.depends_on = s.depends_on.map((d) => (d === id ? patch.id : d));
+        if (Array.isArray(s.depends_on)) {
+        s.depends_on = s.depends_on.map((d) => (d === id ? patch.id : d)).filter((d): d is string => d !== undefined);
+      }
       }
       if (graphPos.value[id]) { graphPos.value[patch.id] = graphPos.value[id]; delete graphPos.value[id]; }
     }
@@ -363,6 +372,62 @@ export const usePlaybookEditorStore = defineStore("playbookEditor", () => {
   }
   function clearExecutionState(): void { runStatus.value = {}; stepResults.value = {}; }
 
+  /* ──────────────────── live execution polling ──────────────────── */
+
+  const TERMINAL_STATES = new Set(["completed", "failed", "cancelled"]);
+  function isTerminalStatus(status: string): boolean { return TERMINAL_STATES.has(status); }
+
+  /** Single poll of the execution detail. Returns true when polling should stop (terminal state). */
+  async function pollExecutionOnce(executionId: string): Promise<boolean> {
+    if (pollingInFlight.value) return false; /* only one poll in flight at a time */
+    pollingInFlight.value = true;
+    try {
+      const data = await fetchExecution(executionId);
+      const exec = (data as { execution?: Execution })?.execution;
+      if (exec) {
+        const nextStatus: Record<string, string> = { ...runStatus.value };
+        const nextResults: Record<string, { outputs?: unknown; error?: string; tool_id?: string }> = { ...stepResults.value };
+        for (const step of exec.steps || []) {
+          const sid = String(step.step_id);
+          nextStatus[sid] = step.status;
+          nextResults[sid] = { outputs: step.outputs, error: step.error ?? undefined, tool_id: step.tool_id ?? undefined };
+        }
+        runStatus.value = nextStatus;
+        stepResults.value = nextResults;
+        executionStatus.value = exec.status ?? null;
+        if (isTerminalStatus(exec.status)) return true;
+      }
+      return false;
+    } catch {
+      /* API / network failure: keep last known state and keep polling. */
+      return false;
+    } finally {
+      pollingInFlight.value = false;
+    }
+  }
+
+  /** Begin 1s interval polling for an execution. Stops on terminal state. */
+  async function startPolling(executionId: string): Promise<void> {
+    stopPolling();
+    pollingExecutionId.value = executionId;
+    executionStatus.value = null;
+    pollingActive.value = true;
+    /* Immediate first poll so status appears without waiting a full tick. */
+    if (await pollExecutionOnce(executionId)) { stopPolling(); return; }
+    pollTimer = setInterval(async () => {
+      if (!pollingActive.value || pollingExecutionId.value !== executionId) return;
+      if (await pollExecutionOnce(executionId)) stopPolling();
+    }, 1000);
+  }
+
+  /** Clear the poll timer and deactivate polling. Safe to call when idle. */
+  function stopPolling(): void {
+    if (pollTimer !== null) { clearInterval(pollTimer); pollTimer = null; }
+    pollingActive.value = false;
+    pollingExecutionId.value = null;
+    executionStatus.value = null;
+  }
+
   /* ──────────────────── API actions ──────────────────── */
   async function validateDefinition(): Promise<{ valid: boolean; message: string }> {
     captureToDsl();
@@ -410,7 +475,7 @@ export const usePlaybookEditorStore = defineStore("playbookEditor", () => {
   return {
     /* state */
     playbookId, playbook, definition, rawDsl, graphPos, view, selectedNodeId, selectedEdgeId,
-    inspectorOpen, inspectTab, dslError, runStatus, stepResults, dirty, tools, loading,
+    inspectorOpen, inspectTab, dslError, runStatus, stepResults, pollingActive, pollingExecutionId, executionStatus, dirty, tools, loading,
     /* getters */
     nodes, edges, selectedStep, validationFindings, isValid,
     /* history */
@@ -419,12 +484,19 @@ export const usePlaybookEditorStore = defineStore("playbookEditor", () => {
     loadPlaybook, refreshTools, setDefinition, parseRawDsl, captureToDsl, setView,
     setSelection, setInspectTab, addStep, removeStep, updateStep, setNodePosition,
     addEdge, removeEdge, relayout, undo, redo, pushHistory, toggleInspector,
-    removeSelectedNode, setExecutionState, clearExecutionState,
+    removeSelectedNode, setExecutionState, clearExecutionState, startPolling, stopPolling,
     validateDefinition, saveDraft, publish, runTest, toolForName, runInputNames,
   };
 });
 
-export type PlaybookEditorStore = ReturnType<typeof usePlaybookEditorStore>;
+export type PlaybookEditorStore = ReturnType<typeof usePlaybookEditorStore> & {
+  addToolStep: (toolName?: string, pos?: LayoutPoint) => void;
+  addShellStep: (pos?: LayoutPoint) => void;
+  addScopeStep: (pos?: LayoutPoint) => void;
+  addFindingStep: (pos?: LayoutPoint) => void;
+  addReportStep: (pos?: LayoutPoint) => void;
+  addCustomStep: (pos?: LayoutPoint) => void;
+};
 
 if (import.meta.hot) {
   import.meta.hot.accept(acceptHMRUpdate(usePlaybookEditorStore, import.meta.hot));
