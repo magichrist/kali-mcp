@@ -124,8 +124,22 @@ class TestVaultQuery:
         assert result["entries"][0]["name"] == "f1"
 
     def test_query_search_matches_name_tags_content(self):
-        vault.vault_write("findings", "ssh_brute", {"note": "open port 22"}, target="127.0.0.1", tool="nmap", tags="brute,ssh")
-        vault.vault_write("findings", "http_header", {"note": "server: apache"}, target="example.org", tool="httpx", tags="web")
+        vault.vault_write(
+            "findings",
+            "ssh_brute",
+            {"note": "open port 22"},
+            target="127.0.0.1",
+            tool="nmap",
+            tags="brute,ssh",
+        )
+        vault.vault_write(
+            "findings",
+            "http_header",
+            {"note": "server: apache"},
+            target="example.org",
+            tool="httpx",
+            tags="web",
+        )
         by_name = vault.vault_query(search="ssh_brute")
         assert by_name["count"] == 1
         by_tag = vault.vault_query(search="web")
