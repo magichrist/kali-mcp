@@ -61,7 +61,14 @@ def register() -> None:
     _mr.register(
         "web.http_probe",
         _http_probe,
-        input_schema={"type": "object", "required": ["url"], "properties": {"url": {"type": "string"}, "tool": {"type": "string", "default": "httpx"}}},
+        input_schema={
+            "type": "object",
+            "required": ["url"],
+            "properties": {
+                "url": {"type": "string"},
+                "tool": {"type": "string", "default": "httpx"},
+            },
+        },
         output_schema={
             "type": "object",
             "properties": {
