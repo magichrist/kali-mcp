@@ -68,7 +68,9 @@ class Config:
     # Auth
     api_token: str = field(default_factory=lambda: os.getenv("MCP_API_TOKEN", ""))
     insecure: bool = field(default_factory=lambda: _bool_env("KALI_MCP_INSECURE", False))
-    token_in_query: bool = field(default_factory=lambda: _bool_env("KALI_MCP_TOKEN_IN_QUERY", False))
+    token_in_query: bool = field(
+        default_factory=lambda: _bool_env("KALI_MCP_TOKEN_IN_QUERY", False)
+    )
 
     # CORS
     allowed_origins: str = field(default_factory=lambda: os.getenv("MCP_ALLOWED_ORIGINS", "*"))
@@ -88,7 +90,9 @@ class Config:
     # deny-by-default permission model is enforced — the client cannot opt
     # out by omitting the X-Agent-Profile header. The header (multi-agent
     # setups) takes precedence only when this is empty.
-    agent_profile_id: str = field(default_factory=lambda: os.getenv("MCP_AGENT_PROFILE_ID", "").strip())
+    agent_profile_id: str = field(
+        default_factory=lambda: os.getenv("MCP_AGENT_PROFILE_ID", "").strip()
+    )
     studio_db_path: str = field(default_factory=lambda: os.getenv("STUDIO_DB_PATH", ""))
     # Dedicated port for the Studio web UI (0 = share the main MCP server port)
     studio_port: int = field(default_factory=lambda: _int_env("STUDIO_PORT", 0))
