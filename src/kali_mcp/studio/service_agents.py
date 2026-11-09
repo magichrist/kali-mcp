@@ -11,7 +11,6 @@ import logging
 from typing import Any
 
 from kali_mcp.db.manager import DBManager
-from kali_mcp.registry import registry as global_registry
 from kali_mcp.studio.service_tools import list_tool_definitions
 
 logger = logging.getLogger("kali_mcp.studio.service_agents")
@@ -79,16 +78,16 @@ def effective_catalog(db: DBManager, profile_id: str) -> dict[str, Any]:
 
 
 __all__ = [
-    "create_profile",
-    "get_profile",
-    "list_profiles",
-    "update_profile",
-    "delete_profile",
-    "grant_tool",
-    "revoke_tool",
-    "can_call_tool",
     "assign_playbook",
-    "unassign_playbook",
-    "is_playbook_assigned",
+    "can_call_tool",
+    "create_profile",
+    "delete_profile",
     "effective_catalog",
+    "get_profile",
+    "grant_tool",
+    "is_playbook_assigned",
+    "list_profiles",
+    "revoke_tool",
+    "unassign_playbook",
+    "update_profile",
 ]
