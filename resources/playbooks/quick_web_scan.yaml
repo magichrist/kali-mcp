@@ -1,0 +1,57 @@
+id: quick_web_scan
+name: Quick Web Scan
+description: Fast web reconnaissance — subdomain discovery, HTTP probing, and targeted vulnerability scan
+parameters:
+  target:
+    type: string
+    description: Target domain or URL to scan
+    required: true
+  depth:
+    type: string
+    description: "Scan depth: shallow or deep"
+    default: shallow
+playbook_definition:
+  name: quick_web_scan
+  version: "2.0.0"
+  inputs:
+    target: "{{target}}"
+    depth: "{{depth}}"
+  execution:
+    max_parallel: 3
+    timeout: 600
+    resume: true
+  steps:
+    - id: validate
+      type: scope_check
+      depends_on: []
+      args:
+        target: "{{target}}"
+      checkpoint: true
+    - id: subfinder
+      tool: subfinder
+      type: tool
+      depends_on: [validate]
+      args:
+        target: "{{target}}"
+        timeout: 120
+    - id: httpx
+      tool: httpx
+      type: tool
+      depends_on: [subfinder]
+      args:
+        target: "{{target}}"
+        timeout: 120
+    - id: nuclei
+      tool: nuclei
+      type: tool
+      depends_on: [httpx]
+      args:
+        target: "{{target}}"
+        timeout: 300
+    - id: correlate
+      type: finding_correlation
+      depends_on: [subfinder, httpx, nuclei]
+      checkpoint: true
+    - id: report
+      type: assessment_report
+      depends_on: [correlate]
