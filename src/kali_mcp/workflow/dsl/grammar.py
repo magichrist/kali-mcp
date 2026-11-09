@@ -15,19 +15,19 @@ from dataclasses import dataclass
 
 # ── Token types ──────────────────────────────────────────────────────────────
 
-LBRACE = "LBRACE"      # {
-RBRACE = "RBRACE"      # }
+LBRACE = "LBRACE"  # {
+RBRACE = "RBRACE"  # }
 LBRACKET = "LBRACKET"  # [
 RBRACKET = "RBRACKET"  # ]
-COLON = "COLON"        # :
-COMMA = "COMMA"        # ,
-DOT = "DOT"            # .
-GT = "GT"              # >
-LT = "LT"              # <
-GE = "GE"              # >=
-LE = "LE"              # <=
-EQ = "EQ"              # ==
-NE = "NE"              # !=
+COLON = "COLON"  # :
+COMMA = "COMMA"  # ,
+DOT = "DOT"  # .
+GT = "GT"  # >
+LT = "LT"  # <
+GE = "GE"  # >=
+LE = "LE"  # <=
+EQ = "EQ"  # ==
+NE = "NE"  # !=
 
 IDENTIFIER = "IDENTIFIER"
 STRING = "STRING"
@@ -165,9 +165,7 @@ def tokenize(text: str) -> list[Token]:
         if ch == '"':
             m = _STRING_RE.match(text, pos)
             if not m:
-                raise TokenError(
-                    f"unterminated string at line {line}, col {col}"
-                )
+                raise TokenError(f"unterminated string at line {line}, col {col}")
             raw = m.group(0)
             value = raw[1:-1]  # strip quotes
             # Handle escapes minimally
@@ -225,9 +223,7 @@ def tokenize(text: str) -> list[Token]:
             pos += len(word)
             continue
 
-        raise TokenError(
-            f"unexpected character {ch!r} at line {line}, col {col}"
-        )
+        raise TokenError(f"unexpected character {ch!r} at line {line}, col {col}")
 
     tokens.append(Token(EOF, None, line, col))
     return tokens
