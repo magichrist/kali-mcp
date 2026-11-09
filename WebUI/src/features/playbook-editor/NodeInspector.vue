@@ -1,79 +1,81 @@
 <template>
-  <div class="inspector">
+  <div class="inspector" role="region" aria-label="Node inspector">
     <div class="inspector-head">
       <span class="inspector-title">{{ nodeTitle }}</span>
-      <div class="inspector-tabs">
+      <div class="inspector-tabs" role="tablist" aria-label="Inspector tabs">
         <button
           v-for="tab in tabs"
           :key="tab"
+          role="tab"
+          :aria-selected="activeTab === tab"
           :class="{ active: activeTab === tab }"
           @click="activeTab = tab"
         >{{ tab }}</button>
       </div>
     </div>
     <div class="inspector-body">
-      <div v-if="activeTab === 'General'" class="section">
-        <div class="field"><label class="label">Step ID</label><input v-model="patch.id" class="input" /></div>
-        <div class="field"><label class="label">Type</label><select v-model="patch.type" class="input"><option v-for="t in stepTypes" :key="t" :value="t">{{ t }}</option></select></div>
-        <div class="field"><label class="label">Tool / module</label><input v-model="patch.tool" class="input" placeholder="e.g. nmap" /></div>
-        <div class="field"><label class="label">Command (shell)</label><input v-model="patch.command" class="input" placeholder="nmap -sV {{target}}" /></div>
-        <div class="field"><label class="label">Depends on</label>
+      <div v-if="activeTab === 'General'" class="section" aria-label="General settings">
+        <div class="field"><label :for="`ins-field-${nodeId}-step-id`" class="label">Step ID</label><input :id="`ins-field-${nodeId}-step-id`" v-model="patch.id" class="input" /></div>
+        <div class="field"><label :for="`ins-field-${nodeId}-type`" class="label">Type</label><select :id="`ins-field-${nodeId}-type`" v-model="patch.type" class="input"><option v-for="t in stepTypes" :key="t" :value="t">{{ t }}</option></select></div>
+        <div class="field"><label :for="`ins-field-${nodeId}-tool`" class="label">Tool / module</label><input :id="`ins-field-${nodeId}-tool`" v-model="patch.tool" class="input" placeholder="e.g. nmap" /></div>
+        <div class="field"><label :for="`ins-field-${nodeId}-command`" class="label">Command (shell)</label><input :id="`ins-field-${nodeId}-command`" v-model="patch.command" class="input" placeholder="nmap -sV {{target}}" /></div>
+        <div class="field"><label :for="`ins-field-${nodeId}-depends`" class="label">Depends on</label>
           <div class="chips">
             <span v-for="d in patchDependsOn" :key="d" class="chip removable" @click.stop="removeDep(d)">{{ d }} <span class="remove" @click.stop="removeDep(d)">×</span></span>
-            <input v-model="newDep" class="input" @keydown.enter="addDep" placeholder="add step id…" style="width:120px" />
+            <input :id="`ins-field-${nodeId}-newdep`" v-model="newDep" class="input" @keydown.enter="addDep" placeholder="add step id…" style="width:120px" />
           </div>
         </div>
-        <div class="field"><label class="label">Condition (when)</label><input v-model="patch.when" class="input" placeholder="resolve.count > 0" /></div>
-        <div class="field row"><label class="label">Checkpoint</label><input type="checkbox" v-model="patch.checkpoint" class="checkbox" /></div>
-        <div class="field row"><label class="label">On failure</label><select v-model="patch.on_failure" class="input"><option>abort</option><option>continue</option><option>skip_dependents</option></select></div>
-        <div class="field"><label class="label">Retry</label><input type="number" v-model.number="patch.retry" class="input" min="0" /></div>
+        <div class="field"><label :for="`ins-field-${nodeId}-when`" class="label">Condition (when)</label><input :id="`ins-field-${nodeId}-when`" v-model="patch.when" class="input" placeholder="resolve.count > 0" /></div>
+        <div class="field row"><label :for="`ins-field-${nodeId}-checkpoint`" class="label">Checkpoint</label><input :id="`ins-field-${nodeId}-checkpoint`" type="checkbox" v-model="patch.checkpoint" class="checkbox" /></div>
+        <div class="field row"><label :for="`ins-field-${nodeId}-onfailure`" class="label">On failure</label><select :id="`ins-field-${nodeId}-onfailure`" v-model="patch.on_failure" class="input"><option>abort</option><option>continue</option><option>skip_dependents</option></select></div>
+        <div class="field"><label :for="`ins-field-${nodeId}-retry`" class="label">Retry</label><input :id="`ins-field-${nodeId}-retry`" type="number" v-model.number="patch.retry" class="input" min="0" /></div>
       </div>
 
-      <div v-if="activeTab === 'Inputs'" class="section">
+      <div v-if="activeTab === 'Inputs'" class="section" aria-label="Input mapping">
         <div class="field"><label class="label">Input mapping (args)</label><p class="dim">Literal values and {{name}} references passed to the step.</p></div>
         <div class="arg-list">
           <div v-for="(val, key) in patchArgs" :key="key" class="arg-row">
-            <input v-model="argKeys[key]" class="input arg-key" :placeholder="'arg_' + (keyIndex(key)+1)" />
+            <input :id="`ins-arg-key-${key}`" v-model="argKeys[key]" class="input arg-key" :placeholder="'arg_' + (keyIndex(key)+1)" />
             <span class="arg-colon">:</span>
-            <input v-model="argValues[key]" class="input arg-val" />
+            <input :id="`ins-arg-val-${key}`" v-model="argValues[key]" class="input arg-val" />
             <button class="btn danger" @click="removeArg(key)" style="height:auto;padding:2px 8px;font-size:11px">×</button>
           </div>
           <div class="field row" style="margin-top:8px"><label class="label">Add input</label>
-            <input v-model="newArgKey" class="input" placeholder="name" style="width:110px" />
-            <input v-model="newArgVal" class="input" placeholder="value" style="flex:1" />
+            <input :id="`ins-newarg-key`" v-model="newArgKey" class="input" placeholder="name" style="width:110px" />
+            <input :id="`ins-newarg-val`" v-model="newArgVal" class="input" placeholder="value" style="flex:1" />
             <button class="btn" @click="addArg" style="height:auto">Add</button>
           </div>
         </div>
       </div>
 
-      <div v-if="activeTab === 'Outputs'" class="section">
+      <div v-if="activeTab === 'Outputs'" class="section" aria-label="Output mapping">
         <div class="field"><label class="label">Output filter</label><p class="dim">Extract fields from step output (stdout/stderr/exit_code).</p></div>
         <div class="arg-list">
           <div v-for="(val, key) in patchFilter" :key="key" class="arg-row">
-            <input v-model="filterKeys[key]" class="input arg-key" placeholder="field" />
+            <input :id="`ins-filter-key-${key}`" v-model="filterKeys[key]" class="input arg-key" placeholder="field" />
             <span class="arg-colon">:</span>
-            <input v-model="filterValues[key]" class="input arg-val" placeholder="jsonpath or literal" />
+            <input :id="`ins-filter-val-${key}`" v-model="filterValues[key]" class="input arg-val" placeholder="jsonpath or literal" />
             <button class="btn danger" @click="removeFilter(key)" style="height:auto;padding:2px 8px;font-size:11px">×</button>
           </div>
         </div>
         <div class="field"><label class="label">Output mapping</label><p class="dim">Map step outputs to downstream references.</p></div>
         <div class="arg-list">
           <div v-for="(val, key) in patchOutputMapping" :key="key" class="arg-row">
-            <input v-model="outKeys[key]" class="input arg-key" placeholder="target" />
+            <input :id="`ins-out-key-${key}`" v-model="outKeys[key]" class="input arg-key" placeholder="target" />
             <span class="arg-colon">:</span>
-            <input v-model="outValues[key]" class="input arg-val" placeholder="source ref" />
+            <input :id="`ins-out-val-${key}`" v-model="outValues[key]" class="input arg-val" placeholder="source ref" />
             <button class="btn danger" @click="removeOutputMapping(key)" style="height:auto;padding:2px 8px;font-size:11px">×</button>
           </div>
         </div>
       </div>
 
-      <div v-if="activeTab === 'Advanced'" class="section">
-        <div class="field"><label class="label">Execution args</label><textarea v-model="patchArgsJson" class="input area" rows="3" placeholder="{}" /></textarea></div>
-        <div class="field"><label class="label">Budget</label><textarea v-model="patchBudgetJson" class="input area" rows="3" placeholder="{}" /></textarea></div>
-        <div class="field"><label class="label">Foreach</label><input v-model="patch.foreach" class="input" placeholder="array field" /></div>
+      <div v-if="activeTab === 'Advanced'" class="section" aria-label="Advanced settings">
+        <div class="field"><label :for="`ins-field-${nodeId}-execargs`" class="label">Execution args</label><textarea :id="`ins-field-${nodeId}-execargs`" v-model="patchArgsJson" class="input area" rows="3" placeholder="{}"></textarea></div>
+        <div class="field"><label :for="`ins-field-${nodeId}-budget`" class="label">Budget</label><textarea :id="`ins-field-${nodeId}-budget`" v-model="patchBudgetJson" class="input area" rows="3" placeholder="{}"></textarea></div>
+        <div class="field"><label :for="`ins-field-${nodeId}-foreach`" class="label">Foreach</label><input :id="`ins-field-${nodeId}-foreach`" v-model="patch.foreach" class="input" placeholder="array field" /></div>
       </div>
 
-      <div v-if="activeTab === 'Results'" class="section result-section">
+      <div v-if="activeTab === 'Results'" class="section result-section" aria-label="Results">
         <div class="field"><label class="label">Last execution output</label></div>
         <div v-if="nodeResult" class="result">
           <div class="result-line"><span class="result-key">status:</span> <span :class="resultStatusClass">{{ resultStatus }}</span></div>
@@ -94,7 +96,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useEditorStore } from "@/stores/playbook-editor";
+import { usePlaybookEditorStore } from "@/stores/playbook-editor";
 
 const props = defineProps<{
   node: any;
@@ -105,12 +107,17 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: "update", patch: any): void }>();
 
-const store = useEditorStore();
+const store = usePlaybookEditorStore();
 const stepTypes = ["tool", "shell", "scope_check", "finding_correlation", "assessment_report", "custom"];
 
 const activeTab = ref("General");
 
+const tabs = ref(["General", "Inputs", "Outputs", "Advanced", "Results"]);
+const name = computed(() => String(node.value?.id || ""));
+const truncate = (str: string, maxLen: number) => (str.length > maxLen ? `${str.slice(0, maxLen)}…` : str);
+
 const node = computed(() => props.node);
+const nodeId = computed(() => String(node.value?.id || "node"));
 const patch = ref<any>({});
 const newDep = ref("");
 const newArgKey = ref("");
@@ -119,9 +126,35 @@ const newArgVal = ref("");
 /* Derive per-tab working objects from the node so edits are batched until emitted. */
 const patchDependsOn = computed(() => Array.isArray(patch.value.depends_on) ? [...patch.value.depends_on] : []);
 
-const patchArgs = computed(() => patch.value.args ?? {});
-const patchFilter = computed(() => patch.value.filter ?? {});
-const patchOutputMapping = computed(() => patch.value.output_mapping ?? {});
+const patchArgs = computed<Record<string, unknown>>(() => patch.value.args ?? {});
+const patchFilter = computed<Record<string, unknown>>(() => patch.value.filter ?? {});
+const patchOutputMapping = computed<Record<string, unknown>>(() => patch.value.output_mapping ?? {});
+
+/* Key/value maps used by v-model inputs in the Inputs/Outputs tabs. */
+const argKeys = computed<Record<string, string>>({
+  get: () => Object.fromEntries(Object.entries(patch.value.args ?? {}).map(([k]) => [k, k])),
+  set: (v) => { patch.value.args = Object.fromEntries(Object.entries(v).map(([k]) => [k, (patch.value.args ?? {})[k]])); },
+});
+const argValues = computed<Record<string, string>>({
+  get: () => (patch.value.args ?? {}) as Record<string, string>,
+  set: (v) => { patch.value.args = v; },
+});
+const filterKeys = computed<Record<string, string>>({
+  get: () => Object.fromEntries(Object.entries(patch.value.filter ?? {}).map(([k]) => [k, k])),
+  set: () => {},
+});
+const filterValues = computed<Record<string, string>>({
+  get: () => (patch.value.filter ?? {}) as Record<string, string>,
+  set: (v) => { patch.value.filter = v; },
+});
+const outKeys = computed<Record<string, string>>({
+  get: () => Object.fromEntries(Object.entries(patch.value.output_mapping ?? {}).map(([k]) => [k, k])),
+  set: () => {},
+});
+const outValues = computed<Record<string, string>>({
+  get: () => (patch.value.output_mapping ?? {}) as Record<string, string>,
+  set: (v) => { patch.value.output_mapping = v; },
+});
 
 const patchArgsJson = ref("{}");
 const patchBudgetJson = ref("{}");
