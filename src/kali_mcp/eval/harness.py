@@ -40,6 +40,7 @@ from typing import Any
 @dataclass
 class GroundTruthFinding:
     """A single expected finding from a lab target."""
+
     title: str
     severity: str  # critical | high | medium | low | informational
     asset: str  # target/IP/hostname
@@ -51,6 +52,7 @@ class GroundTruthFinding:
 @dataclass
 class LabTarget:
     """A lab environment target with known ground truth findings."""
+
     name: str
     target: str  # IP, domain, or URL
     expected_findings: list[GroundTruthFinding]
@@ -63,6 +65,7 @@ class LabTarget:
 @dataclass
 class CallRecord:
     """A single MCP tool call recorded during evaluation."""
+
     call_id: str
     timestamp: str
     tool: str
@@ -78,6 +81,7 @@ class CallRecord:
 @dataclass
 class AssessmentResult:
     """Complete result of one agent assessment run."""
+
     run_id: str
     model_name: str
     interface: str  # "v1" or "v2"
@@ -119,9 +123,7 @@ class AssessmentResult:
 
         # Finding accuracy vs ground truth
         if ground_truth:
-            found_titles = {
-                f.get("title", "").lower() for f in self.findings
-            }
+            found_titles = {f.get("title", "").lower() for f in self.findings}
             expected_titles = {g.title.lower() for g in ground_truth}
 
             true_positives = len(found_titles & expected_titles)
@@ -306,9 +308,7 @@ class EvalHarness:
                     run_id, target, workflow, calls, max_calls, timeout_s
                 )
             else:
-                findings, calls = await self._run_v1(
-                    run_id, target, calls, max_calls, timeout_s
-                )
+                findings, calls = await self._run_v1(run_id, target, calls, max_calls, timeout_s)
             completed = True
         except Exception as exc:  # noqa: BLE001
             error = str(exc)
@@ -586,9 +586,7 @@ class EvalSuite:
         """Write a single result to JSON."""
         safe_model = result.model_name.replace("/", "_").replace(":", "_")
         safe_target = result.target.replace("/", "_").replace(":", "_")
-        filename = (
-            f"{result.interface}_{safe_model}_{safe_target}_{result.run_id}.json"
-        )
+        filename = f"{result.interface}_{safe_model}_{safe_target}_{result.run_id}.json"
         path = self.output_dir / filename
         path.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
 
@@ -671,8 +669,7 @@ class EvalSuite:
                 if v1 and v2
                 else 0,
                 "recall_diff": round(
-                    (sum(r.recall for r in v2) / len(v2))
-                    - (sum(r.recall for r in v1) / len(v1)),
+                    (sum(r.recall for r in v2) / len(v2)) - (sum(r.recall for r in v1) / len(v1)),
                     3,
                 )
                 if v1 and v2
@@ -723,9 +720,7 @@ class EvalSuite:
             v2_recall = sum(r.recall for r in v2) / len(v2) if v2 else 0
             criteria["finding_recall_no_regression"] = v2_recall >= v1_recall
 
-            criteria["scope_violations_zero"] = sum(
-                r.scope_violations for r in v2
-            ) == 0
+            criteria["scope_violations_zero"] = sum(r.scope_violations for r in v2) == 0
 
             v1_invalid = sum(r.invalid_calls for r in v1)
             v2_invalid = sum(r.invalid_calls for r in v2)
