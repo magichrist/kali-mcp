@@ -34,9 +34,7 @@ logger = logging.getLogger("kali_mcp.agent_context")
 
 HEADER_PROFILE = "x-agent-profile"
 
-_profile_var: ContextVar[str | None] = ContextVar(
-    "kmcp_agent_profile", default=None
-)
+_profile_var: ContextVar[str | None] = ContextVar("kmcp_agent_profile", default=None)
 
 
 # ── Request-context helpers ──────────────────────────────────────────────
@@ -211,10 +209,7 @@ def forbidden_playbook_payload(playbook_id: str, profile_id: str) -> dict[str, A
     return json.dumps(
         {
             "success": False,
-            "error": (
-                f"playbook {playbook_id!r} is not assigned to agent "
-                f"profile {profile_id!r}"
-            ),
+            "error": (f"playbook {playbook_id!r} is not assigned to agent profile {profile_id!r}"),
             "forbidden": True,
             "profile_id": profile_id,
             "playbook_id": playbook_id,
