@@ -47,9 +47,7 @@ class TestTargetMatching:
         assert is_target_allowed("blocked.example.com", scope) is False
 
     def test_excluded_takes_precedence(self):
-        scope = Scope(
-            allowed_targets=["*.example.com"], excluded_targets=["node.example.com"]
-        )
+        scope = Scope(allowed_targets=["*.example.com"], excluded_targets=["node.example.com"])
         assert is_target_allowed("api.example.com", scope) is True
         assert is_target_allowed("node.example.com", scope) is False
 
@@ -98,9 +96,7 @@ class TestCheckScope:
 
 class TestLoadScope:
     def test_env_allowed_targets(self, monkeypatch):
-        monkeypatch.setenv(
-            "MCP_SCOPE_ALLOWED_TARGETS", "127.0.0.0/8,example.com"
-        )
+        monkeypatch.setenv("MCP_SCOPE_ALLOWED_TARGETS", "127.0.0.0/8,example.com")
         monkeypatch.setenv("MCP_SCOPE_EXCLUDED_TARGETS", "127.0.0.1")
         monkeypatch.setenv("MCP_SCOPE_ALLOWED_OPERATIONS", "nmap")
         monkeypatch.setenv("MCP_SCOPE_POLICY", "safe_active")
