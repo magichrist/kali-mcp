@@ -9,9 +9,9 @@ export function computeDepths(steps: GraphStep[]): { depths: Record<string, numb
   for (let iter = 0; iter < steps.length + 1; iter++) {
     let changed = false;
     for (const s of steps) {
-      const deps = (s.depends_on || []).filter((d) => ids.has(d) && d !== s.id);
-      const d = deps.length ? Math.max(...deps.map((x) => (depths[x] ?? 0) + 1)) : 0;
-      if (d > depths[s.id]) { depths[s.id] = d; changed = true; }
+      const deps: string[] = (s.depends_on || []).filter((d: string) => ids.has(d) && d !== s.id);
+      const d = deps.length ? Math.max(...deps.map((x: string) => (depths[x] ?? 0) + 1)) : 0;
+      if (d > (depths[s.id] ?? 0)) { depths[s.id] = d; changed = true; }
     }
     if (!changed) break;
     if (iter === steps.length) hasCycle = true;
@@ -30,6 +30,14 @@ export function layoutSteps(steps: GraphStep[], graphPos: Record<string, LayoutP
   const positions: Record<string, LayoutPoint> = {};
   steps.forEach((s) => { positions[s.id] = nodePosition(s.id, depths, steps, graphPos); });
   return { positions, depths, hasCycle };
+}
+export function useAutoLayout() {
+  return {
+    layoutSteps,
+    computeDepths,
+    nodePosition,
+    layoutBounds,
+  };
 }
 export function layoutBounds(steps: GraphStep[], positions: Record<string, LayoutPoint>): { minX: number; minY: number; maxX: number; maxY: number } {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
