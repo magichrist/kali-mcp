@@ -137,9 +137,7 @@ def deserialize(defn: PlaybookDefinition) -> str:
                 parts.append("checkpoint: true")
 
             if step.budget:
-                items = ", ".join(
-                    f"{k}: {_render_literal(v)}" for k, v in step.budget.items()
-                )
+                items = ", ".join(f"{k}: {_render_literal(v)}" for k, v in step.budget.items())
                 parts.append(f"budget: {{{items}}}")
 
             # inputs mapping
