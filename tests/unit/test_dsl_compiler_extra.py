@@ -11,17 +11,16 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow.dsl.compiler import CompileError, compile as dsl_compile
+from kali_mcp.workflow.dsl.compiler import CompileError
+from kali_mcp.workflow.dsl.compiler import compile as dsl_compile
 from kali_mcp.workflow.dsl.parser import (
     Execution,
     FieldRef,
-    InputDecl,
     InputMapping,
     Literal,
     OutputMap,
     PlaybookAST,
     StepDecl,
-    TypeExpr,
 )
 
 
@@ -56,16 +55,16 @@ def _step(
 
 
 def _ast(**overrides) -> PlaybookAST:
-    base = dict(
-        id="pb.test",
-        name="test",
-        version="1.0",
-        description=None,
-        inputs=[],
-        execution=Execution(),
-        steps=[],
-        outputs=[],
-    )
+    base = {
+        "id": "pb.test",
+        "name": "test",
+        "version": "1.0",
+        "description": None,
+        "inputs": [],
+        "execution": Execution(),
+        "steps": [],
+        "outputs": [],
+    }
     base.update(overrides)
     return PlaybookAST(**base)
 
@@ -144,9 +143,7 @@ class TestCompilerOutputs:
     def test_top_level_output_references_unknown_step(self):
         ast = _ast(
             steps=[_step(id="s")],
-            outputs=[
-                OutputMap(name="o", field_ref=FieldRef(kind="steps", path=["ghost", "x"]))
-            ],
+            outputs=[OutputMap(name="o", field_ref=FieldRef(kind="steps", path=["ghost", "x"]))],
         )
         with pytest.raises(CompileError, match="references unknown step"):
             dsl_compile(ast)

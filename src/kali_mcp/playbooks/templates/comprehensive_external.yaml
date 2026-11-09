@@ -62,7 +62,6 @@ playbook_definition:
       tool: katana
       type: tool
       depends_on: [httpx]
-      when: "httpx.http_services_count > 0"
       args:
         target: "{{target}}"
         timeout: 240
@@ -70,7 +69,6 @@ playbook_definition:
       tool: nuclei
       type: tool
       depends_on: [httpx]
-      when: "include_vuln_scan == true"
       args:
         target: "{{target}}"
         timeout: 400

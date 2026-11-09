@@ -74,8 +74,12 @@ class AssetRelationshipBuilder:
 
     # Valid relationship types
     VALID_RELATIONSHIPS = {
-        "resolves_to", "contains", "uses_technology",
-        "shared_by", "child_of", "supports",
+        "resolves_to",
+        "contains",
+        "uses_technology",
+        "shared_by",
+        "child_of",
+        "supports",
     }
 
     def __init__(self) -> None:
@@ -84,9 +88,14 @@ class AssetRelationshipBuilder:
 
     # ── public API ────────────────────────────────────────────────────
 
-    def add_asset(self, asset_id: str, asset_type: str, name: str,
-                  scope: str = "in-scope",
-                  attributes: dict[str, Any] | None = None) -> AssetNode:
+    def add_asset(
+        self,
+        asset_id: str,
+        asset_type: str,
+        name: str,
+        scope: str = "in-scope",
+        attributes: dict[str, Any] | None = None,
+    ) -> AssetNode:
         """Register or update an asset node."""
         now = _now_utc()
         if asset_id in self._assets:
@@ -99,9 +108,13 @@ class AssetRelationshipBuilder:
             node.last_seen = now
         else:
             node = AssetNode(
-                asset_id=asset_id, asset_type=asset_type, name=name,
-                scope=scope, attributes=attributes or {},
-                first_seen=now, last_seen=now,
+                asset_id=asset_id,
+                asset_type=asset_type,
+                name=name,
+                scope=scope,
+                attributes=attributes or {},
+                first_seen=now,
+                last_seen=now,
             )
             self._assets[asset_id] = node
         return node

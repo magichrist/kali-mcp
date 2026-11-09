@@ -7,12 +7,9 @@ decision, load_playbook dict/file/legacy-tool paths, and load_module
 
 from __future__ import annotations
 
-import yaml
-
 import pytest
 
 from kali_mcp.workflow.yaml_loader import (
-    MODULES_DIR,
     PlaybookDefinition,
     PlaybookError,
     StepDefinition,
@@ -138,7 +135,12 @@ class TestLoadPlaybook:
     def test_module_field_is_preserved(self):
         data = {
             "steps": [
-                {"id": "s", "module": "dns.resolve", "type": "custom", "args": {"target": "example.com"}}
+                {
+                    "id": "s",
+                    "module": "dns.resolve",
+                    "type": "custom",
+                    "args": {"target": "example.com"},
+                }
             ]
         }
         defn = load_playbook(data)

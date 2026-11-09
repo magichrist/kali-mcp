@@ -116,12 +116,14 @@ class TestDiscoverAndImport:
     async def test_mcp_client_error_re_raised(self):
         db = object()
         client = AsyncMock()
-        with patch(
-            "kali_mcp.studio.service_mcp_connections.import_external_mcp_tools",
-            new=AsyncMock(side_effect=MCPClientError("boom")),
+        with (
+            patch(
+                "kali_mcp.studio.service_mcp_connections.import_external_mcp_tools",
+                new=AsyncMock(side_effect=MCPClientError("boom")),
+            ),
+            pytest.raises(MCPClientError, match="boom"),
         ):
-            with pytest.raises(MCPClientError, match="boom"):
-                await discover_and_import(db, "conn_1", client)
+            await discover_and_import(db, "conn_1", client)
 
 
 class TestTestConnection:

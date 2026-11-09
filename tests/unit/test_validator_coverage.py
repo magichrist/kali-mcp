@@ -16,10 +16,10 @@ import pytest
 
 from kali_mcp.workflow.validator import (
     _default_matches_type,
+    _finalise,
     _find_cycle,
     _find_unsafe_token,
     _finding,
-    _finalise,
     _is_positive_int,
     _normalise_catalog,
     _parse_type,
@@ -150,9 +150,7 @@ class TestInputs:
         assert is_valid(findings)
 
     def test_input_declaration_other_type_is_error(self) -> None:
-        findings = validate_playbook(
-            _defn(inputs={"x": 123}), tool_catalog=FAKE_TOOLS
-        )
+        findings = validate_playbook(_defn(inputs={"x": 123}), tool_catalog=FAKE_TOOLS)
         assert not is_valid(findings)
 
     def test_missing_input_type_is_warning(self) -> None:
@@ -197,9 +195,7 @@ class TestInputs:
     def test_enum_default_not_in_values_is_error(self) -> None:
         findings = validate_playbook(
             _defn(
-                inputs={
-                    "profile": {"type": "enum", "values": ["safe"], "default": "comprehensive"}
-                }
+                inputs={"profile": {"type": "enum", "values": ["safe"], "default": "comprehensive"}}
             ),
             tool_catalog=FAKE_TOOLS,
         )
@@ -213,7 +209,8 @@ class TestInputs:
 
     def test_default_type_mismatch_warning(self) -> None:
         findings = validate_playbook(
-            _defn(inputs={"port": {"type": "integer", "default": "not-an-int"}}), tool_catalog=FAKE_TOOLS
+            _defn(inputs={"port": {"type": "integer", "default": "not-an-int"}}),
+            tool_catalog=FAKE_TOOLS,
         )
         assert any("does not match declared type" in str(f.get("message", "")) for f in findings)
 
@@ -438,7 +435,9 @@ class TestReferences:
         step = _step("probe", tool="dnsx", args={"t": "{{steps.ghost.field}}"})
         defn = _defn(
             steps=[step],
-            raw={"steps": [{"id": "probe", "tool": "dnsx", "args": {"t": "{{steps.ghost.field}}"}}]},
+            raw={
+                "steps": [{"id": "probe", "tool": "dnsx", "args": {"t": "{{steps.ghost.field}}"}}]
+            },
         )
         findings = validate_playbook(defn, tool_catalog=FAKE_TOOLS)
         assert not is_valid(findings)
@@ -455,7 +454,12 @@ class TestReferences:
             raw={
                 "steps": [
                     {"id": "dns", "tool": "dnsx"},
-                    {"id": "iter", "tool": "nmap", "args": {"t": "{{steps.later.items}}"}, "depends_on": ["dns"]},
+                    {
+                        "id": "iter",
+                        "tool": "nmap",
+                        "args": {"t": "{{steps.later.items}}"},
+                        "depends_on": ["dns"],
+                    },
                     {"id": "later", "tool": "httpx"},
                 ]
             },
@@ -470,7 +474,11 @@ class TestReferences:
             raw={
                 "steps": [
                     {"id": "dns", "tool": "dnsx", "outputs": {"resolved_ips": "array"}},
-                    {"id": "correlate", "tool": "finding_correlation", "args": {"t": "{{steps.dns.nope}}"}},
+                    {
+                        "id": "correlate",
+                        "tool": "finding_correlation",
+                        "args": {"t": "{{steps.dns.nope}}"},
+                    },
                 ]
             },
         )
@@ -482,7 +490,12 @@ class TestReferences:
         step = _step("probe", tool="dnsx", args={"t": "{{steps.custom_step.field}}"})
         defn = _defn(
             steps=[_step("custom_step", tool="dnsx"), step],
-            raw={"steps": [{"id": "custom_step", "tool": "dnsx"}, {"id": "probe", "tool": "dnsx", "args": {"t": "{{steps.custom_step.field}}"}}]},
+            raw={
+                "steps": [
+                    {"id": "custom_step", "tool": "dnsx"},
+                    {"id": "probe", "tool": "dnsx", "args": {"t": "{{steps.custom_step.field}}"}},
+                ]
+            },
         )
         findings = validate_playbook(defn, tool_catalog=FAKE_TOOLS)
         assert any("declares no output schema" in str(f.get("message", "")) for f in findings)
@@ -545,7 +558,10 @@ class TestReferences:
         defn = _defn(raw={"outputs": {"k": 5}})
         findings = validate_playbook(defn, tool_catalog=FAKE_TOOLS)
         assert not is_valid(findings)
-        assert any("output value must be a variable reference string" in str(f.get("message", "")) for f in findings)
+        assert any(
+            "output value must be a variable reference string" in str(f.get("message", ""))
+            for f in findings
+        )
 
     def test_output_schemas_from_raw_and_builtin(self) -> None:
         from kali_mcp.workflow.validator import _build_output_schemas, _index_raw_steps
@@ -554,9 +570,7 @@ class TestReferences:
             {"steps": [{"id": "s", "tool": "scope_check", "outputs": {"ok": "boolean"}}]}
         )
         assert "s" in raw_index
-        schemas = _build_output_schemas(
-            [_step("s", tool="scope_check")], raw_index, {"s"}
-        )
+        schemas = _build_output_schemas([_step("s", tool="scope_check")], raw_index, {"s"})
         assert schemas["s"].fields.get("ok") == "boolean"
         # builtin schema fallback (keyed by step type)
         schemas2 = _build_output_schemas(
@@ -587,9 +601,7 @@ class TestWhenAndForeach:
         # "&&" passes the DSL constructor (no shell chars it rejects) but is
         # flagged by the validator's broader injection denylist.
         findings = validate_playbook(
-            _defn(
-                steps=[_step("probe", tool="dnsx", when="{{steps.x.n}} > 0 && true")]
-            ),
+            _defn(steps=[_step("probe", tool="dnsx", when="{{steps.x.n}} > 0 && true")]),
             tool_catalog=FAKE_TOOLS,
         )
         assert not is_valid(findings)
@@ -606,11 +618,7 @@ class TestWhenAndForeach:
 
     def test_when_invalid_literal_is_error(self) -> None:
         findings = validate_playbook(
-            _defn(
-                steps=[
-                    _step("probe", tool="dnsx", when="{{steps.x.n}} > @bad_literal")
-                ]
-            ),
+            _defn(steps=[_step("probe", tool="dnsx", when="{{steps.x.n}} > @bad_literal")]),
             tool_catalog=FAKE_TOOLS,
         )
         assert not is_valid(findings)
@@ -713,7 +721,9 @@ class TestToolResolution:
         with patch.object(mod, "_resolve_tool_catalog", lambda: (None, "no catalog resolved")):
             findings = validate_playbook(_defn(), tool_catalog=None, for_publish=True)
         assert not is_valid(findings)
-        assert any(f.get("field") == "tool_catalog" and f.get("severity") == "error" for f in findings)
+        assert any(
+            f.get("field") == "tool_catalog" and f.get("severity") == "error" for f in findings
+        )
 
     def test_for_publish_custom_module_unverified_warning(self) -> None:
         findings = validate_playbook(

@@ -92,17 +92,13 @@ class TestPlaybookDefinition:
 
     def test_custom_domain(self):
         tool = PlaybookAdTool()
-        definition = tool._playbook_definition(
-            {"target": "127.0.0.1", "domain": "corp.local"}
-        )
+        definition = tool._playbook_definition({"target": "127.0.0.1", "domain": "corp.local"})
         bloodhound = self._steps_by_id(definition)["bloodhound"]
         assert bloodhound["args"]["domain"] == "corp.local"
 
     def test_empty_domain_uses_target(self):
         tool = PlaybookAdTool()
-        definition = tool._playbook_definition(
-            {"target": "127.0.0.1", "domain": ""}
-        )
+        definition = tool._playbook_definition({"target": "127.0.0.1", "domain": ""})
         bloodhound = self._steps_by_id(definition)["bloodhound"]
         assert bloodhound["args"]["domain"] == "127.0.0.1"
 
@@ -152,12 +148,15 @@ class TestExecute:
     async def test_execute_success(self):
         tool = PlaybookAdTool()
         fake_result = _FakeResult()
-        with patch(
-            "kali_mcp.workflow.load_playbook", return_value={"name": "playbook_ad"}
-        ) as mock_load, patch(
-            "kali_mcp.workflow.run_playbook_async",
-            new=AsyncMock(return_value=fake_result),
-        ) as mock_run:
+        with (
+            patch(
+                "kali_mcp.workflow.load_playbook", return_value={"name": "playbook_ad"}
+            ) as mock_load,
+            patch(
+                "kali_mcp.workflow.run_playbook_async",
+                new=AsyncMock(return_value=fake_result),
+            ) as mock_run,
+        ):
             result = await tool.execute({"target": "127.0.0.1"})
         mock_load.assert_called_once()
         mock_run.assert_awaited_once()
@@ -168,12 +167,13 @@ class TestExecute:
     async def test_execute_resume_true(self):
         tool = PlaybookAdTool()
         fake_result = _FakeResult()
-        with patch(
-            "kali_mcp.workflow.load_playbook", return_value={"name": "pb"}
-        ), patch(
-            "kali_mcp.workflow.run_playbook_async",
-            new=AsyncMock(return_value=fake_result),
-        ) as mock_run:
+        with (
+            patch("kali_mcp.workflow.load_playbook", return_value={"name": "pb"}),
+            patch(
+                "kali_mcp.workflow.run_playbook_async",
+                new=AsyncMock(return_value=fake_result),
+            ) as mock_run,
+        ):
             await tool.execute({"target": "127.0.0.1", "resume": True})
         assert mock_run.await_args.kwargs["resume"] is True
 

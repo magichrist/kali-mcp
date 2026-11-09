@@ -30,7 +30,7 @@ class TestRequired:
 
 
 class TestIP:
-    @pytest.mark.parametrize("value", ["127.0.0.1", "127.0.0.1", "127.0.0.1"])
+    @pytest.mark.parametrize("value", ["127.0.0.1"])
     def test_valid(self, value):
         assert validate_ip(value) is None
 

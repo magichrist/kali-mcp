@@ -26,9 +26,7 @@ def add_connection(
     timeout: float = 30.0,
     headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    client = ExternalMCPClient(
-        transport, url=url, command=command, timeout=timeout, headers=headers
-    )
+    ExternalMCPClient(transport, url=url, command=command, timeout=timeout, headers=headers)
     # Validate construction (raises MCPClientError on bad config)
     return {
         "connection_id": connection_id,

@@ -11,11 +11,7 @@ from __future__ import annotations
 import pytest
 
 from kali_mcp.workflow.dsl.grammar import (
-    BOOL,
     FIELD_REF,
-    FLOAT,
-    INTEGER,
-    NULL,
     STRING,
     Token,
     TokenError,
@@ -53,7 +49,7 @@ class TestStrings:
 
     def test_escaped_string(self):
         tokens = tokenize('"a\\"b \\\\c"')
-        str_tok = [t for t in tokens if t.type == STRING][0]
+        str_tok = next(t for t in tokens if t.type == STRING)
         assert str_tok.value == 'a"b \\c'
 
 

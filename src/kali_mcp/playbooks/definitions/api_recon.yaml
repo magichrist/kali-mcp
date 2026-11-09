@@ -60,8 +60,6 @@ steps:
     depends_on: [api_discovery, param_discovery, api_dir_enum]
     inputs:
       target: "{{target}}"
-      endpoints: "{{api_discovery.endpoints}}"
-      parameters: "{{param_discovery.parameters}}"
     checkpoint: true
     description: "Scan API endpoints with nuclei API templates"
   - id: correlate

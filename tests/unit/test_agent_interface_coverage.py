@@ -12,30 +12,28 @@ assessment-context calls are mocked so tests are deterministic and fast.
 
 from __future__ import annotations
 
-import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
 
-from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
-from kali_mcp.responses import error_response, success_response
+from kali_mcp.models import ExecutionResult, utc_now_iso
 from kali_mcp.tools.agent_interface import (
     AGENT_MODE_TOOLS,
+    EXPERT_MODE_TOOLS,
+    TOOL_LAYERS,
     AssessmentDiffTool,
     AssessmentRunTool,
     AssetGraphTool,
     BatchRunTool,
     CoverageSummaryTool,
     EvidenceGetTool,
-    EXPERT_MODE_TOOLS,
-    FindingTransitionTool,
     FindingsQueryTool,
+    FindingTransitionTool,
     JobControlTool,
     ReportGenerateTool,
     ToolCatalogTool,
-    TOOL_LAYERS,
     _extract_assets_from_findings,
     _make_assessment_result,
     _new_id,
@@ -67,13 +65,21 @@ def _payload(res: dict):
 
 def _exec_result(stdout="{}"):
     return ExecutionResult(
-        tool="t", command="t", stdout=json.dumps(stdout) if not isinstance(stdout, str) else stdout,
-        stderr="", exit_code=0, success=True, timed_out=False,
-        duration=0.0, start_time=utc_now_iso(), end_time=utc_now_iso(),
+        tool="t",
+        command="t",
+        stdout=json.dumps(stdout) if not isinstance(stdout, str) else stdout,
+        stderr="",
+        exit_code=0,
+        success=True,
+        timed_out=False,
+        duration=0.0,
+        start_time=utc_now_iso(),
+        end_time=utc_now_iso(),
     )
 
 
 # ── fakes ────────────────────────────────────────────────────────────────
+
 
 class FakeCursor:
     def __init__(self, rows):
@@ -128,7 +134,8 @@ class FakeDB:
         self.query_findings_result = query_findings or {"findings": [], "count": 0}
         self.get_evidence_result = get_evidence
         self.get_asset_graph_result = get_asset_graph or {
-            "assets": [], "relationships": [],
+            "assets": [],
+            "relationships": [],
         }
         self.conn = conn or FakeConn()
         self.upsert_target_return = upsert_target_return
@@ -236,7 +243,8 @@ def patch_registry(monkeypatch):
             monkeypatch.setattr("kali_mcp.registry.registry.get", lambda name: get_tool)
         if list_all is not None:
             monkeypatch.setattr(
-                "kali_mcp.registry.registry.list_all", lambda: list_all,
+                "kali_mcp.registry.registry.list_all",
+                lambda: list_all,
             )
 
     return install
@@ -286,8 +294,12 @@ class TestHelpers:
 
     def test_make_assessment_result_without_job(self):
         res = _make_assessment_result(
-            "assessment_run", "a1", "completed",
-            {"assets_discovered": 1}, [], ["review"],
+            "assessment_run",
+            "a1",
+            "completed",
+            {"assets_discovered": 1},
+            [],
+            ["review"],
         )
         payload = _payload(res)
         assert payload["assessment_id"] == "a1"
@@ -297,8 +309,15 @@ class TestHelpers:
 
     def test_make_assessment_result_with_job(self):
         res = _make_assessment_result(
-            "assessment_run", "a1", "accepted", {}, [], ["track"], job_id="j1",
-            detail="full", raw_included=True,
+            "assessment_run",
+            "a1",
+            "accepted",
+            {},
+            [],
+            ["track"],
+            job_id="j1",
+            detail="full",
+            raw_included=True,
         )
         payload = _payload(res)
         assert payload["job_id"] == "j1"
@@ -395,7 +414,8 @@ class TestMetadata:
         assert JobControlTool().build_command({"job_id": "j1"}) == ["job_control", "j1"]
         assert EvidenceGetTool().build_command({"evidence_id": "e1"}) == ["evidence_get", "e1"]
         assert ReportGenerateTool().build_command({"assessment_id": "a1"}) == [
-            "report_generate", "a1",
+            "report_generate",
+            "a1",
         ]
 
     def test_default_timeouts(self):
@@ -409,20 +429,24 @@ class TestMetadata:
 
 class TestValidateAssessmentRun:
     def test_valid_happy_path(self):
-        AssessmentRunTool().validate({
-            "workflow": "web_assessment",
-            "targets": ["example.test"],
-        })
+        AssessmentRunTool().validate(
+            {
+                "workflow": "web_assessment",
+                "targets": ["example.test"],
+            }
+        )
 
     def test_valid_full(self):
-        AssessmentRunTool().validate({
-            "workflow": "network_assessment",
-            "targets": ["127.0.0.1"],
-            "scope_id": "scope-1",
-            "profile": "aggressive",
-            "execution": {"max_parallel": 10, "max_duration": 600, "resume": True},
-            "output": {"detail": "full", "include_raw": True},
-        })
+        AssessmentRunTool().validate(
+            {
+                "workflow": "network_assessment",
+                "targets": ["127.0.0.1"],
+                "scope_id": "scope-1",
+                "profile": "aggressive",
+                "execution": {"max_parallel": 10, "max_duration": 600, "resume": True},
+                "output": {"detail": "full", "include_raw": True},
+            }
+        )
 
     def test_missing_workflow(self):
         with pytest.raises(ValueError, match="workflow is required"):
@@ -436,35 +460,59 @@ class TestValidateAssessmentRun:
 
     def test_invalid_profile(self):
         with pytest.raises(ValueError, match="profile must be"):
-            AssessmentRunTool().validate({
-                "workflow": "web_assessment", "targets": ["x"], "profile": "bogus",
-            })
+            AssessmentRunTool().validate(
+                {
+                    "workflow": "web_assessment",
+                    "targets": ["x"],
+                    "profile": "bogus",
+                }
+            )
 
     def test_bad_max_parallel(self):
         with pytest.raises(ValueError, match="max_parallel must be"):
-            AssessmentRunTool().validate({
-                "workflow": "w", "targets": ["x"], "execution": {"max_parallel": 0},
-            })
+            AssessmentRunTool().validate(
+                {
+                    "workflow": "w",
+                    "targets": ["x"],
+                    "execution": {"max_parallel": 0},
+                }
+            )
         with pytest.raises(ValueError, match="max_parallel must be"):
-            AssessmentRunTool().validate({
-                "workflow": "w", "targets": ["x"], "execution": {"max_parallel": 99},
-            })
+            AssessmentRunTool().validate(
+                {
+                    "workflow": "w",
+                    "targets": ["x"],
+                    "execution": {"max_parallel": 99},
+                }
+            )
 
     def test_bad_max_duration(self):
         with pytest.raises(ValueError, match="max_duration must be"):
-            AssessmentRunTool().validate({
-                "workflow": "w", "targets": ["x"], "execution": {"max_duration": 30},
-            })
+            AssessmentRunTool().validate(
+                {
+                    "workflow": "w",
+                    "targets": ["x"],
+                    "execution": {"max_duration": 30},
+                }
+            )
         with pytest.raises(ValueError, match="max_duration must be"):
-            AssessmentRunTool().validate({
-                "workflow": "w", "targets": ["x"], "execution": {"max_duration": 9999},
-            })
+            AssessmentRunTool().validate(
+                {
+                    "workflow": "w",
+                    "targets": ["x"],
+                    "execution": {"max_duration": 9999},
+                }
+            )
 
     def test_bad_detail(self):
         with pytest.raises(ValueError, match="output.detail must be"):
-            AssessmentRunTool().validate({
-                "workflow": "w", "targets": ["x"], "output": {"detail": "xml"},
-            })
+            AssessmentRunTool().validate(
+                {
+                    "workflow": "w",
+                    "targets": ["x"],
+                    "output": {"detail": "xml"},
+                }
+            )
 
 
 class TestValidateBatchRun:
@@ -609,7 +657,11 @@ class TestValidateCoverageSummary:
 class TestAssessmentRunExecute:
     @pytest.mark.asyncio
     async def test_short_assessment_completed(
-        self, patch_db, patch_vault, patch_context, patch_playbook,
+        self,
+        patch_db,
+        patch_vault,
+        patch_context,
+        patch_playbook,
     ):
         patch_db(None)  # no db -> skip persistence
         patch_vault(write=lambda *a, **k: None)
@@ -617,11 +669,13 @@ class TestAssessmentRunExecute:
         patch_playbook()
 
         tool = AssessmentRunTool()
-        res = await tool.execute({
-            "workflow": "web_assessment",
-            "targets": ["example.test"],
-            "execution": {"max_duration": 60},  # <= 300 -> short (inline) path
-        })
+        res = await tool.execute(
+            {
+                "workflow": "web_assessment",
+                "targets": ["example.test"],
+                "execution": {"max_duration": 60},  # <= 300 -> short (inline) path
+            }
+        )
         payload = _payload(res)
         assert payload["status"] == "completed"
         assert payload["assessment_id"].startswith("assessment_")
@@ -631,7 +685,11 @@ class TestAssessmentRunExecute:
 
     @pytest.mark.asyncio
     async def test_short_assessment_with_context_overrides_id(
-        self, patch_db, patch_vault, patch_context, patch_playbook,
+        self,
+        patch_db,
+        patch_vault,
+        patch_context,
+        patch_playbook,
     ):
         patch_db(None)
         patch_vault(write=lambda *a, **k: None)
@@ -645,19 +703,28 @@ class TestAssessmentRunExecute:
 
     @pytest.mark.asyncio
     async def test_long_assessment_accepted(
-        self, monkeypatch, patch_db, patch_vault, patch_context,
+        self,
+        monkeypatch,
+        patch_db,
+        patch_vault,
+        patch_context,
     ):
         patch_db(None)
         patch_vault(write=lambda *a, **k: None)
         patch_context()
         monkeypatch.setattr(
-            AssessmentRunTool, "_run_assessment_background", AsyncMock(),
+            AssessmentRunTool,
+            "_run_assessment_background",
+            AsyncMock(),
         )
 
         tool = AssessmentRunTool()
-        res = await tool.execute({
-            "workflow": "network_assessment", "targets": ["a", "b", "c", "d"],
-        })
+        res = await tool.execute(
+            {
+                "workflow": "network_assessment",
+                "targets": ["a", "b", "c", "d"],
+            }
+        )
         payload = _payload(res)
         assert payload["status"] == "accepted"
         assert payload["job_id"].startswith("job_")
@@ -665,26 +732,38 @@ class TestAssessmentRunExecute:
 
     @pytest.mark.asyncio
     async def test_long_assessment_via_max_duration(
-        self, monkeypatch, patch_db, patch_vault, patch_context,
+        self,
+        monkeypatch,
+        patch_db,
+        patch_vault,
+        patch_context,
     ):
         patch_db(None)
         patch_vault(write=lambda *a, **k: None)
         patch_context()
         monkeypatch.setattr(
-            AssessmentRunTool, "_run_assessment_background", AsyncMock(),
+            AssessmentRunTool,
+            "_run_assessment_background",
+            AsyncMock(),
         )
 
         tool = AssessmentRunTool()
-        res = await tool.execute({
-            "workflow": "web_assessment", "targets": ["x"],
-            "execution": {"max_duration": 600},  # > 300 -> long
-        })
+        res = await tool.execute(
+            {
+                "workflow": "web_assessment",
+                "targets": ["x"],
+                "execution": {"max_duration": 600},  # > 300 -> long
+            }
+        )
         payload = _payload(res)
         assert payload["status"] == "accepted"
 
     @pytest.mark.asyncio
     async def test_unknown_workflow_raises(
-        self, patch_db, patch_vault, patch_context,
+        self,
+        patch_db,
+        patch_vault,
+        patch_context,
     ):
         patch_db(None)
         patch_vault()
@@ -692,15 +771,20 @@ class TestAssessmentRunExecute:
 
         tool = AssessmentRunTool()
         with pytest.raises(ValueError, match="Unknown workflow"):
-            await tool.execute({
-                "workflow": "not_a_workflow",
-                "targets": ["x"],
-                "execution": {"max_duration": 60},  # force inline path
-            })
+            await tool.execute(
+                {
+                    "workflow": "not_a_workflow",
+                    "targets": ["x"],
+                    "execution": {"max_duration": 60},  # force inline path
+                }
+            )
 
     @pytest.mark.asyncio
     async def test_validate_error_propagates(
-        self, patch_db, patch_vault, patch_context,
+        self,
+        patch_db,
+        patch_vault,
+        patch_context,
     ):
         patch_db(None)
         patch_vault()
@@ -712,7 +796,11 @@ class TestAssessmentRunExecute:
 
     @pytest.mark.asyncio
     async def test_db_persistence_branch(
-        self, patch_db, patch_vault, patch_context, patch_playbook,
+        self,
+        patch_db,
+        patch_vault,
+        patch_context,
+        patch_playbook,
     ):
         db = FakeDB()
         patch_db(db)
@@ -727,23 +815,27 @@ class TestAssessmentRunExecute:
 
     def test_extract_findings_assets_report_step(self):
         tool = AssessmentRunTool()
-        res = _exec_result({
-            "step_results": {
-                "report": {"report": {"findings": [{"id": "f1", "title": "T"}], "assets": []}},
-            },
-        })
-        findings, assets = tool._extract_findings_assets(res)
+        res = _exec_result(
+            {
+                "step_results": {
+                    "report": {"report": {"findings": [{"id": "f1", "title": "T"}], "assets": []}},
+                },
+            }
+        )
+        findings, _assets = tool._extract_findings_assets(res)
         assert len(findings) == 1
         assert findings[0]["id"] == "f1"
         assert findings[0]["title"] == "T"
 
     def test_extract_findings_assets_correlate_fallback(self):
         tool = AssessmentRunTool()
-        res = _exec_result({
-            "step_results": {
-                "correlate": {"correlated_findings": [{"id": "f2", "title": "C"}]},
-            },
-        })
+        res = _exec_result(
+            {
+                "step_results": {
+                    "correlate": {"correlated_findings": [{"id": "f2", "title": "C"}]},
+                },
+            }
+        )
         findings, _ = tool._extract_findings_assets(res)
         assert len(findings) == 1
         assert findings[0]["id"] == "f2"
@@ -757,12 +849,14 @@ class TestAssessmentRunExecute:
 
     def test_extract_findings_assets_last_resort(self):
         tool = AssessmentRunTool()
-        res = _exec_result({
-            "step_results": {
-                "weird": {"findings": [{"title": "X"}]},
-                "other": {"assets": [{"asset_id": "ax"}]},
-            },
-        })
+        res = _exec_result(
+            {
+                "step_results": {
+                    "weird": {"findings": [{"title": "X"}]},
+                    "other": {"assets": [{"asset_id": "ax"}]},
+                },
+            }
+        )
         findings, assets = tool._extract_findings_assets(res)
         assert len(findings) == 1
         assert findings[0]["title"] == "X"
@@ -771,17 +865,27 @@ class TestAssessmentRunExecute:
 
     def test_extract_findings_assets_normalization(self):
         tool = AssessmentRunTool()
-        res = _exec_result({
-            "step_results": {
-                "report": {"report": {
-                    "findings": [{
-                        "title": "Nuclei hit", "severity": "high", "confidence": 0.9,
-                        "source_tools": ["nuclei"], "evidence_refs": ["ev1"],
-                        "description": "d", "asset_id": "host.test",
-                    }],
-                }},
-            },
-        })
+        res = _exec_result(
+            {
+                "step_results": {
+                    "report": {
+                        "report": {
+                            "findings": [
+                                {
+                                    "title": "Nuclei hit",
+                                    "severity": "high",
+                                    "confidence": 0.9,
+                                    "source_tools": ["nuclei"],
+                                    "evidence_refs": ["ev1"],
+                                    "description": "d",
+                                    "asset_id": "host.test",
+                                }
+                            ],
+                        }
+                    },
+                },
+            }
+        )
         findings, assets = tool._extract_findings_assets(res)
         f = findings[0]
         assert f["id"].startswith("finding_")
@@ -822,8 +926,13 @@ class TestAssessmentRunExecute:
         patch_vault(write=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
         tool = AssessmentRunTool()
         tool._write_assessment_vault_summary(
-            assessment_id="a1", job_id=None, status="completed", summary={},
-            findings=[], next_actions=[], targets=["x"],
+            assessment_id="a1",
+            job_id=None,
+            status="completed",
+            summary={},
+            findings=[],
+            next_actions=[],
+            targets=["x"],
         )
 
     def test_load_workflow_playbook_known(self):
@@ -838,17 +947,29 @@ class TestAssessmentRunExecute:
 
     @pytest.mark.asyncio
     async def test_background_run_stores_failed_on_exception(
-        self, monkeypatch, patch_vault,
+        self,
+        monkeypatch,
+        patch_vault,
     ):
         patch_vault(write=lambda *a, **k: None)
         monkeypatch.setattr(
-            AssessmentRunTool, "_run_assessment_inline",
+            AssessmentRunTool,
+            "_run_assessment_inline",
             AsyncMock(side_effect=RuntimeError("boom")),
         )
         tool = AssessmentRunTool()
         await tool._run_assessment_background(
-            "a1", "j1", "web_assessment", ["x"], None, "safe_active", 4, 900,
-            False, "summary", False,
+            "a1",
+            "j1",
+            "web_assessment",
+            ["x"],
+            None,
+            "safe_active",
+            4,
+            900,
+            False,
+            "summary",
+            False,
         )
 
 
@@ -858,19 +979,25 @@ class TestAssessmentRunExecute:
 class TestBatchRunExecute:
     @pytest.mark.asyncio
     async def test_happy_path_all_success(self, monkeypatch, patch_registry):
-        fake_tool = type("FT", (), {
-            "safe_execute": AsyncMock(return_value={"content": [], "isError": False}),
-        })()
+        fake_tool = type(
+            "FT",
+            (),
+            {
+                "safe_execute": AsyncMock(return_value={"content": [], "isError": False}),
+            },
+        )()
         patch_registry(get_tool=fake_tool)
 
         tool = BatchRunTool()
         tool._skip_central_persist = True
-        res = await tool.safe_execute({
-            "operations": [
-                {"tool": "nmap", "target_ref": "t1", "args": {"x": 1}},
-                {"tool": "nmap", "target_ref": "t2", "args": {"x": 1}},  # duplicate
-            ],
-        })
+        res = await tool.safe_execute(
+            {
+                "operations": [
+                    {"tool": "nmap", "target_ref": "t1", "args": {"x": 1}},
+                    {"tool": "nmap", "target_ref": "t2", "args": {"x": 1}},  # duplicate
+                ],
+            }
+        )
         payload = _payload(res)
         assert payload["batch_id"].startswith("batch_")
         assert payload["total_operations"] == 2
@@ -893,16 +1020,23 @@ class TestBatchRunExecute:
 
     @pytest.mark.asyncio
     async def test_tool_exception(self, monkeypatch, patch_registry):
-        fake_tool = type("FT", (), {
-            "safe_execute": AsyncMock(side_effect=RuntimeError("kaboom")),
-        })()
+        fake_tool = type(
+            "FT",
+            (),
+            {
+                "safe_execute": AsyncMock(side_effect=RuntimeError("kaboom")),
+            },
+        )()
         patch_registry(get_tool=fake_tool)
 
         tool = BatchRunTool()
         tool._skip_central_persist = True
-        res = await tool.safe_execute({
-            "operations": [{"tool": "nmap"}], "continue_on_error": False,
-        })
+        res = await tool.safe_execute(
+            {
+                "operations": [{"tool": "nmap"}],
+                "continue_on_error": False,
+            }
+        )
         payload = _payload(res)
         assert payload["failed"] == 1
         assert payload["successful"] == 0
@@ -916,7 +1050,10 @@ class TestBatchRunExecute:
 class TestJobControlExecute:
     @pytest.mark.asyncio
     async def test_not_found_engine_running(
-        self, monkeypatch, patch_vault, patch_engine,
+        self,
+        monkeypatch,
+        patch_vault,
+        patch_engine,
     ):
         patch_vault(query=lambda **k: {"entries": []})
         patch_engine(active_jobs=[{"request_id": "j1", "tool": "nmap", "elapsed_seconds": 2.0}])
@@ -985,9 +1122,13 @@ class TestJobControlExecute:
         patch_vault(
             query=lambda **k: {"entries": [{"name": "j1"}]},
             can_access=lambda aid, caller_id=None: True,
-            read=lambda cat, name: json.dumps({
-                "status": "completed", "assessment_id": "a1", "summary": {},
-            }),
+            read=lambda cat, name: json.dumps(
+                {
+                    "status": "completed",
+                    "assessment_id": "a1",
+                    "summary": {},
+                }
+            ),
         )
         tool = JobControlTool()
         tool._skip_central_persist = True
@@ -1138,11 +1279,18 @@ class TestEvidenceGetExecute:
     async def test_db_path_with_file(self, patch_db, tmp_path):
         content_file = tmp_path / "ev.txt"
         content_file.write_text("raw evidence here")
-        db = FakeDB(get_evidence={
-            "content_path": str(content_file), "artifact_type": "text",
-            "content_size": 100, "captured_at": "now", "tool": "nmap",
-            "target": "t", "assessment_id": "a", "job_id": "j",
-        })
+        db = FakeDB(
+            get_evidence={
+                "content_path": str(content_file),
+                "artifact_type": "text",
+                "content_size": 100,
+                "captured_at": "now",
+                "tool": "nmap",
+                "target": "t",
+                "assessment_id": "a",
+                "job_id": "j",
+            }
+        )
         patch_db(db)
         tool = EvidenceGetTool()
         tool._skip_central_persist = True
@@ -1157,9 +1305,12 @@ class TestEvidenceGetExecute:
     async def test_db_path_content_over_100kb_truncated(self, patch_db, tmp_path):
         content_file = tmp_path / "big.txt"
         content_file.write_text("x" * 100001)
-        db = FakeDB(get_evidence={
-            "content_path": str(content_file), "content_size": 100001,
-        })
+        db = FakeDB(
+            get_evidence={
+                "content_path": str(content_file),
+                "content_size": 100001,
+            }
+        )
         patch_db(db)
         tool = EvidenceGetTool()
         tool._skip_central_persist = True
@@ -1223,28 +1374,34 @@ class TestAssetGraphExecute:
         tool = AssetGraphTool()
         tool._skip_central_persist = True
         res = await tool.execute({})
-        outer = json.loads(res["content"][0]["text"])
+        json.loads(res["content"][0]["text"])
         assert res["isError"] is True
 
     @pytest.mark.asyncio
     async def test_happy_path_with_filters(self, patch_db):
-        db = FakeDB(get_asset_graph={
-            "assets": [
-                {"asset_id": "a1", "name": "n1", "type": "host"},
-                {"asset_id": "a2", "name": "n2", "type": "host"},
-            ],
-            "relationships": [
-                {"relationship": "resolves_to", "source": "a1", "target": "a2"},
-                {"relationship": "contains", "source": "a1", "target": "a3"},
-            ],
-        })
+        db = FakeDB(
+            get_asset_graph={
+                "assets": [
+                    {"asset_id": "a1", "name": "n1", "type": "host"},
+                    {"asset_id": "a2", "name": "n2", "type": "host"},
+                ],
+                "relationships": [
+                    {"relationship": "resolves_to", "source": "a1", "target": "a2"},
+                    {"relationship": "contains", "source": "a1", "target": "a3"},
+                ],
+            }
+        )
         patch_db(db)
         tool = AssetGraphTool()
         tool._skip_central_persist = True
-        res = await tool.execute({
-            "target": "example.test", "asset_id": "a1",
-            "relationship_type": "resolves_to", "limit": 5,
-        })
+        res = await tool.execute(
+            {
+                "target": "example.test",
+                "asset_id": "a1",
+                "relationship_type": "resolves_to",
+                "limit": 5,
+            }
+        )
         payload = _payload(res)
         assert payload["asset_count"] == 1
         assert payload["relationship_count"] == 1
@@ -1312,17 +1469,25 @@ class TestReportGenerateExecute:
         return {
             "findings": [
                 {
-                    "id": "f1", "title": "Exposed admin panel", "severity": "critical",
-                    "confidence": 0.9, "validation_status": "validated",
-                    "asset_id": "app.test", "source_tools": ["nuclei"],
-                    "evidence_refs": ["ev1"], "description": "admin panel",
+                    "id": "f1",
+                    "title": "Exposed admin panel",
+                    "severity": "critical",
+                    "confidence": 0.9,
+                    "validation_status": "validated",
+                    "asset_id": "app.test",
+                    "source_tools": ["nuclei"],
+                    "evidence_refs": ["ev1"],
+                    "description": "admin panel",
                 },
             ],
             "summary": {
-                "assets_discovered": 1, "services_discovered": 2,
+                "assets_discovered": 1,
+                "services_discovered": 2,
                 "findings": {"critical": 1, "high": 0, "medium": 0, "low": 0},
             },
-            "next_actions": ["review"], "artifacts": [], "recommended_next_playbooks": [],
+            "next_actions": ["review"],
+            "artifacts": [],
+            "recommended_next_playbooks": [],
         }
 
     @pytest.mark.asyncio
@@ -1495,7 +1660,9 @@ class TestReportGenerateExecute:
     def test_sarif_report_shape(self):
         tool = ReportGenerateTool()
         base = tool._base_report("a1", [], {}, {}, False)
-        sarif = tool._sarif_report("a1", [{"id": "f1", "title": "T", "severity": "critical"}], {}, base)
+        sarif = tool._sarif_report(
+            "a1", [{"id": "f1", "title": "T", "severity": "critical"}], {}, base
+        )
         assert sarif["version"] == "2.1.0"
         assert sarif["runs"][0]["results"][0]["level"] == "error"
         assert sarif["runs"][0]["results"][0]["ruleId"] == "f1"
@@ -1552,16 +1719,23 @@ class TestFindingTransitionExecute:
 
     @pytest.mark.asyncio
     async def test_db_path_updates_state(self, patch_db):
-        conn = FakeConn(rows_by_sql={
-            "SELECT validation_status FROM findings WHERE id = ?": [("suspected",)],
-        })
+        conn = FakeConn(
+            rows_by_sql={
+                "SELECT validation_status FROM findings WHERE id = ?": [("suspected",)],
+            }
+        )
         db = FakeDB(conn=conn)
         patch_db(db)
         tool = FindingTransitionTool()
         tool._skip_central_persist = True
-        res = await tool.execute({
-            "finding_id": "f1", "new_state": "validated", "source": "analyst", "reason": "ok",
-        })
+        res = await tool.execute(
+            {
+                "finding_id": "f1",
+                "new_state": "validated",
+                "source": "analyst",
+                "reason": "ok",
+            }
+        )
         payload = _payload(res)
         assert payload["success"] is True
         assert payload["previous_state"] == "suspected"
@@ -1583,7 +1757,10 @@ class TestFindingTransitionExecute:
         class ThrowingConn:
             def execute(self, sql, params=()):
                 raise RuntimeError("db down")
-            def commit(self): pass
+
+            def commit(self):
+                pass
+
         db = FakeDB(conn=ThrowingConn())
         patch_db(db)
         tool = FindingTransitionTool()
@@ -1600,10 +1777,14 @@ class TestAssessmentDiffExecute:
     @pytest.mark.asyncio
     async def test_happy_path(self, monkeypatch, patch_db):
         patch_db(None)
-        fake_diff = type("FD", (), {
-            "diff": lambda self, a, b: self,
-            "to_dict": lambda self: {"new_findings": []},
-        })()
+        fake_diff = type(
+            "FD",
+            (),
+            {
+                "diff": lambda self, a, b: self,
+                "to_dict": lambda self: {"new_findings": []},
+            },
+        )()
         monkeypatch.setattr(
             "kali_mcp.tools.agent_interface.AssessmentDiffer",
             lambda db_manager=None: fake_diff,
@@ -1622,10 +1803,14 @@ class TestCoverageSummaryExecute:
     @pytest.mark.asyncio
     async def test_db_none(self, patch_db, monkeypatch):
         patch_db(None)
-        fake_tracker = type("FT", (), {
-            "get_coverage_summary": lambda self, aid: {"percent_covered": 0},
-            "get_coverage_gaps": lambda self, aid: [],
-        })()
+        fake_tracker = type(
+            "FT",
+            (),
+            {
+                "get_coverage_summary": lambda self, aid: {"percent_covered": 0},
+                "get_coverage_gaps": lambda self, aid: [],
+            },
+        )()
         monkeypatch.setattr(
             "kali_mcp.tools.agent_interface.CoverageTracker",
             lambda: fake_tracker,
@@ -1639,19 +1824,25 @@ class TestCoverageSummaryExecute:
 
     @pytest.mark.asyncio
     async def test_db_path_records_scans(self, patch_db, monkeypatch):
-        conn = FakeConn(rows_by_sql={
-            "SELECT id, tool, target_id FROM scans WHERE assessment_id = ?": [(1, "nmap", 10)],
-            "SELECT id FROM findings WHERE scan_id = ?": [(1,), (2,)],
-            "SELECT target FROM targets WHERE id = ?": [("127.0.0.1",)],
-        })
+        conn = FakeConn(
+            rows_by_sql={
+                "SELECT id, tool, target_id FROM scans WHERE assessment_id = ?": [(1, "nmap", 10)],
+                "SELECT id FROM findings WHERE scan_id = ?": [(1,), (2,)],
+                "SELECT target FROM targets WHERE id = ?": [("127.0.0.1",)],
+            }
+        )
         db = FakeDB(conn=conn)
         patch_db(db)
         recorded = []
-        fake_tracker = type("FT", (), {
-            "record_coverage": lambda self, **kwargs: recorded.append(kwargs),
-            "get_coverage_summary": lambda self, aid: {"percent_covered": 50},
-            "get_coverage_gaps": lambda self, aid: [],
-        })()
+        fake_tracker = type(
+            "FT",
+            (),
+            {
+                "record_coverage": lambda self, **kwargs: recorded.append(kwargs),
+                "get_coverage_summary": lambda self, aid: {"percent_covered": 50},
+                "get_coverage_gaps": lambda self, aid: [],
+            },
+        )()
         monkeypatch.setattr(
             "kali_mcp.tools.agent_interface.CoverageTracker",
             lambda: fake_tracker,
@@ -1669,13 +1860,20 @@ class TestCoverageSummaryExecute:
         class ThrowingConn:
             def execute(self, sql, params=()):
                 raise RuntimeError("down")
-            def commit(self): pass
+
+            def commit(self):
+                pass
+
         db = FakeDB(conn=ThrowingConn())
         patch_db(db)
-        fake_tracker = type("FT", (), {
-            "get_coverage_summary": lambda self, aid: {},
-            "get_coverage_gaps": lambda self, aid: [],
-        })()
+        fake_tracker = type(
+            "FT",
+            (),
+            {
+                "get_coverage_summary": lambda self, aid: {},
+                "get_coverage_gaps": lambda self, aid: [],
+            },
+        )()
         monkeypatch.setattr(
             "kali_mcp.tools.agent_interface.CoverageTracker",
             lambda: fake_tracker,
@@ -1692,21 +1890,26 @@ class TestCoverageSummaryExecute:
 
 class TestSafeExecuteErrorWrapping:
     @pytest.mark.asyncio
-    async def test_execute_exception_caught(self, monkeypatch, patch_db, patch_vault, patch_context):
+    async def test_execute_exception_caught(
+        self, monkeypatch, patch_db, patch_vault, patch_context
+    ):
         patch_db(None)
         patch_vault(write=lambda *a, **k: None)
         patch_context()
         monkeypatch.setattr(
-            AssessmentRunTool, "_run_assessment_inline",
+            AssessmentRunTool,
+            "_run_assessment_inline",
             AsyncMock(side_effect=RuntimeError("unexpected")),
         )
         tool = AssessmentRunTool()
         tool._skip_central_persist = True
-        res = await tool.safe_execute({
-            "workflow": "web_assessment",
-            "targets": ["x"],
-            "execution": {"max_duration": 60},  # short path -> _run_assessment_inline
-        })
+        res = await tool.safe_execute(
+            {
+                "workflow": "web_assessment",
+                "targets": ["x"],
+                "execution": {"max_duration": 60},  # short path -> _run_assessment_inline
+            }
+        )
         outer = json.loads(res["content"][0]["text"])
         assert res["isError"] is True
         assert "Internal error" in outer["error"]

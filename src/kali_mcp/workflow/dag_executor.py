@@ -48,9 +48,7 @@ def _has_placeholder(command: str, name: str) -> bool:
     """True when ``command`` still references placeholder ``{name}``/``{{name}}``."""
     if not command or not name:
         return False
-    return bool(
-        re.search(r"\{\{?\s*%s\s*\}?\}" % re.escape(name), command)
-    )
+    return bool(re.search(rf"\{{\{{?\s*{re.escape(name)}\s*\}}?\}}", command))
 
 
 def _fmt_value(value: Any) -> str:
@@ -61,6 +59,7 @@ def _fmt_value(value: Any) -> str:
         return " ".join(str(_fmt_value(v)) for v in value)
     return str(value)
 
+
 # Global run-state registry: {playbook_name: status_dict}
 RUN_STATUS: dict[str, dict[str, Any]] = {}
 
@@ -68,7 +67,14 @@ RUN_STATUS: dict[str, dict[str, Any]] = {}
 #: playbooks (bounded iteration per Playbook Studio security architecture).
 MAX_ITERATIONS = 1000
 
-VALIDATION_STATES = {"observed", "suspected", "validated", "remediated", "false_positive", "accepted_risk"}
+VALIDATION_STATES = {
+    "observed",
+    "suspected",
+    "validated",
+    "remediated",
+    "false_positive",
+    "accepted_risk",
+}
 
 
 @dataclass
@@ -134,17 +140,23 @@ class PlaybookEngine:
                         RUN_STATUS[name] = prior
             except Exception:  # noqa: BLE001 — SQLite resume is best-effort
                 pass
-        if resume and prior and prior.get("status") in ("completed", "failed", "aborted", "partial"):
+        if (
+            resume
+            and prior
+            and prior.get("status") in ("completed", "failed", "aborted", "partial")
+        ):
             skip_indices = set(prior.get("completed_steps", []))
 
         state = RUN_STATUS.setdefault(name, {})
-        state.update({
-            "status": "running",
-            "steps_total": len(steps),
-            "started_at": now_iso(),
-            "max_parallel": playbook.max_parallel,
-            "timeout": playbook.timeout,
-        })
+        state.update(
+            {
+                "status": "running",
+                "steps_total": len(steps),
+                "started_at": now_iso(),
+                "max_parallel": playbook.max_parallel,
+                "timeout": playbook.timeout,
+            }
+        )
         if resume:
             state["completed_steps"] = sorted(skip_indices)
         else:
@@ -234,7 +246,11 @@ class PlaybookEngine:
                 state["completed_steps"].append(idx)
 
         all_completed = len(state["completed_steps"]) == len(steps)
-        final_status = "completed" if (all_completed and not aborted_flag["value"]) else ("partial" if state["completed_steps"] else "failed")
+        final_status = (
+            "completed"
+            if (all_completed and not aborted_flag["value"])
+            else ("partial" if state["completed_steps"] else "failed")
+        )
         state["status"] = final_status
         state["finished_at"] = now_iso()
 
@@ -262,12 +278,13 @@ class PlaybookEngine:
 
     # ── step execution ─────────────────────────────────────────────────
 
-    async def _run_step(self, step: StepDefinition, all_steps: list[StepDefinition], state: dict) -> Any:
+    async def _run_step(
+        self, step: StepDefinition, all_steps: list[StepDefinition], state: dict
+    ) -> Any:
         """Run a single step (possibly with retries)."""
         # Evaluate when condition against structured outputs
-        if step.when is not None:
-            if not self._evaluate_when(step.when):
-                return {"step": step.id, "skipped": True, "reason": "when condition false"}
+        if step.when is not None and not self._evaluate_when(step.when):
+            return {"step": step.id, "skipped": True, "reason": "when condition false"}
 
         # Resolve foreach: iterate over a prior step's output array
         if step.foreach:
@@ -379,8 +396,11 @@ class PlaybookEngine:
             # Substitution pool: playbook/run inputs (scalars) + this node's
             # resolved inputs — node inputs win.
             pool = {
-                **{k: v for k, v in (self._playbook_inputs or {}).items()
-                   if isinstance(v, (str, int, float, list))},
+                **{
+                    k: v
+                    for k, v in (self._playbook_inputs or {}).items()
+                    if isinstance(v, (str, int, float, list))
+                },
                 **resolved,
             }
             final_cmd = self._subst_placeholders(step.command or "", pool)
@@ -408,7 +428,9 @@ class PlaybookEngine:
 
         started = now_iso()
         result = await _engine.execute(
-            final_cmd, tool="shell_command", timeout=timeout,
+            final_cmd,
+            tool="shell_command",
+            timeout=timeout,
         )
         stdout = result.stdout or ""
         filtered: dict[str, Any] = {}
@@ -429,13 +451,13 @@ class PlaybookEngine:
         if result.timed_out:
             payload["error"] = "command timed out"
         elif result.success is False:
-            payload["error"] = f"exit code {result.exit_code}: {(result.stderr or stdout).strip()[:300]}"
+            payload["error"] = (
+                f"exit code {result.exit_code}: {(result.stderr or stdout).strip()[:300]}"
+            )
         payload.update(filtered)
         return payload
 
-    def _resolve_shell_inputs(
-        self, step: StepDefinition
-    ) -> tuple[dict[str, Any], list[str]]:
+    def _resolve_shell_inputs(self, step: StepDefinition) -> tuple[dict[str, Any], list[str]]:
         """Resolve shell-node placeholder inputs.
 
         Returns ``(resolved, unresolved)`` where ``resolved`` contains the
@@ -489,9 +511,7 @@ class PlaybookEngine:
             return _fmt_value(values[name])
 
         out = re.sub(r"\{\{?([A-Za-z_][A-Za-z0-9_]*)\}?\}", repl, out)
-        missing = [
-            tok for tok in re.findall(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})", out)
-        ]
+        missing = [tok for tok in re.findall(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})", out)]
         if missing:
             raise ValueError(
                 f"unresolved placeholder(s) {missing} in command — "
@@ -625,8 +645,12 @@ class PlaybookEngine:
             key = f"{f.get('target', 'unknown')}|{f.get('title', 'unknown')}"
             if key in correlated:
                 existing = correlated[key]
-                existing["source_tools"] = list(set(existing.get("source_tools", []) + [f.get("tool", "")]))
-                existing["evidence_refs"] = list(set(existing.get("evidence_refs", []) + [f.get("evidence_ref", "")]))
+                existing["source_tools"] = list(
+                    set(existing.get("source_tools", []) + [f.get("tool", "")])
+                )
+                existing["evidence_refs"] = list(
+                    set(existing.get("evidence_refs", []) + [f.get("evidence_ref", "")])
+                )
                 existing["confidence"] = min(0.99, existing.get("confidence", 0.5) + 0.1)
             else:
                 correlated[key] = dict(f)
@@ -673,9 +697,7 @@ class PlaybookEngine:
         reference keep the legacy pass-through behaviour (built-in
         definitions still declare bare ``type: custom`` steps).
         """
-        module_ref = step.tool or (
-            step.args.get("module") if isinstance(step.args, dict) else None
-        )
+        module_ref = step.tool or (step.args.get("module") if isinstance(step.args, dict) else None)
         if not module_ref:
             # Legacy pass-through for bare custom steps in built-in playbooks.
             return {
@@ -705,7 +727,9 @@ class PlaybookEngine:
         except ScopeViolationError:
             raise
 
-    async def _run_foreach(self, step: StepDefinition, all_steps: list[StepDefinition], state: dict) -> Any:
+    async def _run_foreach(
+        self, step: StepDefinition, all_steps: list[StepDefinition], state: dict
+    ) -> Any:
         """Iterate over a prior step's output array, running the step per item."""
         ref = step.foreach
         items = self._resolve_ref(ref)
@@ -737,12 +761,14 @@ class PlaybookEngine:
                         tool_name=step.tool if step.type == "tool" else None,
                     )
                 except ScopeViolationError as exc:
-                    results.append({
-                        "step": f"{step.id}_foreach",
-                        "error": str(exc),
-                        "scope_violation": True,
-                        "_foreach_item": item,
-                    })
+                    results.append(
+                        {
+                            "step": f"{step.id}_foreach",
+                            "error": str(exc),
+                            "scope_violation": True,
+                            "_foreach_item": item,
+                        }
+                    )
                     continue
             # Create a per-iteration variant of the step with the item injected
             iter_args = dict(step.args)
@@ -750,6 +776,7 @@ class PlaybookEngine:
             iter_step = StepDefinition(
                 id=f"{step.id}_foreach",
                 tool=step.tool,
+                module=step.module,
                 type=step.type,
                 depends_on=step.depends_on,
                 when=step.when,
@@ -816,7 +843,8 @@ class PlaybookEngine:
         waves: list[list[int]] = []
         while remaining:
             wave = [
-                idx for idx in sorted(remaining)
+                idx
+                for idx in sorted(remaining)
                 if all(
                     id_to_index.get(dep, -1) in done or dep not in id_to_index
                     for dep in steps[idx].depends_on
@@ -863,7 +891,11 @@ class PlaybookEngine:
 
             # Parse comparison value
             try:
-                compare_val = float(value_str) if re.match(r"^-?\d+(\.\d+)?$", value_str) else value_str.strip('"').strip("'")
+                compare_val = (
+                    float(value_str)
+                    if re.match(r"^-?\d+(\.\d+)?$", value_str)
+                    else value_str.strip('"').strip("'")
+                )
             except ValueError:
                 compare_val = value_str
 
@@ -883,15 +915,64 @@ class PlaybookEngine:
             return False
         return False
 
+    def _unwrap_envelope(self, result: Any) -> Any:
+        """Unwrap an MCP tool-response envelope into the inner ExecutionResult dict.
+
+        Tools return ``{"content": [{"type": "text", "text": "<json>"}], "isError": False}``.
+        This peels that away so structured output fields (e.g. ``http_services_count``)
+        can be traversed by :meth:`_resolve_ref`.
+        """
+        if not isinstance(result, dict):
+            return result
+        content = result.get("content")
+        if isinstance(content, list) and content:
+            first = content[0]
+            if isinstance(first, dict):
+                text = first.get("text")
+                if isinstance(text, str):
+                    try:
+                        import json as _json
+
+                        parsed = _json.loads(text)
+                        if isinstance(parsed, dict):
+                            return parsed
+                    except (_json.JSONDecodeError, TypeError):
+                        pass
+        return result
+
     def _resolve_ref(self, ref: str) -> Any:
-        """Resolve a dotted reference like 'step_id.field.subfield' against prior results."""
+        """Resolve a dotted reference against prior results and playbook inputs.
+
+        Supported forms:
+          - ``{{inputs.X}}`` or ``inputs.X``        → playbook input ``X``
+          - ``target``                               → playbook-level target value
+          - ``{{steps.X.Y}}`` or ``steps.X.Y``       → field ``Y`` of step ``X``'s result
+          - ``X.Y`` (bare)                           → field ``Y`` of step ``X``'s result
+        """
         if not ref:
             return None
-        parts = ref.split(".")
+
+        # Strip {{...}} wrapper
+        raw = ref.strip()
+        if raw.startswith("{{") and raw.endswith("}}"):
+            raw = raw[2:-2].strip()
+
+        # inputs.X
+        if raw.startswith("inputs."):
+            key = raw[len("inputs.") :]
+            return self._playbook_inputs.get(key)
+
+        # target shortcut
+        if raw == "target":
+            return self._subst_target
+
+        # steps.X.Y or bare X.Y
+        parts = raw.split(".")
         step_id = parts[0]
         result = self._step_results.get(step_id)
         if result is None:
             return None
+        result = self._unwrap_envelope(result)
         for part in parts[1:]:
             if isinstance(result, dict):
                 result = result.get(part)
@@ -928,7 +1009,9 @@ class PlaybookEngine:
                 return True
         return False
 
-    def _depends_on_failed(self, step: StepDefinition, all_steps: list[StepDefinition], idx: int) -> bool:
+    def _depends_on_failed(
+        self, step: StepDefinition, all_steps: list[StepDefinition], idx: int
+    ) -> bool:
         """Check if any dependency of this step failed/aborted."""
         for dep in step.depends_on:
             dep_res = self._step_results.get(dep)
@@ -984,9 +1067,7 @@ async def run_playbook(playbook: PlaybookDefinition, resume: bool = False) -> Ex
     return await eng.run(playbook, resume=resume)
 
 
-async def run_playbook_async(
-    playbook: PlaybookDefinition, resume: bool = False
-) -> ExecutionResult:
+async def run_playbook_async(playbook: PlaybookDefinition, resume: bool = False) -> ExecutionResult:
     """Async-native entry point: directly awaits the engine's ``run()``.
 
     Use this from async MCP tool handlers running inside an active event

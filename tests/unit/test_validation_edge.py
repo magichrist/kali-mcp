@@ -43,7 +43,7 @@ class TestTypeAbuse:
 
 
 class TestIPBoundaries:
-    @pytest.mark.parametrize("value", ["127.0.0.0", "127.0.0.1", "127.0.0.1", "127.0.0.1"])
+    @pytest.mark.parametrize("value", ["127.0.0.0", "127.0.0.1"])
     def test_valid_boundaries(self, value):
         assert validate_ip(value) is None
 

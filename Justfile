@@ -55,6 +55,30 @@ clean:
     rm -rf artifacts/*
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
+# Frontend development (Vue 3 Playbook Studio migration)
+# Source lives in WebUI; recipes delegate to npm/npx there.
+
+frontend-install:
+	cd WebUI && npm install
+
+frontend-dev:
+	cd WebUI && npx vite
+
+frontend-build:
+	cd WebUI && npx vite build
+
+frontend-typecheck:
+	cd WebUI && npx vue-tsc --noEmit
+
+frontend-test:
+	cd WebUI && npx vitest run
+
+frontend-e2e:
+	cd WebUI && npx playwright test
+
+frontend-preview:
+	cd WebUI && npx vite preview
+
 # Purge stored data: just purge db | just purge vault | just purge all
 purge scope="all":
     #!/usr/bin/env bash

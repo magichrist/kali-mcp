@@ -34,8 +34,6 @@ steps:
       target: "{{target}}"
       auth_token: "{{options.auth_token}}"
       api_spec: "{{options.api_spec}}"
-    output_mapping:
-      endpoints: api_discovery.endpoints
     checkpoint: true
     description: "Discover API endpoints via katana (api_discovery module)"
   - id: param_discovery
@@ -60,8 +58,6 @@ steps:
     depends_on: [api_discovery, param_discovery, api_dir_enum]
     args:
       target: "{{target}}"
-      endpoints: "{{api_discovery.endpoints}}"
-      parameters: "{{param_discovery.parameters}}"
     checkpoint: true
     description: "Scan API endpoints with nuclei API templates"
   - id: correlate

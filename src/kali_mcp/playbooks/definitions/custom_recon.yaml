@@ -24,7 +24,7 @@ steps:
   - id: custom_modules
     module: host_enumeration
     depends_on: [validate]
-    foreach: "custom_modules"
+    foreach: "{{inputs.custom_modules}}"
     inputs:
       target: "{{target}}"
     checkpoint: true

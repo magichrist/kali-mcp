@@ -6,13 +6,24 @@ The playbook engine resolves dependencies and executes modules in order.
 
 from __future__ import annotations
 
+import os as _os
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-PLAYBOOKS_DIR = Path(__file__).parent / "definitions"
-TEMPLATES_DIR = Path(__file__).parent / "templates"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+PLAYBOOKS_DIR = Path(
+    _os.getenv("KALI_MCP_PLAYBOOKS_DIR", _PROJECT_ROOT / "resources" / "playbooks")
+)
+TEMPLATES_DIR = Path(
+    _os.getenv("KALI_MCP_TEMPLATES_DIR", _PROJECT_ROOT / "resources" / "playbooks")
+)
+CUSTOM_PLAYBOOKS_DIR = Path(
+    _os.getenv(
+        "KALI_MCP_CUSTOM_PLAYBOOKS_DIR", _PROJECT_ROOT / "resources" / "custom" / "playbooks"
+    )
+)
 
 _playbooks: dict[str, dict[str, Any]] = {}
 _modules: dict[str, dict[str, Any]] = {}
@@ -54,14 +65,16 @@ def get_module(mod_id: str) -> dict[str, Any]:
 def list_playbooks() -> list[dict[str, Any]]:
     out = []
     for pb_id, pb in _playbooks.items():
-        out.append({
-            "id": pb_id,
-            "name": pb.get("name", pb_id),
-            "description": pb.get("description", ""),
-            "inputs": pb.get("inputs", {}),
-            "outputs": pb.get("outputs", {}),
-            "estimated_duration": pb.get("execution", {}).get("timeout", 300),
-        })
+        out.append(
+            {
+                "id": pb_id,
+                "name": pb.get("name", pb_id),
+                "description": pb.get("description", ""),
+                "inputs": pb.get("inputs", {}),
+                "outputs": pb.get("outputs", {}),
+                "estimated_duration": pb.get("execution", {}).get("timeout", 300),
+            }
+        )
     return out
 
 
@@ -105,37 +118,38 @@ def list_templates() -> list[dict[str, Any]]:
     out = []
     for tmp_id, tmp in _templates.items():
         params = tmp.get("parameters", {}) or {}
-        out.append({
-            "id": tmp_id,
-            "name": tmp.get("name", tmp_id),
-            "description": tmp.get("description", ""),
-            "parameters": {
-                name: {
-                    "type": spec.get("type", "string"),
-                    "description": spec.get("description", ""),
-                    "required": bool(spec.get("required", False)),
-                    "default": spec.get("default"),
-                }
-                for name, spec in params.items()
-            },
-        })
+        out.append(
+            {
+                "id": tmp_id,
+                "name": tmp.get("name", tmp_id),
+                "description": tmp.get("description", ""),
+                "parameters": {
+                    name: {
+                        "type": spec.get("type", "string"),
+                        "description": spec.get("description", ""),
+                        "required": bool(spec.get("required", False)),
+                        "default": spec.get("default"),
+                    }
+                    for name, spec in params.items()
+                },
+            }
+        )
     return out
 
 
 def load_yaml_templates() -> None:
-    """Load all YAML template definitions from the templates directory."""
-    if not TEMPLATES_DIR.exists():
-        return
-    for yml in sorted(TEMPLATES_DIR.glob("*.yaml")):
-        with open(yml, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        if data and "id" in data:
-            register_template(data["id"], data)
+    """Load all YAML template definitions from the templates and custom directories."""
+    for directory in (TEMPLATES_DIR, CUSTOM_PLAYBOOKS_DIR):
+        if not directory.exists():
+            continue
+        for yml in sorted(directory.glob("*.yaml")):
+            with open(yml, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            if data and "id" in data:
+                register_template(data["id"], data)
 
 
-def _merge_params(
-    template: dict[str, Any], params: dict[str, Any]
-) -> dict[str, Any]:
+def _merge_params(template: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
     """Merge user params over template defaults and validate requirements.
 
     Missing required parameters raise TemplateNotFound (ValueError subclass
@@ -183,9 +197,7 @@ def render_template(template_id: str, params: dict[str, Any] | None = None) -> A
                 return resolved.get(spans[0], "")
             # Embedded token: substitute textually
             for token in spans:
-                value = value.replace(
-                    "{{" + token + "}}", str(resolved.get(token, ""))
-                )
+                value = value.replace("{{" + token + "}}", str(resolved.get(token, "")))
             return value
         if isinstance(value, dict):
             return {k: substitute(v) for k, v in value.items()}

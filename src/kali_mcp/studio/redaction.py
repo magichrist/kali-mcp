@@ -11,7 +11,6 @@ strings, hex digests, and key=value secret assignments.
 
 from __future__ import annotations
 
-import copy
 import re
 from typing import Any
 
@@ -23,7 +22,6 @@ _SECRET_KEYS = frozenset(
         "password",
         "passwd",
         "api_key",
-        "apikey",
         "apikey",
         "private_key",
         "privatekey",
@@ -54,7 +52,7 @@ _SECRET_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\b[A-Fa-f0-9]{32,64}\b"),  # hex digests / keys
     re.compile(
         r"\b(password|secret|token|api_key|apikey|private_key|access_key)\b\s*[:=]\s*\S+",
-        re.I,
+        re.IGNORECASE,
     ),
     re.compile(r"\b[A-Za-z0-9+/]{40,}\s*={0,2}\b"),  # base64-ish tokens
 ]
@@ -120,9 +118,9 @@ def redact_step_outputs(outputs: Any) -> Any:
 
 
 __all__ = [
-    "redact",
-    "redact_result",
-    "redact_log",
-    "redact_step_outputs",
     "_REDACTED",
+    "redact",
+    "redact_log",
+    "redact_result",
+    "redact_step_outputs",
 ]

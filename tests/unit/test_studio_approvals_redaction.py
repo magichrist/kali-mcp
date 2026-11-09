@@ -47,7 +47,10 @@ class TestApprovals:
     def test_require_approval_for_messages(self):
         assert "publish" in approvals.require_approval_for("publish").lower()
         assert "approval" in approvals.require_approval_for("publish").lower()
-        assert "unknown gate" in approvals.require_approval_for("weird").lower() or "gate" in approvals.require_approval_for("weird").lower()
+        assert (
+            "unknown gate" in approvals.require_approval_for("weird").lower()
+            or "gate" in approvals.require_approval_for("weird").lower()
+        )
 
     def test_gate_constants(self):
         assert approvals.GATE_PUBLISH == "publish"
@@ -58,20 +61,24 @@ class TestApprovals:
 
 class TestRedaction:
     def test_redacts_secret_keys(self):
-        result = redaction.redact({
-            "api_key": "sk-1234567890abcdef",
-            "name": "tool",
-            "password": "hunter2",
-        })
+        result = redaction.redact(
+            {
+                "api_key": "sk-1234567890abcdef",
+                "name": "tool",
+                "password": "hunter2",
+            }
+        )
         assert result["api_key"] == "***REDACTED***"
         assert result["password"] == "***REDACTED***"
         assert result["name"] == "tool"
 
     def test_redacts_nested(self):
-        result = redaction.redact({
-            "data": {"credentials": {"password": "secret"}},
-            "public": "visible",
-        })
+        result = redaction.redact(
+            {
+                "data": {"credentials": {"password": "secret"}},
+                "public": "visible",
+            }
+        )
         # "credentials" is a secret key → its entire value is replaced
         assert result["data"]["credentials"] == "***REDACTED***"
         assert result["public"] == "visible"

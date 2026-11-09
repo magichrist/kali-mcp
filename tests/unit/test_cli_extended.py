@@ -58,9 +58,11 @@ class TestParserExtended:
 
 class TestCmdStart:
     def test_cmd_start_sets_env_from_args_and_calls_server_main(self) -> None:
-        with patch("kali_mcp.cli._load_env"), patch(
-            "kali_mcp.server.main"
-        ) as mock_server_main, patch.dict(os.environ, {}, clear=True):
+        with (
+            patch("kali_mcp.cli._load_env"),
+            patch("kali_mcp.server.main") as mock_server_main,
+            patch.dict(os.environ, {}, clear=True),
+        ):
             args = SimpleNamespace(host="127.0.0.1", port="9999")
             assert cmd_start(args) == 0
             mock_server_main.assert_called_once()
@@ -68,10 +70,10 @@ class TestCmdStart:
             assert os.environ["MCP_PORT"] == "9999"
 
     def test_cmd_start_keeps_existing_env_when_args_none(self) -> None:
-        with patch("kali_mcp.cli._load_env"), patch(
-            "kali_mcp.server.main"
-        ) as mock_server_main, patch.dict(
-            os.environ, {"MCP_HOST": "env-host", "MCP_PORT": "env-port"}, clear=True
+        with (
+            patch("kali_mcp.cli._load_env"),
+            patch("kali_mcp.server.main") as mock_server_main,
+            patch.dict(os.environ, {"MCP_HOST": "env-host", "MCP_PORT": "env-port"}, clear=True),
         ):
             args = SimpleNamespace(host=None, port=None)
             assert cmd_start(args) == 0
@@ -82,17 +84,21 @@ class TestCmdStart:
 
 class TestCmdMonitor:
     def test_cmd_monitor_passes_url_to_monitor_main(self) -> None:
-        with patch("kali_mcp.cli._load_env"), patch(
-            "kali_mcp.monitor.tui.main"
-        ) as mock_monitor_main, patch.dict(os.environ, {}, clear=True):
+        with (
+            patch("kali_mcp.cli._load_env"),
+            patch("kali_mcp.monitor.tui.main") as mock_monitor_main,
+            patch.dict(os.environ, {}, clear=True),
+        ):
             args = SimpleNamespace(url="http://127.0.0.1:9000")
             assert cmd_monitor(args) == 0
             mock_monitor_main.assert_called_once_with("http://127.0.0.1:9000", None)
 
     def test_cmd_monitor_defaults_url_when_none(self) -> None:
-        with patch("kali_mcp.cli._load_env"), patch(
-            "kali_mcp.monitor.tui.main"
-        ) as mock_monitor_main, patch.dict(os.environ, {}, clear=True):
+        with (
+            patch("kali_mcp.cli._load_env"),
+            patch("kali_mcp.monitor.tui.main") as mock_monitor_main,
+            patch.dict(os.environ, {}, clear=True),
+        ):
             args = SimpleNamespace(url=None)
             cmd_monitor(args)
             mock_monitor_main.assert_called_once_with("http://127.0.0.1:8399", None)

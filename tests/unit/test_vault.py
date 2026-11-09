@@ -21,14 +21,17 @@ def test_write_overwrites_existing_entry():
 
 
 def test_redact_secrets_scrubs_key_value():
-    text = vault.redact_secrets('api_key=sk-12345678 password=longpassword99 token=abcdefghij')
+    text = vault.redact_secrets("api_key=sk-12345678 password=longpassword99 token=abcdefghij")
     assert "[REDACTED]" in text
     assert "sk-12345678" not in text
     assert "longpassword99" not in text
 
 
 def test_redact_dict_nested():
-    obj = {"data": {"credentials": {"password": "secret12345", "token": "abcdefghij"}}, "name": "tool"}
+    obj = {
+        "data": {"credentials": {"password": "secret12345", "token": "abcdefghij"}},
+        "name": "tool",
+    }
     red = vault.redact_dict(obj)
     assert red["data"]["credentials"]["password"] == "[REDACTED]"
     assert red["data"]["credentials"]["token"] == "[REDACTED]"
@@ -49,7 +52,6 @@ def test_can_access_default_allows():
 
 def test_can_access_respects_owner(monkeypatch, tmp_path):
     # Point the vault at a temp db so we can record an owner tag.
-    import importlib
     import kali_mcp.utils.vault as v
 
     orig_db_path = v._db_path
@@ -57,8 +59,10 @@ def test_can_access_respects_owner(monkeypatch, tmp_path):
         v._db_path = lambda: tmp_path / "vault.sqlite"
         v.ensure_vault_dirs()
         v.vault_write(
-            "assessments", "owned-assessment",
-            {"assessment_id": "owned-assessment"}, tags="owner:analyst-1",
+            "assessments",
+            "owned-assessment",
+            {"assessment_id": "owned-assessment"},
+            tags="owner:analyst-1",
         )
         assert v.can_access("owned-assessment", caller_id="analyst-1") is True
         assert v.can_access("owned-assessment", caller_id="analyst-2") is False

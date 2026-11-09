@@ -22,8 +22,12 @@ def _now_utc() -> str:
 
 # All valid lifecycle states
 STATES = {
-    "observed", "suspected", "validated", "remediated",
-    "false_positive", "accepted_risk",
+    "observed",
+    "suspected",
+    "validated",
+    "remediated",
+    "false_positive",
+    "accepted_risk",
 }
 
 # Terminal states — no outgoing transitions
@@ -71,9 +75,7 @@ class VerificationStates:
 
     # ── public API ────────────────────────────────────────────────────
 
-    def transition(
-        self, finding_id: str, new_state: str, source: str, reason: str
-    ) -> bool:
+    def transition(self, finding_id: str, new_state: str, source: str, reason: str) -> bool:
         """Transition a finding to a new lifecycle state.
 
         Args:
@@ -124,9 +126,7 @@ class VerificationStates:
 
     def get_findings_by_state(self, state: str) -> list[str]:
         """Return list of finding IDs currently in the given state."""
-        return [
-            fid for fid, st in self._states.items() if st == state
-        ]
+        return [fid for fid, st in self._states.items() if st == state]
 
     def get_transition_history(self, finding_id: str) -> list[dict[str, Any]]:
         """Return the full transition history for a finding."""

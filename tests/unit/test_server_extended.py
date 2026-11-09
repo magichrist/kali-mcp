@@ -26,13 +26,13 @@ class TestHealthMonitorExtended:
     def test_check_triggers_force_cleanup_when_stuck_exceeds_max_concurrent(self) -> None:
         hm = HealthMonitor()
         stuck = [
-            {"request_id": f"r{i}", "tool": "nmap", "elapsed_seconds": 10.0}
-            for i in range(11)
+            {"request_id": f"r{i}", "tool": "nmap", "elapsed_seconds": 10.0} for i in range(11)
         ]
         fake_config = MagicMock()
         fake_config.max_concurrent = 10
-        with patch("kali_mcp.server.engine") as mock_engine, patch(
-            "kali_mcp.server.config", fake_config
+        with (
+            patch("kali_mcp.server.engine") as mock_engine,
+            patch("kali_mcp.server.config", fake_config),
         ):
             mock_engine.get_stuck_executions.return_value = stuck
             mock_engine.force_cleanup.return_value = 5
@@ -42,13 +42,12 @@ class TestHealthMonitorExtended:
 
     def test_check_does_not_force_cleanup_when_stuck_below_threshold(self) -> None:
         hm = HealthMonitor()
-        stuck = [
-            {"request_id": "r1", "tool": "nmap", "elapsed_seconds": 10.0}
-        ]
+        stuck = [{"request_id": "r1", "tool": "nmap", "elapsed_seconds": 10.0}]
         fake_config = MagicMock()
         fake_config.max_concurrent = 10
-        with patch("kali_mcp.server.engine") as mock_engine, patch(
-            "kali_mcp.server.config", fake_config
+        with (
+            patch("kali_mcp.server.engine") as mock_engine,
+            patch("kali_mcp.server.config", fake_config),
         ):
             mock_engine.get_stuck_executions.return_value = stuck
             mock_engine.active_count = 0

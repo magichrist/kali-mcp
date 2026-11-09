@@ -48,9 +48,7 @@ def require_input(inputs: dict[str, Any], key: str, expected: type | None = None
         raise ValueError(f"Missing required input: {key}")
     value = inputs[key]
     if expected is not None and not isinstance(value, expected):
-        raise ValueError(
-            f"Input '{key}' must be {expected.__name__}, got {type(value).__name__}"
-        )
+        raise ValueError(f"Input '{key}' must be {expected.__name__}, got {type(value).__name__}")
     return value
 
 
@@ -69,8 +67,7 @@ def require_list(inputs: dict[str, Any], key: str, item_type: type | None = None
         for item in value:
             if not isinstance(item, item_type):
                 raise ValueError(
-                    f"Input '{key}' items must be {item_type.__name__}, got "
-                    f"{type(item).__name__}"
+                    f"Input '{key}' items must be {item_type.__name__}, got {type(item).__name__}"
                 )
     return value
 
@@ -209,9 +206,7 @@ _HOSTNAME_RE = re.compile(
     r"(?:\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,63}\.?$"
 )
 _IPV4_RE = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
-_NMAP_OPEN_RE = re.compile(
-    r"(?m)^\s*(?:[|*]\s*)?(\d{1,5})/(tcp|udp)\s+open(?:\s+(\S+))?"
-)
+_NMAP_OPEN_RE = re.compile(r"(?m)^\s*(?:[|*]\s*)?(\d{1,5})/(tcp|udp)\s+open(?:\s+(\S+))?")
 _MASSCAN_OPEN_RE = re.compile(
     r"Discovered open port\s+(\d{1,5})/(tcp|udp)\s+on\s+([\w.:-]+)", re.IGNORECASE
 )
@@ -318,8 +313,7 @@ def parse_http_lines(stdout: str) -> list[dict[str, Any]]:
                     services.append(
                         {
                             "url": url,
-                            "status_code": parsed.get("status_code")
-                            or parsed.get("status"),
+                            "status_code": parsed.get("status_code") or parsed.get("status"),
                             "title": parsed.get("title") or "",
                             "tech": list(tech) if isinstance(tech, list) else [],
                         }

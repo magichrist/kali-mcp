@@ -21,7 +21,6 @@ from kali_mcp.workflow.modules_runtime import (
     register,
 )
 
-
 CTX = ModuleContext(assessment_id="assess_test", job_id="job_test")
 
 

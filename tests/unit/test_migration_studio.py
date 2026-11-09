@@ -4,11 +4,7 @@ and existing rows remain intact (Phase 8).
 
 from __future__ import annotations
 
-import sqlite3
-import tempfile
 from pathlib import Path
-
-import pytest
 
 from kali_mcp.db.manager import DBManager
 
@@ -33,9 +29,9 @@ def test_studio_tables_added_on_upgrade(tmp_path):
     manager = DBManager(db_path)
     manager.ensure_schema()
 
-    tables = {r[0] for r in manager.conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    )}
+    tables = {
+        r[0] for r in manager.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
     assert "targets" in tables
     assert "tool_definitions" in tables
     assert "playbooks" in tables

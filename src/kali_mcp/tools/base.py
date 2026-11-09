@@ -5,6 +5,7 @@ from __future__ import annotations
 import abc
 import json
 import logging
+import shutil
 from typing import Any
 
 from kali_mcp.models import ToolError
@@ -27,6 +28,15 @@ class BaseTool(abc.ABC):
     @property
     def default_timeout(self) -> int:
         return 300
+
+    @property
+    def binary(self) -> str:
+        """Return the binary name this tool wraps, for existence checks.
+
+        Defaults to the tool name. Override when the binary name differs
+        (e.g. httpx wraps /usr/bin/httpx-toolkit).
+        """
+        return self.name
 
     @abc.abstractmethod
     def input_schema(self) -> dict[str, Any]:
@@ -61,6 +71,18 @@ class BaseTool(abc.ABC):
         results; the central hook skips persistence when the tool already
         recorded the run (checked via the `_persisted` flag tools set).
         """
+        # Binary existence check — warn when the wrapped binary is missing.
+        # The execution engine already surfaces a clean "Binary not found"
+        # error via its FileNotFoundError path, so here we only log so that
+        # orchestration/utility tools (which wrap no binary) are not broken.
+        binary = shutil.which(self.binary)
+        if binary is None:
+            logger.warning(
+                "Tool '%s' wraps binary '%s' which was not found in PATH; "
+                "execution will return a binary-not-found error at runtime.",
+                self.name,
+                self.binary,
+            )
         try:
             result = await self.execute(arguments)
         except Exception as e:

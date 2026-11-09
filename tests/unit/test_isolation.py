@@ -7,7 +7,6 @@ limits (Linux only; skipped gracefully on macOS).
 
 from __future__ import annotations
 
-import asyncio
 import platform
 
 import pytest
@@ -21,7 +20,7 @@ def test_isolation_available_flag_is_bool():
 
 @pytest.mark.asyncio
 async def test_spawn_isolated_runs_command():
-    code, out, err, dur = await spawn_isolated(["echo", "isolated-ok"])
+    code, out, _err, dur = await spawn_isolated(["echo", "isolated-ok"])
     assert code == 0
     assert "isolated-ok" in out
     assert dur >= 0
@@ -29,9 +28,7 @@ async def test_spawn_isolated_runs_command():
 
 @pytest.mark.asyncio
 async def test_spawn_isolated_enforces_timeout():
-    code, out, err, dur = await spawn_isolated(
-        ["sleep", "30"], StepLimits(timeout=1)
-    )
+    code, _out, err, dur = await spawn_isolated(["sleep", "30"], StepLimits(timeout=1))
     assert code == -1
     assert "Timed out after 1s" in err
     # The timeout must actually be honored (not 30s).
@@ -40,7 +37,7 @@ async def test_spawn_isolated_enforces_timeout():
 
 @pytest.mark.asyncio
 async def test_spawn_isolated_missing_binary():
-    code, out, err, dur = await spawn_isolated(["__no_such_binary_xyz__"])
+    code, _out, err, _dur = await spawn_isolated(["__no_such_binary_xyz__"])
     assert code == -1
     assert "not found" in err
 
@@ -49,7 +46,7 @@ async def test_spawn_isolated_missing_binary():
 @pytest.mark.asyncio
 async def test_spawn_isolated_applies_rlimits_on_linux():
     # A tiny memory cap that a simple echo still fits under.
-    code, out, err, dur = await spawn_isolated(
+    code, out, _err, _dur = await spawn_isolated(
         ["echo", "rlimit-ok"],
         StepLimits(timeout=5, max_memory_bytes=256 * 1024 * 1024, max_open_files=64),
     )
@@ -59,6 +56,6 @@ async def test_spawn_isolated_applies_rlimits_on_linux():
 
 @pytest.mark.asyncio
 async def test_spawn_isolated_string_command():
-    code, out, err, dur = await spawn_isolated("echo string-cmd", StepLimits(timeout=5))
+    code, out, _err, _dur = await spawn_isolated("echo string-cmd", StepLimits(timeout=5))
     assert code == 0
     assert "string-cmd" in out

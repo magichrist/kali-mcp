@@ -14,6 +14,7 @@ def tracker() -> CoverageTracker:
 
 # ── record_coverage ──────────────────────────────────────────────────
 
+
 def test_record_coverage_basic(tracker):
     tracker.record_coverage(
         assessment_id="assess_1",
@@ -41,6 +42,7 @@ def test_record_coverage_multiple_tools(tracker):
 
 
 # ── get_coverage_summary ─────────────────────────────────────────────
+
 
 def test_get_coverage_summary_empty(tracker):
     summary = tracker.get_coverage_summary("empty_assess")
@@ -75,6 +77,7 @@ def test_percent_covered_partial(tracker):
 
 
 # ── get_coverage_gaps ────────────────────────────────────────────────
+
 
 def test_get_coverage_gaps_empty(tracker):
     gaps = tracker.get_coverage_gaps("empty_assess")

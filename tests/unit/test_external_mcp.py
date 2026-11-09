@@ -45,9 +45,7 @@ class TestClientInit:
         assert client.url == "http://localhost:8080/sse"
 
     def test_valid_streamable_http_config(self):
-        client = ExternalMCPClient(
-            "streamable-http", url="http://localhost:8080/mcp", timeout=60
-        )
+        client = ExternalMCPClient("streamable-http", url="http://localhost:8080/mcp", timeout=60)
         assert client.transport == "streamable-http"
         assert client.timeout == 60
 
@@ -89,9 +87,7 @@ class TestRedaction:
         assert result["exit_code"] == 0
 
     def test_redacts_list_of_dicts(self):
-        result = redact_result(
-            {"items": [{"password": "secret1"}, {"password": "secret2"}]}
-        )
+        result = redact_result({"items": [{"password": "secret1"}, {"password": "secret2"}]})
         assert result["items"][0]["password"] == "***REDACTED***"
         assert result["items"][1]["password"] == "***REDACTED***"
 

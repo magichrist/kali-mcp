@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import io
-from unittest.mock import patch
 
 from kali_mcp.cli import main as cli_main
 
@@ -12,8 +10,6 @@ from kali_mcp.cli import main as cli_main
 def test_main_no_arguments_prints_help() -> None:
     """``python -m kali_mcp`` with no args prints help instead of starting the server."""
     from io import StringIO
-
-    import contextlib
 
     buf = StringIO()
     with contextlib.redirect_stdout(buf):

@@ -121,8 +121,11 @@ async def test_remediation_present_in_json(assessment_id, tool):
                     "remediation": "Restrict access with a firewall; close unnecessary ports.",
                 }
             ],
-            "summary": {"assets_discovered": 1, "services_discovered": 1,
-                        "findings": {"critical": 0, "high": 1, "medium": 0, "low": 0}},
+            "summary": {
+                "assets_discovered": 1,
+                "services_discovered": 1,
+                "findings": {"critical": 0, "high": 1, "medium": 0, "low": 0},
+            },
             "target": "host.example.test",
             "next_actions": [],
             "assets": [],
@@ -155,8 +158,11 @@ async def test_remediation_present_in_markdown(assessment_id, tool):
                     "remediation": "Apply authentication to exposed endpoints.",
                 }
             ],
-            "summary": {"assets_discovered": 1, "services_discovered": 1,
-                        "findings": {"critical": 1, "high": 0, "medium": 0, "low": 0}},
+            "summary": {
+                "assets_discovered": 1,
+                "services_discovered": 1,
+                "findings": {"critical": 1, "high": 0, "medium": 0, "low": 0},
+            },
             "target": "app.example.test",
             "next_actions": [],
             "assets": [],

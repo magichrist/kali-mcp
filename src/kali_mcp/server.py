@@ -161,7 +161,10 @@ def _get_memory_mb() -> float:
 @asynccontextmanager
 async def lifespan(app):
     """Server lifecycle — startup and shutdown."""
-    print(f"DEBUG LIFESPAN START: db_path={config.db_path}, db_enabled={config.db_enabled}", flush=True)
+    print(
+        f"DEBUG LIFESPAN START: db_path={config.db_path}, db_enabled={config.db_enabled}",
+        flush=True,
+    )
     logger.info("Server starting up...")
     logger.info("Registered %d tools: %s", len(ALL_TOOLS), [t.name for t in ALL_TOOLS])
     # Initialize foundational infrastructure (Phase 1)
@@ -182,7 +185,9 @@ async def lifespan(app):
 
                     synced = sync_registry_to_db(_db)
                     logger.info("Synced %d tools to tool_definitions", len(synced))
-                except Exception:  # a sync failure must not stop startup (BLE001 deliberately tolerated here)
+                except (
+                    Exception
+                ):  # a sync failure must not stop startup (BLE001 deliberately tolerated here)
                     logger.exception("Tool registry sync failed")
 
                 # ── Seed built-in Studio playbooks from YAML definitions ──
@@ -337,9 +342,7 @@ for tool_instance in ALL_TOOLS:
                     "warning",
                     f"Scope violation {tool_name} ({request_id}): {exc}",
                 )
-                return json.dumps(
-                    {"error": str(exc), "scope_violation": True}, indent=2
-                )
+                return json.dumps({"error": str(exc), "scope_violation": True}, indent=2)
             # ── Assessment / job context ────────────────────────────────
             # Opaque handles stored on scans / evidence rows for traceability.
             assessment_id = kwargs.get("assessment_id") or generate_assessment_id()
@@ -629,9 +632,7 @@ def main() -> None:
             " /api/* and MCP are token-protected)"
         )
     else:
-        logger.warning(
-            "KALI_MCP_INSECURE=1 or no MCP_API_TOKEN set — server is open."
-        )
+        logger.warning("KALI_MCP_INSECURE=1 or no MCP_API_TOKEN set — server is open.")
 
     # Graceful shutdown
     def _shutdown_handler(signum, frame):
@@ -678,9 +679,7 @@ def main() -> None:
         if getattr(config, "studio_enabled", True):
             mount_studio_routes(studio_app)
         if os.path.isdir(web_dir):
-            studio_app.routes.insert(
-                0, Mount("/studio", StaticFiles(directory=web_dir, html=True))
-            )
+            studio_app.routes.insert(0, Mount("/studio", StaticFiles(directory=web_dir, html=True)))
 
         def _run_studio_ui() -> None:
             uvicorn.run(

@@ -20,7 +20,6 @@ from kali_mcp.tools.playbook_blackbox import (
     _success_tool_result,
 )
 
-
 # ── Alias maps (AI-agent friendly: accept any common spelling) ──
 # Any of these keys resolve to the template identifier.
 _TEMPLATE_ID_KEYS = ("template_id", "template", "id", "name", "template_name")
@@ -147,15 +146,16 @@ class TemplateListTool(BaseTool):
             for t in templates:
                 params = t.get("parameters", {}) or {}
                 required = [
-                    n for n, s in params.items()
-                    if isinstance(s, dict) and s.get("required")
+                    n for n, s in params.items() if isinstance(s, dict) and s.get("required")
                 ]
-                out_templates.append({
-                    "id": t.get("id"),
-                    "name": t.get("name"),
-                    "description": t.get("description", ""),
-                    "required_params": required,
-                })
+                out_templates.append(
+                    {
+                        "id": t.get("id"),
+                        "name": t.get("name"),
+                        "description": t.get("description", ""),
+                        "required_params": required,
+                    }
+                )
 
         payload = {
             "tool": self.name,

@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.responses import JSONResponse
 
-from kali_mcp.db import manager as db_manager
 from kali_mcp.config import config
-from kali_mcp.studio import service_connections, service_mcp_connections, service_agents
+from kali_mcp.db import manager as db_manager
+from kali_mcp.studio import service_agents, service_connections, service_mcp_connections
 
 logger = logging.getLogger("kali_mcp.studio.api")
 
@@ -24,6 +23,7 @@ logger = logging.getLogger("kali_mcp.studio.api")
 # ══════════════════════════════════════════════════════════════════════════════
 # Playbook CRUD routes
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 async def list_playbooks(request: Request) -> JSONResponse:
     """List playbooks (with optional status/builtin filtering)."""
@@ -149,11 +149,13 @@ async def put_definition_publish(request: Request) -> JSONResponse:
         db, playbook_id, version, definition, published_by="studio"
     )
 
-    return JSONResponse({
-        "playbook_id": playbook_id,
-        "version_id": vid,
-        "status": "published",
-    })
+    return JSONResponse(
+        {
+            "playbook_id": playbook_id,
+            "version_id": vid,
+            "status": "published",
+        }
+    )
 
 
 async def list_versions(request: Request) -> JSONResponse:
@@ -239,6 +241,7 @@ async def delete_playbook(request: Request) -> JSONResponse:
 # ══════════════════════════════════════════════════════════════════════════════
 # Execution routes
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 async def list_executions(request: Request) -> JSONResponse:
     """List workflow executions."""
@@ -341,26 +344,29 @@ async def resume_execution(request: Request) -> JSONResponse:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-
 async def server_info(request: Request) -> JSONResponse:
     """Return server info for the UI."""
     from pathlib import Path
+
     db_path = Path(config.db_path)
     db_exists = db_path.exists()
-    return JSONResponse({
-        "db_path": str(db_path),
-        "db_exists": db_exists,
-        "server_name": getattr(config, "server_name", "kali-mcp"),
-        "server_version": getattr(config, "server_version", "2.0.0"),
-        "host": getattr(config, "host", "127.0.0.1"),
-        "port": getattr(config, "port", 8399),
-        "transport": getattr(config, "transport", "streamable-http"),
-        "auth_enabled": bool(getattr(config, "mcp_api_token", None)) and not getattr(config, "kali_mcp_insecure", False),
-        "default_timeout": getattr(config, "default_timeout", 300),
-        "max_timeout": getattr(config, "max_timeout", 600),
-        "max_concurrent": getattr(config, "max_concurrent", 10),
-        "debug": bool(getattr(config, "debug", False)),
-    })
+    return JSONResponse(
+        {
+            "db_path": str(db_path),
+            "db_exists": db_exists,
+            "server_name": getattr(config, "server_name", "kali-mcp"),
+            "server_version": getattr(config, "server_version", "2.0.0"),
+            "host": getattr(config, "host", "127.0.0.1"),
+            "port": getattr(config, "port", 8399),
+            "transport": getattr(config, "transport", "streamable-http"),
+            "auth_enabled": bool(getattr(config, "mcp_api_token", None))
+            and not getattr(config, "kali_mcp_insecure", False),
+            "default_timeout": getattr(config, "default_timeout", 300),
+            "max_timeout": getattr(config, "max_timeout", 600),
+            "max_concurrent": getattr(config, "max_concurrent", 10),
+            "debug": bool(getattr(config, "debug", False)),
+        }
+    )
 
 
 async def list_connections_api(request: Request) -> JSONResponse:
@@ -420,9 +426,7 @@ async def get_connection_api(request: Request) -> JSONResponse:
         "SELECT tool_id, visibility FROM tool_definitions WHERE provider = ?",
         (connection_id,),
     )
-    imported_tools = [
-        {"tool_id": r[0], "visibility": r[1]} for r in cur.fetchall()
-    ]
+    imported_tools = [{"tool_id": r[0], "visibility": r[1]} for r in cur.fetchall()]
     c["imported_tools"] = imported_tools
     c["imported_tool_count"] = len(imported_tools)
     return JSONResponse({"connection": c})
@@ -453,8 +457,11 @@ async def test_connection_api(request: Request) -> JSONResponse:
         return JSONResponse({"error": "connection not found"}, status_code=404)
     transport, endpoint_url, command = row
     from kali_mcp.studio.mcp_client import ExternalMCPClient
+
     client = ExternalMCPClient(
-        transport, url=endpoint_url, command=command.split() if command else None,
+        transport,
+        url=endpoint_url,
+        command=command.split() if command else None,
     )
     ok = service_mcp_connections.test_connection(client)
     service_connections.set_health(db, connection_id, ok)
@@ -475,11 +482,17 @@ async def discover_connection_api(request: Request) -> JSONResponse:
         return JSONResponse({"error": "connection not found"}, status_code=404)
     transport, endpoint_url, command = row
     from kali_mcp.studio.mcp_client import ExternalMCPClient
+
     client = ExternalMCPClient(
-        transport, url=endpoint_url, command=command.split() if command else None,
+        transport,
+        url=endpoint_url,
+        command=command.split() if command else None,
     )
     imported = await service_mcp_connections.discover_and_import(
-        db, connection_id, client, visibility="internal",
+        db,
+        connection_id,
+        client,
+        visibility="internal",
     )
     service_connections.set_health(db, connection_id, True)
     return JSONResponse({"imported_tools": imported, "count": len(imported)})
@@ -559,16 +572,18 @@ async def overview_api(request: Request) -> JSONResponse:
     except Exception:
         recent_findings = []
 
-    return JSONResponse({
-        "playbooks": {"total": len(pb_rows), "by_status": pb_by_status},
-        "executions": {"total": len(exec_rows), "by_status": ex_by_status},
-        "tools": {"total": len(td_rows), "by_visibility": td_by_visibility},
-        "findings": {"total": findings_total, "by_severity": {}},
-        "connections": {"total": len(conn_rows), "healthy": conn_healthy},
-        "agents": {"total": len(agent_rows)},
-        "recent_executions": recent_executions,
-        "recent_findings": recent_findings,
-    })
+    return JSONResponse(
+        {
+            "playbooks": {"total": len(pb_rows), "by_status": pb_by_status},
+            "executions": {"total": len(exec_rows), "by_status": ex_by_status},
+            "tools": {"total": len(td_rows), "by_visibility": td_by_visibility},
+            "findings": {"total": findings_total, "by_severity": {}},
+            "connections": {"total": len(conn_rows), "healthy": conn_healthy},
+            "agents": {"total": len(agent_rows)},
+            "recent_executions": recent_executions,
+            "recent_findings": recent_findings,
+        }
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -587,19 +602,22 @@ async def list_tools_api(request: Request) -> JSONResponse:
     if enabled is not None:
         enabled_bool = enabled.lower() == "true"
     rows = db.list_tool_definitions(
-        visibility=visibility, enabled=enabled_bool,
+        visibility=visibility,
+        enabled=enabled_bool,
     )
     tools = []
     for r in rows[:limit]:
-        tools.append({
-            "tool_id": r["tool_id"],
-            "name": r["name"],
-            "description": r["description"],
-            "provider": r["provider"],
-            "visibility": r["visibility"],
-            "enabled": bool(r["enabled"]),
-            "input_schema": r["input_schema"],
-        })
+        tools.append(
+            {
+                "tool_id": r["tool_id"],
+                "name": r["name"],
+                "description": r["description"],
+                "provider": r["provider"],
+                "visibility": r["visibility"],
+                "enabled": bool(r["enabled"]),
+                "input_schema": r["input_schema"],
+            }
+        )
     return JSONResponse({"tools": tools, "count": len(tools)})
 
 
@@ -613,10 +631,15 @@ async def set_tool_visibility_api(request: Request) -> JSONResponse:
     if not visibility:
         return JSONResponse({"error": "visibility required"}, status_code=400)
     db.upsert_tool_definition(
-        tool_id=tool_id, name=tool_id, description=None, provider="native",
-        visibility=visibility, enabled=True,
+        tool_id=tool_id,
+        name=tool_id,
+        description=None,
+        provider="native",
+        visibility=visibility,
+        enabled=True,
     )
     from kali_mcp.registry import registry as global_registry
+
     global_registry.set_visibility(tool_id, visibility)
     return JSONResponse({"tool_id": tool_id, "visibility": visibility})
 
@@ -632,7 +655,11 @@ async def findings_api(request: Request) -> JSONResponse:
     limit = int(request.query_params.get("limit", "100"))
     offset = int(request.query_params.get("offset", "0"))
     result = db.query_findings(
-        target=target, severity=severity, tool=tool, limit=limit, offset=offset,
+        target=target,
+        severity=severity,
+        tool=tool,
+        limit=limit,
+        offset=offset,
     )
     return JSONResponse(result)
 
@@ -640,6 +667,7 @@ async def findings_api(request: Request) -> JSONResponse:
 # ══════════════════════════════════════════════════════════════════════════════
 # Agent Profiles routes
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 async def list_agents_api(request: Request) -> JSONResponse:
     """List all agent profiles."""
@@ -649,14 +677,16 @@ async def list_agents_api(request: Request) -> JSONResponse:
     rows = service_agents.list_profiles(db)
     agents = []
     for r in rows:
-        agents.append({
-            "profile_id": r.get("profile_id"),
-            "name": r.get("name"),
-            "description": r.get("description"),
-            "default_visibility": r.get("default_visibility"),
-            "max_parallel_operations": r.get("max_parallel_operations"),
-            "max_execution_seconds": r.get("max_execution_seconds"),
-        })
+        agents.append(
+            {
+                "profile_id": r.get("profile_id"),
+                "name": r.get("name"),
+                "description": r.get("description"),
+                "default_visibility": r.get("default_visibility"),
+                "max_parallel_operations": r.get("max_parallel_operations"),
+                "max_execution_seconds": r.get("max_execution_seconds"),
+            }
+        )
     return JSONResponse({"agents": agents})
 
 
@@ -672,7 +702,9 @@ async def create_agent_api(request: Request) -> JSONResponse:
         return JSONResponse({"error": "profile_id and name required"}, status_code=400)
     try:
         service_agents.create_profile(
-            db, profile_id, name,
+            db,
+            profile_id,
+            name,
             description=body.get("description"),
         )
     except ValueError as exc:
@@ -696,12 +728,14 @@ async def get_agent_api(request: Request) -> JSONResponse:
     assignments = service_agents.list_playbook_assignments(db, profile_id)
     for a in assignments:
         a["profile_id"] = profile_id
-    return JSONResponse({
-        "agent": agent,
-        "effective_catalog": catalog,
-        "permissions": permissions,
-        "assignments": assignments,
-    })
+    return JSONResponse(
+        {
+            "agent": agent,
+            "effective_catalog": catalog,
+            "permissions": permissions,
+            "assignments": assignments,
+        }
+    )
 
 
 async def delete_agent_api(request: Request) -> JSONResponse:
@@ -804,8 +838,12 @@ def mount_studio_routes(app) -> None:
     app.add_route("/api/agents/{id}", delete_agent_api, methods=["DELETE"])
     app.add_route("/api/agents/{id}/tools/{tool_id}", grant_agent_tool_api, methods=["PUT"])
     app.add_route("/api/agents/{id}/tools/{tool_id}", revoke_agent_tool_api, methods=["DELETE"])
-    app.add_route("/api/agents/{id}/playbooks/{playbook_id}", assign_agent_playbook_api, methods=["PUT"])
-    app.add_route("/api/agents/{id}/playbooks/{playbook_id}", unassign_agent_playbook_api, methods=["DELETE"])
+    app.add_route(
+        "/api/agents/{id}/playbooks/{playbook_id}", assign_agent_playbook_api, methods=["PUT"]
+    )
+    app.add_route(
+        "/api/agents/{id}/playbooks/{playbook_id}", unassign_agent_playbook_api, methods=["DELETE"]
+    )
 
     # Execution routes
     app.add_route("/api/executions", list_executions, methods=["GET"])

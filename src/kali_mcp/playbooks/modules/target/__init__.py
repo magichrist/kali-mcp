@@ -26,7 +26,9 @@ def _default_tool_lookup(name: str):
 _tool_lookup = _default_tool_lookup
 
 
-_DOMAIN_RE = re.compile(r"^(?!.{256,})(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$")
+_DOMAIN_RE = re.compile(
+    r"^(?!.{256,})(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$"
+)
 _IP_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
 
@@ -70,14 +72,37 @@ def register() -> None:
     _mr.register(
         "target.validate",
         _validate,
-        input_schema={"type": "object", "required": ["target"], "properties": {"target": {"type": "string"}}},
-        output_schema={"type": "object", "properties": {"valid": {"type": "boolean"}, "target": {"type": "string"}, "kind": {"type": "string"}, "error": {"type": "string"}}},
+        input_schema={
+            "type": "object",
+            "required": ["target"],
+            "properties": {"target": {"type": "string"}},
+        },
+        output_schema={
+            "type": "object",
+            "properties": {
+                "valid": {"type": "boolean"},
+                "target": {"type": "string"},
+                "kind": {"type": "string"},
+                "error": {"type": "string"},
+            },
+        },
     )
     _mr.register(
         "target.scope_check",
         _scope_check,
-        input_schema={"type": "object", "required": ["target"], "properties": {"target": {"type": "string"}}},
-        output_schema={"type": "object", "properties": {"allowed": {"type": "boolean"}, "target": {"type": "string"}, "error": {"type": "string"}}},
+        input_schema={
+            "type": "object",
+            "required": ["target"],
+            "properties": {"target": {"type": "string"}},
+        },
+        output_schema={
+            "type": "object",
+            "properties": {
+                "allowed": {"type": "boolean"},
+                "target": {"type": "string"},
+                "error": {"type": "string"},
+            },
+        },
     )
 
 

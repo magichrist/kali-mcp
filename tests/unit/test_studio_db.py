@@ -82,9 +82,7 @@ class TestStudioSchemaCreation:
     def test_ensure_schema_creates_all_studio_tables(self, db):
         names = {
             r[0]
-            for r in db.conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            for r in db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }
         for table in STUDIO_TABLES:
             assert table in names
@@ -92,9 +90,7 @@ class TestStudioSchemaCreation:
     def test_ensure_schema_creates_all_studio_indexes(self, db):
         names = {
             r[0]
-            for r in db.conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='index'"
-            ).fetchall()
+            for r in db.conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
         }
         for index in STUDIO_INDEXES:
             assert index in names
@@ -110,9 +106,10 @@ class TestStudioSchemaCreation:
             assert _table_count(db, table) >= 0
 
         assert db.get_tool_definition("idem-tool")["id"] == tool_id
-        assert db.conn.execute(
-            "SELECT id FROM targets WHERE id = ?", (seed_tid,)
-        ).fetchone() is not None
+        assert (
+            db.conn.execute("SELECT id FROM targets WHERE id = ?", (seed_tid,)).fetchone()
+            is not None
+        )
 
 
 # ── existing v1+v2 data preserved across migration ───────────────────────
@@ -150,36 +147,37 @@ class TestExistingDataPreserved:
             service="ssh",
             source_tools='["nmap"]',
         )
-        cid = db.add_credential(tid, "ssh", "root", password="s3cret",
-                                source_tool="nmap")
+        cid = db.add_credential(tid, "ssh", "root", password="s3cret", source_tool="nmap")
         aid = db.upsert_asset(
-            asset_id="asset_127.0.0.1", asset_type="host", name="127.0.0.1",
+            asset_id="asset_127.0.0.1",
+            asset_type="host",
+            name="127.0.0.1",
             target_id=tid,
         )
         evid = db.add_evidence_artifact(
             "evidence_seed", "nmap", "127.0.0.1", "stdout", "/tmp/out.txt"
         )
-        return {"targets": tid, "scans": sid, "findings": fid,
-                "credentials": cid, "assets": aid, "evidence_artifacts": evid}
+        return {
+            "targets": tid,
+            "scans": sid,
+            "findings": fid,
+            "credentials": cid,
+            "assets": aid,
+            "evidence_artifacts": evid,
+        }
 
     def test_re_migration_keeps_every_prewritten_row(self, db):
         ids = self._seed_existing(db)
-        tables = ["targets", "scans", "findings", "credentials", "assets",
-                  "evidence_artifacts"]
+        tables = ["targets", "scans", "findings", "credentials", "assets", "evidence_artifacts"]
 
-        before = {
-            t: [dict(r) for r in db.conn.execute(f"SELECT * FROM {t}")]
-            for t in tables
-        }
+        before = {t: [dict(r) for r in db.conn.execute(f"SELECT * FROM {t}")] for t in tables}
         db.ensure_schema()  # migrate again on a populated database
 
         for table in tables:
             after = [dict(r) for r in db.conn.execute(f"SELECT * FROM {table}")]
             assert after == before[table]
 
-        row = db.conn.execute(
-            "SELECT * FROM targets WHERE id = ?", (ids["targets"],)
-        ).fetchone()
+        row = db.conn.execute("SELECT * FROM targets WHERE id = ?", (ids["targets"],)).fetchone()
         assert row["target"] == "127.0.0.1"
         assert row["tags"] == "seeded"
 
@@ -225,18 +223,16 @@ class TestToolDefinitions:
         assert row["visibility"] == "internal"
 
     def test_list_filters(self, db):
-        db.upsert_tool_definition("nmap", "Nmap", provider="native",
-                                  visibility="agent_callable")
-        db.upsert_tool_definition("mcp:github:search_repos", "Search Repos",
-                                  provider="external_mcp")
-        db.upsert_tool_definition("disabled-check", "Disabled",
-                                  provider="native", enabled=False)
+        db.upsert_tool_definition("nmap", "Nmap", provider="native", visibility="agent_callable")
+        db.upsert_tool_definition(
+            "mcp:github:search_repos", "Search Repos", provider="external_mcp"
+        )
+        db.upsert_tool_definition("disabled-check", "Disabled", provider="native", enabled=False)
 
         by_provider = db.list_tool_definitions(provider="external_mcp")
         assert [r["tool_id"] for r in by_provider] == ["mcp:github:search_repos"]
         assert len(db.list_tool_definitions(visibility="agent_callable")) == 1
-        assert [r["tool_id"] for r in db.list_tool_definitions(enabled=False)] \
-            == ["disabled-check"]
+        assert [r["tool_id"] for r in db.list_tool_definitions(enabled=False)] == ["disabled-check"]
         assert len(db.list_tool_definitions()) == 3
 
     def test_delete_returns_membership(self, db):
@@ -263,8 +259,7 @@ class TestAgentProfiles:
         assert json.loads(row["allowed_scopes"]) == ["scope_1"]
 
         # Re-create with same profile_id updates rather than raising.
-        db.create_agent_profile("profile_recon", "Recon Agent v2",
-                                max_parallel_operations=8)
+        db.create_agent_profile("profile_recon", "Recon Agent v2", max_parallel_operations=8)
         row = db.get_agent_profile("profile_recon")
         assert row["name"] == "Recon Agent v2"
         assert row["max_parallel_operations"] == 8
@@ -276,9 +271,7 @@ class TestAgentProfiles:
         assert row["name"] == "Recon Agent v2"
         assert db.update_agent_profile("profile_missing", name="nope") is False
 
-        assert [p["profile_id"] for p in db.list_agent_profiles()] == [
-            "profile_recon"
-        ]
+        assert [p["profile_id"] for p in db.list_agent_profiles()] == ["profile_recon"]
 
     def test_permission_grant_deny_revoke(self, db):
         db.create_agent_profile("profile_recon", "Recon Agent")
@@ -323,8 +316,7 @@ class TestAgentProfiles:
 
 class TestPlaybooks:
     def test_playbook_crud_round_trip(self, db):
-        pbid = db.create_playbook("pb_recon", "Recon", category="recon",
-                                  author="ops")
+        pbid = db.create_playbook("pb_recon", "Recon", category="recon", author="ops")
         row = db.get_playbook("pb_recon")
         assert row["id"] == pbid
         assert row["status"] == "draft"
@@ -336,8 +328,7 @@ class TestPlaybooks:
 
         db.create_playbook("pb_published", "Published Playbook")
         db.publish_playbook_version("pb_published", "1.0.0", {"steps": []})
-        assert [p["playbook_id"] for p in db.list_playbooks(status="published")] \
-            == ["pb_published"]
+        assert [p["playbook_id"] for p in db.list_playbooks(status="published")] == ["pb_published"]
         assert db.get_playbook("pb_recon")["status"] == "validated"
 
         assert db.delete_playbook("pb_recon") is True
@@ -372,9 +363,7 @@ class TestPlaybooks:
 
         # Rollback-read: the older version remains readable and immutable.
         v1 = db.get_playbook_version(v1_id)
-        assert v1["definition"] == json.dumps(
-            {"playbook": "pb_scan", "steps": ["step1"]}
-        )
+        assert v1["definition"] == json.dumps({"playbook": "pb_scan", "steps": ["step1"]})
         assert v1["published_by"] == "ops"
         assert db.get_playbook_version("pb_scan-1.0.0")["id"] == v1_id
 
@@ -415,11 +404,8 @@ class TestWorkflowExecutions:
         assert row["completed_at"] is None
 
         # Re-calling create with the same execution_id is a no-op.
-        assert db.create_workflow_execution(
-            exec_id, playbook_id="pb_scan", version_id=vid
-        ) == wid
-        assert db.get_workflow_execution(exec_id)["started_at"] \
-            == row["started_at"]
+        assert db.create_workflow_execution(exec_id, playbook_id="pb_scan", version_id=vid) == wid
+        assert db.get_workflow_execution(exec_id)["started_at"] == row["started_at"]
 
         # Record two steps, complete the first.
         sid1 = db.record_step_execution(
@@ -447,27 +433,27 @@ class TestWorkflowExecutions:
         assert db.update_step_execution(99999, status="completed") is False
 
         # Complete the execution with outputs, filter listings.
-        assert db.update_workflow_execution(
-            exec_id,
-            status="completed",
-            outputs={"result": "done"},
-            completed_at="2026-01-01T00:00:05Z",
-        ) is True
+        assert (
+            db.update_workflow_execution(
+                exec_id,
+                status="completed",
+                outputs={"result": "done"},
+                completed_at="2026-01-01T00:00:05Z",
+            )
+            is True
+        )
         row = db.get_workflow_execution(exec_id)
         assert row["status"] == "completed"
         assert json.loads(row["outputs"]) == {"result": "done"}
 
-        db.create_workflow_execution(
-            "exec_failed", playbook_id="pb_scan", version_id=vid
-        )
-        db.update_workflow_execution("exec_failed", status="failed",
-                                     error="boom")
-        assert [e["execution_id"] for e in db.list_workflow_executions(
-            status="failed")] == ["exec_failed"]
+        db.create_workflow_execution("exec_failed", playbook_id="pb_scan", version_id=vid)
+        db.update_workflow_execution("exec_failed", status="failed", error="boom")
+        assert [e["execution_id"] for e in db.list_workflow_executions(status="failed")] == [
+            "exec_failed"
+        ]
         assert len(db.list_workflow_executions(playbook_id="pb_scan")) == 2
         assert len(db.list_workflow_executions(job_id="job_seed")) == 1
-        assert db.update_workflow_execution("exec_missing", status="failed") \
-            is False
+        assert db.update_workflow_execution("exec_missing", status="failed") is False
 
 
 # ── validations, audit, approvals ────────────────────────────────────────
@@ -479,13 +465,10 @@ class TestValidationsAuditApprovals:
         rid = db.record_validation(
             playbook_id="pb_scan",
             status="invalid",
-            errors=[{"step_id": "step-1", "field": "tool_id",
-                     "message": "unknown tool"}],
+            errors=[{"step_id": "step-1", "field": "tool_id", "message": "unknown tool"}],
             validated_by="validator",
         )
-        row = db.conn.execute(
-            "SELECT * FROM playbook_validations WHERE id = ?", (rid,)
-        ).fetchone()
+        row = db.conn.execute("SELECT * FROM playbook_validations WHERE id = ?", (rid,)).fetchone()
         assert row["playbook_id"] == "pb_scan"
         assert row["status"] == "invalid"
         assert json.loads(row["errors"])[0]["field"] == "tool_id"
@@ -499,19 +482,17 @@ class TestValidationsAuditApprovals:
             actor="ops",
             data={"version": "1.0.0"},
         )
-        row = db.conn.execute(
-            "SELECT * FROM studio_audit WHERE id = ?", (rid,)
-        ).fetchone()
+        row = db.conn.execute("SELECT * FROM studio_audit WHERE id = ?", (rid,)).fetchone()
         assert row["event"] == "playbook.published"
         assert row["entity_id"] == "pb_scan"
         assert json.loads(row["data"]) == {"version": "1.0.0"}
         assert row["created_at"] is not None
 
     def test_approval_gate_round_trip(self, db):
-        aid = db.upsert_approval(
-            "aggressive_execution", tool="mcp:x", requested_by="agent_1"
-        ) if False else db.upsert_approval(
-            "aggressive_execution", "tool:mcp:x", requested_by="agent_1"
+        aid = (
+            db.upsert_approval("aggressive_execution", tool="mcp:x", requested_by="agent_1")
+            if False
+            else db.upsert_approval("aggressive_execution", "tool:mcp:x", requested_by="agent_1")
         )
         pending = db.get_pending_approval("aggressive_execution", "tool:mcp:x")
         assert pending["id"] == aid
@@ -523,23 +504,18 @@ class TestValidationsAuditApprovals:
         pending = db.get_pending_approval("aggressive_execution", "tool:mcp:x")
         assert pending is None
 
-        row = db.conn.execute(
-            "SELECT * FROM pending_approvals WHERE id = ?", (aid,)
-        ).fetchone()
+        row = db.conn.execute("SELECT * FROM pending_approvals WHERE id = ?", (aid,)).fetchone()
         assert row["status"] == "approved"
         assert row["approved_by"] == "admin"
         assert row["approved_at"] is not None
 
     def test_upsert_approval_refreshes_pending_row(self, db):
         aid1 = db.upsert_approval("import_activation", "import:pkg1")
-        aid2 = db.upsert_approval("import_activation", "import:pkg1",
-                                  requested_by="agent_2")
+        aid2 = db.upsert_approval("import_activation", "import:pkg1", requested_by="agent_2")
         assert aid1 == aid2
         assert _table_count(db, "pending_approvals") == 1
 
         db.approve(aid1, "admin")
         aid3 = db.upsert_approval("import_activation", "import:pkg1")
         assert aid3 != aid1
-        assert db.get_pending_approval("import_activation", "import:pkg1")[
-            "id"
-        ] == aid3
+        assert db.get_pending_approval("import_activation", "import:pkg1")["id"] == aid3

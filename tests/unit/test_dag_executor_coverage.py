@@ -30,7 +30,6 @@ from kali_mcp.workflow.modules_runtime import ModuleError
 from kali_mcp.workflow.scope_gate import ScopeViolationError
 from kali_mcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
 
-
 # ── helpers ──────────────────────────────────────────────────────────────
 
 
@@ -154,7 +153,11 @@ class TestRunLifecycle:
         _clear_run_status()
         with _env():
             engine = PlaybookEngine()
-            res = await engine.run(_pb(steps=[_step(id="validate", type="scope_check", args={"target": "example.com"})]))
+            res = await engine.run(
+                _pb(
+                    steps=[_step(id="validate", type="scope_check", args={"target": "example.com"})]
+                )
+            )
         assert res.success is True
         assert res.exit_code == 0
         payload = json.loads(res.stdout)
@@ -192,9 +195,7 @@ class TestRunLifecycle:
         _clear_run_status()
         with _env():
             engine = PlaybookEngine()
-            res = await engine.run(
-                _pb(steps=[_step(id="scan", tool=None, args={})])
-            )
+            res = await engine.run(_pb(steps=[_step(id="scan", tool=None, args={})]))
         payload = json.loads(res.stdout)
         assert "missing 'tool'" in payload["step_results"]["scan"]["error"]
 
@@ -207,7 +208,9 @@ class TestRunLifecycle:
             res = await engine.run(
                 _pb(
                     inputs={"targets": "example.com"},
-                    steps=[_step(id="scan", tool="nmap", args={"target": "{{target}}", "ports": "22"})],
+                    steps=[
+                        _step(id="scan", tool="nmap", args={"target": "{{target}}", "ports": "22"})
+                    ],
                 )
             )
         assert res.success is True
@@ -253,16 +256,22 @@ class TestRunLifecycle:
             return reg
 
         _clear_run_status()
-        with patch("kali_mcp.workflow.dag_executor._get_registry", return_value=_get_reg()), patch(
-            "kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()
-        ), patch("kali_mcp.db.manager.get_db", return_value=None), patch(
-            "kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()
+        with (
+            patch("kali_mcp.workflow.dag_executor._get_registry", return_value=_get_reg()),
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
+            patch("kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()),
         ):
             engine = PlaybookEngine()
             res = await engine.run(
                 _pb(
                     steps=[
-                        _step(id="second", tool="second", args={"step": "second"}, depends_on=["first"]),
+                        _step(
+                            id="second",
+                            tool="second",
+                            args={"step": "second"},
+                            depends_on=["first"],
+                        ),
                         _step(id="first", tool="first", args={"step": "first"}),
                     ]
                 )
@@ -339,15 +348,14 @@ class TestRunLifecycle:
         step.checkpoint = False
         step.budget = {}
         step.args = {}
-        with patch(
-            "kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()
-        ), patch("kali_mcp.db.manager.get_db", return_value=None), patch(
-            "kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()
-        ), patch(
-            "kali_mcp.workflow.dag_executor._get_registry", return_value=_fake_registry({})
+        with (
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
+            patch("kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()),
+            patch("kali_mcp.workflow.dag_executor._get_registry", return_value=_fake_registry({})),
+            pytest.raises(de.PlaybookError, match="Unknown step type"),
         ):
-            with pytest.raises(de.PlaybookError, match="Unknown step type"):
-                await engine._execute_single_step(step, {})
+            await engine._execute_single_step(step, {})
 
     async def test_checkpoint_persists_state_to_db(self):
         _clear_run_status()
@@ -356,11 +364,7 @@ class TestRunLifecycle:
         with _env(tools=tools, db=db):
             engine = PlaybookEngine()
             res = await engine.run(
-                _pb(
-                    steps=[
-                        _step(id="s", tool="nmap", args={}, checkpoint=True)
-                    ]
-                )
+                _pb(steps=[_step(id="s", tool="nmap", args={}, checkpoint=True)])
             )
         assert res.success is True
         db.save_workflow_run.assert_called()
@@ -520,7 +524,7 @@ class TestRunLifecycle:
                 ),
                 resume=True,
             )
-        payload = json.loads(res.stdout)
+        json.loads(res.stdout)
         assert len(call_log) == 1
         assert db.load_workflow_run.call_count >= 1
 
@@ -531,9 +535,7 @@ class TestRunLifecycle:
         with _env(tools=tools):
             engine = PlaybookEngine()
             res = await engine.run(
-                _pb(
-                    steps=[_step(id="only", tool="nmap", args={})]
-                ),
+                _pb(steps=[_step(id="only", tool="nmap", args={})]),
                 resume=True,
             )
         assert res.success is True
@@ -599,17 +601,16 @@ class TestRunStepAndExecuteSingleStep:
         tool.safe_execute = _flaky
         _clear_run_status()
         engine = PlaybookEngine()
-        with patch(
-            "kali_mcp.workflow.dag_executor._get_registry",
-            return_value=_fake_registry({"flaky": tool}),
-        ), patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()), patch(
-            "kali_mcp.db.manager.get_db", return_value=None
-        ), patch(
-            "kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()
+        with (
+            patch(
+                "kali_mcp.workflow.dag_executor._get_registry",
+                return_value=_fake_registry({"flaky": tool}),
+            ),
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
+            patch("kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()),
         ):
-            res = await engine._run_step(
-                _step(id="s", tool="flaky", args={}, retry=1), [], {}
-            )
+            res = await engine._run_step(_step(id="s", tool="flaky", args={}, retry=1), [], {})
         assert res == {"ok": True}
         assert calls["n"] == 2
 
@@ -618,27 +619,28 @@ class TestRunStepAndExecuteSingleStep:
         tool = AsyncMock()
         tool.safe_execute = AsyncMock(side_effect=RuntimeError("always"))
         engine = PlaybookEngine()
-        with patch(
-            "kali_mcp.workflow.dag_executor._get_registry",
-            return_value=_fake_registry({"flaky": tool}),
-        ), patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()), patch(
-            "kali_mcp.db.manager.get_db", return_value=None
-        ), patch(
-            "kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()
+        with (
+            patch(
+                "kali_mcp.workflow.dag_executor._get_registry",
+                return_value=_fake_registry({"flaky": tool}),
+            ),
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
+            patch("kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()),
+            pytest.raises(RuntimeError, match="always"),
         ):
-            with pytest.raises(RuntimeError, match="always"):
-                await engine._run_step(
-                    _step(id="s", tool="flaky", args={}, retry=1), [], {}
-                )
+            await engine._run_step(_step(id="s", tool="flaky", args={}, retry=1), [], {})
 
     async def test_run_step_scope_violation_not_retried(self):
         _clear_run_status()
         engine = PlaybookEngine()
-        with patch(
-            "kali_mcp.workflow.dag_executor.gate_step_args",
-            new=MagicMock(side_effect=ScopeViolationError("out of scope")),
-        ), patch("kali_mcp.db.manager.get_db", return_value=None), patch(
-            "kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()
+        with (
+            patch(
+                "kali_mcp.workflow.dag_executor.gate_step_args",
+                new=MagicMock(side_effect=ScopeViolationError("out of scope")),
+            ),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
+            patch("kali_mcp.workflow.dag_executor.asyncio.sleep", new=AsyncMock()),
         ):
             res = await engine._run_step(_step(id="s", tool="nmap", args={}), [], {})
         assert res["scope_violation"] is True
@@ -648,10 +650,10 @@ class TestRunStepAndExecuteSingleStep:
         _clear_run_status()
         engine = PlaybookEngine()
         engine._subst_target = "example.com"
-        with patch(
-            "kali_mcp.workflow.dag_executor.load_module", return_value=None
-        ), patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()), patch(
-            "kali_mcp.db.manager.get_db", return_value=None
+        with (
+            patch("kali_mcp.workflow.dag_executor.load_module", return_value=None),
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
         ):
             res = await engine._execute_single_step(
                 _step(id="s", module="cats/missing", args={}), {}
@@ -662,41 +664,41 @@ class TestRunStepAndExecuteSingleStep:
         _clear_run_status()
         engine = PlaybookEngine()
         engine._subst_target = "example.com"
-        with patch(
-            "kali_mcp.workflow.dag_executor.load_module", return_value={"inputs": {}}
-        ), patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()), patch(
-            "kali_mcp.db.manager.get_db", return_value=None
+        with (
+            patch("kali_mcp.workflow.dag_executor.load_module", return_value={"inputs": {}}),
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
         ):
-            res = await engine._execute_single_step(
-                _step(id="s", module="cats/note", args={}), {}
-            )
+            res = await engine._execute_single_step(_step(id="s", module="cats/note", args={}), {})
         assert res["error"] == "module cats/note declares no tool"
 
     async def test_execute_single_step_module_unknown_tool(self):
         _clear_run_status()
         engine = PlaybookEngine()
         engine._subst_target = "example.com"
-        with patch(
-            "kali_mcp.workflow.dag_executor.load_module", return_value={"tool": "ghost"}
-        ), patch(
-            "kali_mcp.workflow.dag_executor._get_registry",
-            return_value=_fake_registry({}),
-        ), patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()), patch(
-            "kali_mcp.db.manager.get_db", return_value=None
+        with (
+            patch("kali_mcp.workflow.dag_executor.load_module", return_value={"tool": "ghost"}),
+            patch(
+                "kali_mcp.workflow.dag_executor._get_registry",
+                return_value=_fake_registry({}),
+            ),
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
         ):
-            res = await engine._execute_single_step(
-                _step(id="s", module="cats/note", args={}), {}
-            )
+            res = await engine._execute_single_step(_step(id="s", module="cats/note", args={}), {})
         assert res["error"] == "unknown tool"
         assert res["tool"] == "ghost"
 
     async def test_execute_single_step_scope_violation_raises(self):
         _clear_run_status()
         engine = PlaybookEngine()
-        with patch(
-            "kali_mcp.workflow.dag_executor.gate_step_args",
-            new=MagicMock(side_effect=ScopeViolationError("out of scope")),
-        ), patch("kali_mcp.db.manager.get_db", return_value=None):
+        with (
+            patch(
+                "kali_mcp.workflow.dag_executor.gate_step_args",
+                new=MagicMock(side_effect=ScopeViolationError("out of scope")),
+            ),
+            patch("kali_mcp.db.manager.get_db", return_value=None),
+        ):
             with pytest.raises(ScopeViolationError):
                 await engine._execute_single_step(_step(id="s", tool="nmap", args={}), {})
 
@@ -707,7 +709,7 @@ class TestRunStepAndExecuteSingleStep:
         engine = PlaybookEngine()
         engine._step_results["prior"] = {"host": "example.com"}
         with _env(tools=tools):
-            res = await engine._run_tool_step(
+            await engine._run_tool_step(
                 _step(
                     id="s",
                     tool="nmap",
@@ -737,12 +739,24 @@ class TestRunStepAndExecuteSingleStep:
         engine = PlaybookEngine()
         engine._step_results["a"] = {
             "findings": [
-                {"title": "T1", "target": "x.com", "tool": "nmap", "severity": "high", "evidence_ref": "e1"}
+                {
+                    "title": "T1",
+                    "target": "x.com",
+                    "tool": "nmap",
+                    "severity": "high",
+                    "evidence_ref": "e1",
+                }
             ]
         }
         engine._step_results["b"] = {
             "findings": [
-                {"title": "T1", "target": "x.com", "tool": "dnsx", "severity": "high", "evidence_ref": "e2"}
+                {
+                    "title": "T1",
+                    "target": "x.com",
+                    "tool": "dnsx",
+                    "severity": "high",
+                    "evidence_ref": "e2",
+                }
             ]
         }
         res = await engine._run_finding_correlation(
@@ -784,9 +798,7 @@ class TestRunStepAndExecuteSingleStep:
     async def test_run_custom_step_module_not_registered(self):
         _clear_run_status()
         engine = PlaybookEngine()
-        with patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.has", return_value=False
-        ):
+        with patch("kali_mcp.workflow.dag_executor.modules_runtime.has", return_value=False):
             res = await engine._run_custom_step(
                 _step(id="s", type="custom", tool="ghost.module", args={}),
                 {"playbook_name": "pb"},
@@ -797,17 +809,20 @@ class TestRunStepAndExecuteSingleStep:
         _clear_run_status()
         engine = PlaybookEngine()
         ctx = SimpleNamespace(playbook_name="pb")
-        with patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.has", return_value=True
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.load_builtin_modules",
-            return_value=[],
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.ModuleContext",
-            return_value=ctx,
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.execute_async",
-            new=AsyncMock(return_value={"custom": "done"}),
+        with (
+            patch("kali_mcp.workflow.dag_executor.modules_runtime.has", return_value=True),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.load_builtin_modules",
+                return_value=[],
+            ),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.ModuleContext",
+                return_value=ctx,
+            ),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.execute_async",
+                new=AsyncMock(return_value={"custom": "done"}),
+            ),
         ):
             res = await engine._run_custom_step(
                 _step(id="s", type="custom", tool="my.mod", args={"module": "my.mod"}),
@@ -818,17 +833,20 @@ class TestRunStepAndExecuteSingleStep:
     async def test_run_custom_step_module_error(self):
         _clear_run_status()
         engine = PlaybookEngine()
-        with patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.has", return_value=True
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.load_builtin_modules",
-            return_value=[],
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.ModuleContext",
-            return_value=SimpleNamespace(playbook_name="pb"),
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.execute_async",
-            new=AsyncMock(side_effect=ModuleError("boom")),
+        with (
+            patch("kali_mcp.workflow.dag_executor.modules_runtime.has", return_value=True),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.load_builtin_modules",
+                return_value=[],
+            ),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.ModuleContext",
+                return_value=SimpleNamespace(playbook_name="pb"),
+            ),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.execute_async",
+                new=AsyncMock(side_effect=ModuleError("boom")),
+            ),
         ):
             res = await engine._run_custom_step(
                 _step(id="s", type="custom", tool="my.mod", args={}),
@@ -839,23 +857,26 @@ class TestRunStepAndExecuteSingleStep:
     async def test_run_custom_step_scope_violation_re_raises(self):
         _clear_run_status()
         engine = PlaybookEngine()
-        with patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.has", return_value=True
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.load_builtin_modules",
-            return_value=[],
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.ModuleContext",
-            return_value=SimpleNamespace(playbook_name="pb"),
-        ), patch(
-            "kali_mcp.workflow.dag_executor.modules_runtime.execute_async",
-            new=AsyncMock(side_effect=ScopeViolationError("oops")),
+        with (
+            patch("kali_mcp.workflow.dag_executor.modules_runtime.has", return_value=True),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.load_builtin_modules",
+                return_value=[],
+            ),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.ModuleContext",
+                return_value=SimpleNamespace(playbook_name="pb"),
+            ),
+            patch(
+                "kali_mcp.workflow.dag_executor.modules_runtime.execute_async",
+                new=AsyncMock(side_effect=ScopeViolationError("oops")),
+            ),
+            pytest.raises(ScopeViolationError),
         ):
-            with pytest.raises(ScopeViolationError):
-                await engine._run_custom_step(
-                    _step(id="s", type="custom", tool="my.mod", args={}),
-                    {"playbook_name": "pb"},
-                )
+            await engine._run_custom_step(
+                _step(id="s", type="custom", tool="my.mod", args={}),
+                {"playbook_name": "pb"},
+            )
 
 
 # ── foreach direct ─────────────────────────────────────────────────────
@@ -876,9 +897,12 @@ class TestForeach:
             if args.get("target") == "evil.com":
                 raise ScopeViolationError("evil.com not allowed")
 
-        with patch(
-            "kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock(side_effect=_gate)
-        ), patch.object(engine, "_execute_single_step", _exec):
+        with (
+            patch(
+                "kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock(side_effect=_gate)
+            ),
+            patch.object(engine, "_execute_single_step", _exec),
+        ):
             res = await engine._run_foreach(
                 _step(id="iter", tool="dnsx", foreach="dns.resolved_hosts", args={}),
                 [_step(id="iter", tool="dnsx", foreach="dns.resolved_hosts", args={})],
@@ -899,9 +923,10 @@ class TestForeach:
             call_log.append(iter_step.args["_foreach_item"])
             return {"step": iter_step.id, "ran": True}
 
-        with patch(
-            "kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()
-        ), patch.object(engine, "_execute_single_step", _exec):
+        with (
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch.object(engine, "_execute_single_step", _exec),
+        ):
             res = await engine._run_foreach(
                 _step(id="iter", tool="dnsx", foreach="dns.resolved_hosts", args={}),
                 [_step(id="iter", tool="dnsx", foreach="dns.resolved_hosts", args={})],
@@ -914,9 +939,10 @@ class TestForeach:
         _clear_run_status()
         engine = PlaybookEngine()
         engine._step_results["dns"] = {"resolved_hosts": []}
-        with patch(
-            "kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()
-        ), patch.object(engine, "_execute_single_step", AsyncMock()):
+        with (
+            patch("kali_mcp.workflow.dag_executor.gate_step_args", new=MagicMock()),
+            patch.object(engine, "_execute_single_step", AsyncMock()),
+        ):
             res = await engine._run_foreach(
                 _step(id="iter", tool="dnsx", foreach="dns.resolved_hosts", args={}),
                 [_step(id="iter", tool="dnsx", foreach="dns.resolved_hosts", args={})],

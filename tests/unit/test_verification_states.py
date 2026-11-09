@@ -14,6 +14,7 @@ def vs() -> VerificationStates:
 
 # ── States and transitions ───────────────────────────────────────────
 
+
 def test_initial_state_is_observed(vs):
     assert vs.get_state("f1") == "observed"
 
@@ -40,6 +41,7 @@ def test_transition_validated_to_remediated(vs):
 
 
 # ── Invalid transitions ──────────────────────────────────────────────
+
 
 def test_cannot_skip_states(vs):
     # observed -> remediated directly is not allowed
@@ -70,6 +72,7 @@ def test_invalid_state_rejected(vs):
 
 # ── Terminal states ──────────────────────────────────────────────────
 
+
 def test_false_positive_is_terminal(vs):
     assert vs.is_terminal("false_positive") is True
 
@@ -83,6 +86,7 @@ def test_observed_is_not_terminal(vs):
 
 
 # ── Any state to false_positive / accepted_risk ──────────────────────
+
 
 def test_any_state_can_go_to_false_positive(vs):
     for state in ("observed", "suspected", "validated"):
@@ -100,6 +104,7 @@ def test_any_state_can_go_to_accepted_risk(vs):
 
 # ── Same-state transition is no-op success ───────────────────────────
 
+
 def test_same_state_transition_is_noop(vs):
     vs.transition("f1", "suspected", "a", "r")
     ok = vs.transition("f1", "suspected", "a", "r again")
@@ -108,6 +113,7 @@ def test_same_state_transition_is_noop(vs):
 
 
 # ── Transition history ───────────────────────────────────────────────
+
 
 def test_transition_history_recorded(vs):
     vs.transition("f1", "suspected", "analyst1", "Looks likely")
@@ -125,6 +131,7 @@ def test_transition_history_recorded(vs):
 
 
 # ── get_findings_by_state ────────────────────────────────────────────
+
 
 def test_get_findings_by_state(vs):
     vs.transition("f1", "suspected", "a", "r")
@@ -146,6 +153,7 @@ def test_get_findings_by_state(vs):
 
 
 # ── list_states ──────────────────────────────────────────────────────
+
 
 def test_list_states(vs):
     vs.transition("f1", "suspected", "a", "r")

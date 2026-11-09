@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import threading
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -265,12 +264,13 @@ class TestMainEntry:
     def test_main_invokes_uvicorn(self) -> None:
         from kali_mcp.config import Config
 
-        fake_config = Config.__new__(Config)
+        Config.__new__(Config)
         # minimal: set insecure True via env won't work; patch server.config instead
         import kali_mcp.server as srv
 
         orig = srv.config
         srv.config = Config.__wrapped__ if hasattr(Config, "__wrapped__") else orig
+
         # Easiest: monkeypatch the insecure attribute via a simple object
         class _C:
             transport = "sse"

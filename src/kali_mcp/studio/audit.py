@@ -66,8 +66,7 @@ def list_audit(
         params.append(actor)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = cur.execute(
-        f"SELECT * FROM studio_audit {where} "
-        f"ORDER BY id DESC LIMIT ? OFFSET ?",
+        f"SELECT * FROM studio_audit {where} ORDER BY id DESC LIMIT ? OFFSET ?",
         (*params, limit, offset),
     ).fetchall()
     results: list[dict[str, Any]] = []
@@ -81,4 +80,4 @@ def list_audit(
     return results
 
 
-__all__ = ["record_audit", "list_audit"]
+__all__ = ["list_audit", "record_audit"]

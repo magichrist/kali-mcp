@@ -67,9 +67,7 @@ class TestConfigStringAndPathDefaults:
     def test_transport_default_sse_and_override(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             assert Config().transport == "sse"
-        with patch.dict(
-            os.environ, {"MCP_TRANSPORT": "streamable-http"}, clear=True
-        ):
+        with patch.dict(os.environ, {"MCP_TRANSPORT": "streamable-http"}, clear=True):
             assert Config().transport == "streamable-http"
 
     def test_api_token_default_empty_and_override(self) -> None:

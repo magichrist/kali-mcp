@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from kali_mcp.registry import ToolRegistry
 from kali_mcp.tools.base import BaseTool
@@ -113,33 +114,66 @@ class TestVisibility:
 
         class ToolA(BaseTool):
             @property
-            def name(self): return "tool_a"
+            def name(self):
+                return "tool_a"
+
             @property
-            def description(self): return "a"
-            def input_schema(self): return {"type": "object", "properties": {}}
-            def validate(self, arguments): pass
-            def build_command(self, arguments): return ["echo"]
-            async def execute(self, arguments): return {}
+            def description(self):
+                return "a"
+
+            def input_schema(self):
+                return {"type": "object", "properties": {}}
+
+            def validate(self, arguments):
+                pass
+
+            def build_command(self, arguments):
+                return ["echo"]
+
+            async def execute(self, arguments):
+                return {}
 
         class ToolB(BaseTool):
             @property
-            def name(self): return "tool_b"
+            def name(self):
+                return "tool_b"
+
             @property
-            def description(self): return "b"
-            def input_schema(self): return {"type": "object", "properties": {}}
-            def validate(self, arguments): pass
-            def build_command(self, arguments): return ["echo"]
-            async def execute(self, arguments): return {}
+            def description(self):
+                return "b"
+
+            def input_schema(self):
+                return {"type": "object", "properties": {}}
+
+            def validate(self, arguments):
+                pass
+
+            def build_command(self, arguments):
+                return ["echo"]
+
+            async def execute(self, arguments):
+                return {}
 
         class ToolC(BaseTool):
             @property
-            def name(self): return "tool_c"
+            def name(self):
+                return "tool_c"
+
             @property
-            def description(self): return "c"
-            def input_schema(self): return {"type": "object", "properties": {}}
-            def validate(self, arguments): pass
-            def build_command(self, arguments): return ["echo"]
-            async def execute(self, arguments): return {}
+            def description(self):
+                return "c"
+
+            def input_schema(self):
+                return {"type": "object", "properties": {}}
+
+            def validate(self, arguments):
+                pass
+
+            def build_command(self, arguments):
+                return ["echo"]
+
+            async def execute(self, arguments):
+                return {}
 
         reg2.register(ToolA(), visibility="agent_callable")
         reg2.register(ToolB(), visibility="playbook_selectable")
@@ -159,13 +193,24 @@ class TestVisibility:
 
         class HiddenTool(BaseTool):
             @property
-            def name(self): return "hidden_tool"
+            def name(self):
+                return "hidden_tool"
+
             @property
-            def description(self): return "hidden"
-            def input_schema(self): return {"type": "object", "properties": {}}
-            def validate(self, arguments): pass
-            def build_command(self, arguments): return ["echo"]
-            async def execute(self, arguments): return {}
+            def description(self):
+                return "hidden"
+
+            def input_schema(self):
+                return {"type": "object", "properties": {}}
+
+            def validate(self, arguments):
+                pass
+
+            def build_command(self, arguments):
+                return ["echo"]
+
+            async def execute(self, arguments):
+                return {}
 
         reg.register(HiddenTool(), visibility="hidden")
         assert reg.visible_tools("agent_callable") == []

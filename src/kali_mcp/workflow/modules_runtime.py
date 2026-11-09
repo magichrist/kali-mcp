@@ -86,13 +86,10 @@ def register(
 
     existing = _REGISTRY.get(name)
     if existing is not None and existing.fn is not fn:
-        raise ModuleError(
-            f"module {name!r} is already registered with a different implementation"
-        )
+        raise ModuleError(f"module {name!r} is already registered with a different implementation")
 
-    schemas_are_valid = (
-        (input_schema is None or isinstance(input_schema, dict))
-        and (output_schema is None or isinstance(output_schema, dict))
+    schemas_are_valid = (input_schema is None or isinstance(input_schema, dict)) and (
+        output_schema is None or isinstance(output_schema, dict)
     )
     if not schemas_are_valid:
         raise ModuleError(f"module {name!r} schemas must be dicts or None")
@@ -156,18 +153,14 @@ async def execute_async(
     return result
 
 
-def _check_required(
-    name: str, schema: dict[str, Any], inputs: dict[str, Any]
-) -> None:
+def _check_required(name: str, schema: dict[str, Any], inputs: dict[str, Any]) -> None:
     """Minimal required-input validation from a JSON-schema-ish spec."""
     required = schema.get("required")
     if not isinstance(required, (list, tuple)):
         return
     missing = [k for k in required if k not in inputs or inputs.get(k) in (None, "")]
     if missing:
-        raise ModuleError(
-            f"module {name!r} missing required input(s): {', '.join(missing)}"
-        )
+        raise ModuleError(f"module {name!r} missing required input(s): {', '.join(missing)}")
 
 
 def list_modules() -> list[dict[str, Any]]:

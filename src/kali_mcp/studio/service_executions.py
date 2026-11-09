@@ -38,8 +38,7 @@ def list_executions(
         params.append(playbook_id)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = cur.execute(
-        f"SELECT * FROM workflow_executions {where} "
-        f"ORDER BY started_at DESC LIMIT ? OFFSET ?",
+        f"SELECT * FROM workflow_executions {where} ORDER BY started_at DESC LIMIT ? OFFSET ?",
         (*params, limit, offset),
     ).fetchall()
     out = []
@@ -94,8 +93,7 @@ def get_execution(db: DBManager, execution_id: str) -> dict[str, Any] | None:
 def list_steps(db: DBManager, execution_id: str) -> list[dict[str, Any]]:
     cur = db.conn.cursor()
     rows = cur.execute(
-        "SELECT * FROM workflow_step_executions WHERE execution_id = ? "
-        "ORDER BY id ASC",
+        "SELECT * FROM workflow_step_executions WHERE execution_id = ? ORDER BY id ASC",
         (execution_id,),
     ).fetchall()
     return [dict(r) for r in rows]
@@ -175,8 +173,16 @@ def _extract_step_outputs(step_res: dict[str, Any]) -> dict[str, Any] | None:
             if key in step_res:
                 out[key] = step_res[key]
         meta = {
-            "step", "type", "tool", "command", "stdout", "stderr",
-            "exit_code", "duration", "started_at", "error",
+            "step",
+            "type",
+            "tool",
+            "command",
+            "stdout",
+            "stderr",
+            "exit_code",
+            "duration",
+            "started_at",
+            "error",
         }
         for key, val in step_res.items():
             if key not in meta:
@@ -246,9 +252,7 @@ async def start_execution(
     if row is None:
         raise LookupError(f"playbook {playbook_id!r} not found")
     if row.get("status") != "published":
-        raise ValueError(
-            f"playbook {playbook_id!r} is not published (status: {row.get('status')})"
-        )
+        raise ValueError(f"playbook {playbook_id!r} is not published (status: {row.get('status')})")
 
     if version_id is not None:
         version = db.get_playbook_version(version_id)
@@ -257,9 +261,7 @@ async def start_execution(
     else:
         current = row.get("current_version_id")
         if current is None:
-            raise ValueError(
-                f"playbook {playbook_id!r} is published but has no current version"
-            )
+            raise ValueError(f"playbook {playbook_id!r} is published but has no current version")
         version = db.get_playbook_version(current)
 
     definition = version.get("definition")
@@ -307,13 +309,17 @@ async def start_execution(
         res = await run_playbook_async(defn)
     except ScopeViolationError as exc:
         db.update_workflow_execution(
-            execution_id, status="failed", error=str(exc),
+            execution_id,
+            status="failed",
+            error=str(exc),
             completed_at=db._now_utc(),
         )
         raise ValueError(f"scope violation: {exc}") from exc
     except Exception as exc:
         db.update_workflow_execution(
-            execution_id, status="failed", error=str(exc),
+            execution_id,
+            status="failed",
+            error=str(exc),
             completed_at=db._now_utc(),
         )
         raise

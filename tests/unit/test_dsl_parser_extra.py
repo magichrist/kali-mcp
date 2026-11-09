@@ -75,27 +75,37 @@ class TestStepDecl:
 class TestStepOptions:
     def test_invalid_on_failure_raises(self):
         with pytest.raises(DSLParseError, match="on_failure must be"):
-            parse('id: a name: "t" steps { s: tool nmap depends_on [] on_failure: weird inputs { x: "1" } }')
+            parse(
+                'id: a name: "t" steps { s: tool nmap depends_on [] on_failure: weird inputs { x: "1" } }'
+            )
 
     def test_budget_parsing(self):
-        ast = parse('id: a name: "t" steps { s: tool nmap depends_on [] budget { timeout: 60 retries: 3 } inputs { x: "1" } }')
+        ast = parse(
+            'id: a name: "t" steps { s: tool nmap depends_on [] budget { timeout: 60 retries: 3 } inputs { x: "1" } }'
+        )
         assert ast.steps[0].budget == {"timeout": 60, "retries": 3}
 
     def test_condition_operator_required(self):
         # Unquoted conditions skip the first token (parser quirk), so place a
         # field ref before the non-operator to reach the operator check.
         with pytest.raises(DSLParseError, match="comparison operator"):
-            parse('id: a name: "t" steps { s: tool nmap depends_on [] when {{steps.a.x}} {{steps.b.y}} eq 1 inputs { x: "1" } }')
+            parse(
+                'id: a name: "t" steps { s: tool nmap depends_on [] when {{steps.a.x}} {{steps.b.y}} eq 1 inputs { x: "1" } }'
+            )
 
     def test_condition_unquoted_happy_path(self):
-        ast = parse('id: a name: "t" steps { s: tool nmap depends_on [] when {{steps.a.x}} {{steps.b.y}} > 0 inputs { x: "1" } }')
+        ast = parse(
+            'id: a name: "t" steps { s: tool nmap depends_on [] when {{steps.a.x}} {{steps.b.y}} > 0 inputs { x: "1" } }'
+        )
         assert ast.steps[0].when == "{{steps.b.y}} > 0"
 
 
 class TestFieldRefShapes:
     def test_quoted_field_ref_must_wrap_braces(self):
         with pytest.raises(DSLParseError, match="expected field reference"):
-            parse('id: a name: "t" steps { s: tool nmap depends_on [] inputs { x: "1" } } outputs { o: "hello" }')
+            parse(
+                'id: a name: "t" steps { s: tool nmap depends_on [] inputs { x: "1" } } outputs { o: "hello" }'
+            )
 
     def test_field_ref_wrong_token_raises(self):
         with pytest.raises(DSLParseError, match="expected field reference"):
@@ -103,11 +113,15 @@ class TestFieldRefShapes:
 
     def test_target_takes_no_segments(self):
         with pytest.raises(DSLParseError, match="takes no additional path segments"):
-            parse('id: a name: "t" steps { s: tool nmap depends_on [] inputs { x: "{{target.foo}}" } }')
+            parse(
+                'id: a name: "t" steps { s: tool nmap depends_on [] inputs { x: "{{target.foo}}" } }'
+            )
 
     def test_inputs_takes_exactly_one_segment(self):
         with pytest.raises(DSLParseError, match="takes exactly one segment"):
-            parse('id: a name: "t" steps { s: tool nmap depends_on [] inputs { x: "{{inputs.a.b}}" } }')
+            parse(
+                'id: a name: "t" steps { s: tool nmap depends_on [] inputs { x: "{{inputs.a.b}}" } }'
+            )
 
     def test_steps_requires_step_and_field(self):
         with pytest.raises(DSLParseError, match="requires at least step id and field"):
@@ -120,7 +134,9 @@ class TestFieldRefShapes:
         assert mapping.value.value == 42
 
     def test_bare_word_literal(self):
-        ast = parse('id: a name: "t" inputs { x: string default: safe } steps { s: tool nmap depends_on [] inputs { y: "1" } }')
+        ast = parse(
+            'id: a name: "t" inputs { x: string default: safe } steps { s: tool nmap depends_on [] inputs { y: "1" } }'
+        )
         assert ast.inputs[0].default == "safe"
 
     def test_unexpected_literal_raises(self):

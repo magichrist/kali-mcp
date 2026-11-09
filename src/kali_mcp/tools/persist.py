@@ -15,9 +15,9 @@ from typing import Any
 from kali_mcp.evidence import store_evidence
 from kali_mcp.identifiers import get_assessment_context
 from kali_mcp.utils.vault import (
+    redact_dict,
     vault_write,
     write_secret_ref,
-    redact_dict,
 )
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -107,9 +107,7 @@ def persist_run(
                 evidence = ""
                 if data:
                     raw_output = (
-                        (data.get("stdout") or "")
-                        + "\n"
-                        + (data.get("stderr") or "")
+                        (data.get("stdout") or "") + "\n" + (data.get("stderr") or "")
                     ).strip()
                     if raw_output:
                         evidence_id = store_evidence(
@@ -176,8 +174,7 @@ def persist_run(
                         continue
                     try:
                         svc_id = (
-                            f"svc_{_sanitize_fs(target)}_{int(port)}_"
-                            f"{(f.get('service') or 'tcp')}"
+                            f"svc_{_sanitize_fs(target)}_{int(port)}_{(f.get('service') or 'tcp')}"
                         )
                         db.add_service(
                             service_id=svc_id,

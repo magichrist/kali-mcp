@@ -37,11 +37,13 @@ class TestRequired:
 
 
 class TestIP:
-    @pytest.mark.parametrize("value", ["127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1", "127.0.0.1"])
+    @pytest.mark.parametrize("value", ["127.0.0.1"])
     def test_valid(self, value):
         assert validate_ip(value) is None
 
-    @pytest.mark.parametrize("value", ["not_an_ip", "256.1.1.1", "1.2.3.4.5", "127.0.0.1/8", "", " "])
+    @pytest.mark.parametrize(
+        "value", ["not_an_ip", "256.1.1.1", "1.2.3.4.5", "127.0.0.1/8", "", " "]
+    )
     def test_invalid(self, value):
         with pytest.raises(ValueError):
             validate_ip(value)
@@ -62,18 +64,24 @@ class TestCIDR:
 
 
 class TestDomain:
-    @pytest.mark.parametrize("value", ["example.com", "sub.example.com", "a.io", "x.y.z.w.example.com", "UPPER.COM"])
+    @pytest.mark.parametrize(
+        "value", ["example.com", "sub.example.com", "a.io", "x.y.z.w.example.com", "UPPER.COM"]
+    )
     def test_valid(self, value):
         assert validate_domain(value) is None
 
-    @pytest.mark.parametrize("value", ["not valid domain!", "-leading.com", "trailing-.com", "..", "com"])
+    @pytest.mark.parametrize(
+        "value", ["not valid domain!", "-leading.com", "trailing-.com", "..", "com"]
+    )
     def test_invalid(self, value):
         with pytest.raises(ValueError):
             validate_domain(value)
 
 
 class TestURL:
-    @pytest.mark.parametrize("value", ["https://example.com", "http://127.0.0.1:8080/path", "https://e.com/a?b=c#d"])
+    @pytest.mark.parametrize(
+        "value", ["https://example.com", "http://127.0.0.1:8080/path", "https://e.com/a?b=c#d"]
+    )
     def test_valid(self, value):
         assert validate_url(value) is None
 

@@ -121,9 +121,7 @@ class TestPlaybookRunStudio:
         set_token = agent_context.set_current_profile("p1")
         try:
             tool = PlaybookRunTool()
-            result = _run(tool.execute(
-                {"playbook": "pb.studio", "target": "target.local"}
-            ))
+            result = _run(tool.execute({"playbook": "pb.studio", "target": "target.local"}))
         finally:
             agent_context.reset_current_profile(set_token)
         out = _payload_text(result)
@@ -162,9 +160,11 @@ class TestPlaybookRunStudio:
         patch_db.assign_playbook_to_profile("p1", "pb.studio")
         set_token = agent_context.set_current_profile("p1")
         try:
-            result = _run(PlaybookRunTool().execute(
-                {"playbook": "pb.studio", "target": "target.local", "detail": "full"}
-            ))
+            result = _run(
+                PlaybookRunTool().execute(
+                    {"playbook": "pb.studio", "target": "target.local", "detail": "full"}
+                )
+            )
         finally:
             agent_context.reset_current_profile(set_token)
         out = _payload_text(result)
@@ -176,9 +176,9 @@ class TestPlaybookRunStudio:
         _seed_published(patch_db)
         patch_db.create_agent_profile("p1", "Agent")
         agent_context.set_current_profile("p1")
-        result = _run(PlaybookRunTool().execute(
-            {"playbook": "pb.studio", "target": "target.local"}
-        ))
+        result = _run(
+            PlaybookRunTool().execute({"playbook": "pb.studio", "target": "target.local"})
+        )
         out = _payload_text(result)
         assert result.get("isError") is True
         assert out["forbidden"] is True
@@ -198,9 +198,7 @@ class TestPlaybookRunStudio:
     def test_unpublished_playbook_rejected(self, patch_db):
         _seed_published(patch_db, status="draft", publish=False)
         tool = PlaybookRunTool()
-        result = _run(tool.execute(
-            {"playbook": "pb.studio", "target": "target.local"}
-        ))
+        result = _run(tool.execute({"playbook": "pb.studio", "target": "target.local"}))
         out = _payload_text(result)
         assert out["success"] is False
         assert "no published version" in out["error"]
@@ -215,9 +213,9 @@ class TestPlaybookRunStudio:
         definition = json.loads(json.dumps(DEFINITION))
         definition["inputs"]["extra_input"] = {"type": "string", "required": True}
         patch_db.publish_playbook_version("pb.studio", "1.1.0", definition)
-        result = _run(PlaybookRunTool().execute(
-            {"playbook": "pb.studio", "target": "target.local"}
-        ))
+        result = _run(
+            PlaybookRunTool().execute({"playbook": "pb.studio", "target": "target.local"})
+        )
         out = _payload_text(result)
         assert out["success"] is False
         assert "missing required playbook inputs" in out["error"]
@@ -229,7 +227,10 @@ class TestPlaybookCatalogProfile:
         from kali_mcp.tools.playbook_blackbox import PlaybookCatalogTool
 
         _seed_published(patch_db)
-        _seed_published(patch_db, "pb.revoked", )
+        _seed_published(
+            patch_db,
+            "pb.revoked",
+        )
         patch_db.create_playbook("pb.draft", "Draft pb", status="draft")
         patch_db.create_agent_profile("p1", "Agent")
         patch_db.assign_playbook_to_profile("p1", "pb.studio")
@@ -264,21 +265,26 @@ class TestPlaybookResultStudio:
         execution_id = "wexec_test_0001"
         activity_job_id = "job_test_0001"
         patch_db.create_workflow_execution(
-            execution_id, "pb.studio", version_id=1,
-            job_id=activity_job_id, status="running",
+            execution_id,
+            "pb.studio",
+            version_id=1,
+            job_id=activity_job_id,
+            status="running",
         )
         patch_db.record_step_execution(
-            execution_id, "s1", tool_id="test.echo_probe",
-            step_type="custom", status="completed",
+            execution_id,
+            "s1",
+            tool_id="test.echo_probe",
+            step_type="custom",
+            status="completed",
         )
         patch_db.update_workflow_execution(
-            execution_id, status="completed",
+            execution_id,
+            status="completed",
             outputs={"summary": {"echoed": "target.local"}},
             completed_at="2026-01-01T00:00:00+00:00",
         )
-        resp = _payload_text(_run(PlaybookResultTool().execute(
-            {"job_id": activity_job_id}
-        )))
+        resp = _payload_text(_run(PlaybookResultTool().execute({"job_id": activity_job_id})))
         assert resp["status"] == "completed"
         assert resp["playbook"] == "pb.studio"
         assert resp["execution_id"] == execution_id
@@ -291,12 +297,13 @@ class TestPlaybookResultStudio:
 
         _seed_published(patch_db)
         patch_db.create_workflow_execution(
-            "wexec_running", "pb.studio", version_id=1,
-            job_id="job_running", status="running",
+            "wexec_running",
+            "pb.studio",
+            version_id=1,
+            job_id="job_running",
+            status="running",
         )
-        resp = _payload_text(_run(PlaybookResultTool().execute(
-            {"job_id": "job_running"}
-        )))
+        resp = _payload_text(_run(PlaybookResultTool().execute({"job_id": "job_running"})))
         assert resp["status"] == "running"
         assert resp["result"] is None
         assert any("again" in a for a in resp["next_actions"])
@@ -313,9 +320,7 @@ class TestPlaybookResultStudio:
             "result": {"summary": {"findings": 0}},
         }
         try:
-            resp = _payload_text(_run(PlaybookResultTool().execute(
-                {"job_id": "job_legacy"}
-            )))
+            resp = _payload_text(_run(PlaybookResultTool().execute({"job_id": "job_legacy"})))
             assert resp["status"] == "completed"
         finally:
             JOB_REGISTRY.clear()
@@ -338,7 +343,7 @@ class TestToolCatalogProfileFiltering:
             agent_context.reset_current_profile(set_token)
         tools = resp["tools"] if "tools" in resp else resp.get("catalog", [])
         assert isinstance(tools, list)
-        assert set(t["name"] for t in tools) <= {"nmap", "tool_catalog"}
+        assert {t["name"] for t in tools} <= {"nmap", "tool_catalog"}
 
     def test_no_grants_no_tools(self, patch_db):
         patch_db.create_agent_profile("p0", "Agent")

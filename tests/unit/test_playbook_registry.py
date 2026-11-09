@@ -67,14 +67,17 @@ def test_register_module_overwrites():
 
 
 def test_list_playbooks_structure():
-    register_playbook("reg_pb_list", {
-        "id": "reg_pb_list",
-        "name": "Listed",
-        "description": "a listed playbook",
-        "inputs": {"target": {"type": "string"}},
-        "outputs": {},
-        "execution": {"timeout": 120},
-    })
+    register_playbook(
+        "reg_pb_list",
+        {
+            "id": "reg_pb_list",
+            "name": "Listed",
+            "description": "a listed playbook",
+            "inputs": {"target": {"type": "string"}},
+            "outputs": {},
+            "execution": {"timeout": 120},
+        },
+    )
     listed = list_playbooks()
     assert isinstance(listed, list)
     ids = {item["id"] for item in listed}
@@ -90,15 +93,26 @@ def test_list_playbooks_item_keys():
     listed = list_playbooks()
     for item in listed:
         assert set(item.keys()) >= {
-            "id", "name", "description", "inputs", "outputs", "estimated_duration",
+            "id",
+            "name",
+            "description",
+            "inputs",
+            "outputs",
+            "estimated_duration",
         }
 
 
 def test_load_yaml_playbooks_registers_definitions():
     load_yaml_playbooks()
     listed = {item["id"] for item in list_playbooks()}
-    for expected in ("api_recon", "cloud_assessment", "container_assessment",
-                     "custom_recon", "linux_assessment", "vulnerability_validation"):
+    for expected in (
+        "api_recon",
+        "cloud_assessment",
+        "container_assessment",
+        "custom_recon",
+        "linux_assessment",
+        "vulnerability_validation",
+    ):
         assert expected in listed
     pb = get_playbook("cloud_assessment")
     assert pb["id"] == "cloud_assessment"

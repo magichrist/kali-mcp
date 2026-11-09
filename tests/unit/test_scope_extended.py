@@ -29,9 +29,7 @@ class TestExactMatch:
 
 class TestExcludedTargets:
     def test_excluded_denies_even_when_allowed(self):
-        scope = Scope(
-            allowed_targets=["*.example.com"], excluded_targets=["node.example.com"]
-        )
+        scope = Scope(allowed_targets=["*.example.com"], excluded_targets=["node.example.com"])
         assert is_target_allowed("api.example.com", scope) is True
         assert is_target_allowed("node.example.com", scope) is False
 

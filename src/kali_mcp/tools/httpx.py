@@ -20,6 +20,10 @@ class HttpxTool(BaseTool):
         return "httpx"
 
     @property
+    def binary(self) -> str:
+        return "httpx-toolkit"
+
+    @property
     def description(self) -> str:
         return "Run httpx for HTTP probing, technology detection, and web reconnaissance."
 

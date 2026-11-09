@@ -68,21 +68,15 @@ class TestLoadState:
         assert sm.RUN_STATUS["pb1"] == data
 
     def test_loads_vault_payload_without_braces_returns_none(self):
-        with patch(
-            "kali_mcp.utils.vault.vault_read", return_value="not-a-json-payload"
-        ):
+        with patch("kali_mcp.utils.vault.vault_read", return_value="not-a-json-payload"):
             assert sm.load_state("pb1") is None
 
     def test_loads_vault_read_error_returns_none(self):
-        with patch(
-            "kali_mcp.utils.vault.vault_read", side_effect=OSError("db locked")
-        ):
+        with patch("kali_mcp.utils.vault.vault_read", side_effect=OSError("db locked")):
             assert sm.load_state("pb1") is None
 
     def test_loads_malformed_json_returns_none(self):
-        with patch(
-            "kali_mcp.utils.vault.vault_read", return_value="{invalid json"
-        ):
+        with patch("kali_mcp.utils.vault.vault_read", return_value="{invalid json"):
             assert sm.load_state("pb1") is None
 
     def test_loads_empty_content_returns_none(self):

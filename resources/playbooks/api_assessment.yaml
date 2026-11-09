@@ -1,0 +1,78 @@
+id: api_assessment
+name: "API Assessment"
+description: "API discovery and security checks — endpoint discovery via katana and the api_discovery module, parameter and directory discovery, then API vulnerability scanning and correlation."
+version: "2.0.0"
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target base API URL to assess"
+  options:
+    type: object
+    description: "Optional assessment options"
+    properties:
+      auth_token:
+        type: string
+        description: "Bearer/API authentication token"
+      api_spec:
+        type: string
+        description: "OpenAPI/Swagger spec path or URL"
+execution:
+  max_parallel: 3
+  timeout: 900
+  resume: true
+steps:
+  - id: validate
+    type: scope_check
+    depends_on: []
+    checkpoint: true
+    description: "Validate target against active assessment scope"
+  - id: api_discovery
+    module: api_discovery
+    depends_on: [validate]
+    args:
+      target: "{{target}}"
+      auth_token: "{{options.auth_token}}"
+      api_spec: "{{options.api_spec}}"
+    checkpoint: true
+    description: "Discover API endpoints via katana (api_discovery module)"
+  - id: param_discovery
+    module: param_discovery
+    depends_on: [api_discovery]
+    args:
+      target: "{{target}}"
+    parallel: true
+    checkpoint: true
+    description: "Discover hidden request parameters via arjun"
+  - id: api_dir_enum
+    module: ffuf
+    depends_on: [api_discovery]
+    args:
+      target: "{{target}}"
+      wordlist: "/usr/share/wordlists/dirb/common.txt"
+    parallel: true
+    checkpoint: true
+    description: "Enumerate API directories via ffuf"
+  - id: api_vuln_scan
+    module: api_vuln_scan
+    depends_on: [api_discovery, param_discovery, api_dir_enum]
+    args:
+      target: "{{target}}"
+    checkpoint: true
+    description: "Scan API endpoints with nuclei API templates"
+  - id: correlate
+    type: finding_correlation
+    depends_on: [param_discovery, api_dir_enum, api_vuln_scan]
+    checkpoint: true
+    description: "Deduplicate and correlate API findings"
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    description: "Generate the API assessment report"
+outputs:
+  - assessment_id
+  - findings
+  - assets
+  - artifacts
+  - next_actions
+  - recommended_next_playbooks

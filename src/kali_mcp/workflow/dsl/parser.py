@@ -102,9 +102,9 @@ class TypeExpr:
     """A type declaration parsed from DSL."""
 
     kind: str  # string, integer, float, boolean, domain, ip, cidr, url,
-               # port, port_range, secret, scope_reference, enum, array, object
-    values: list[str] | None = None      # enum values
-    element: TypeExpr | None = None    # array element type
+    # port, port_range, secret, scope_reference, enum, array, object
+    values: list[str] | None = None  # enum values
+    element: TypeExpr | None = None  # array element type
 
 
 @dataclass
@@ -614,8 +614,7 @@ class _Parser:
                     "abort",
                 }:
                     raise DSLParseError(
-                        f"on_failure must be continue/skip_dependents/abort, "
-                        f"got {vtok.value!r}",
+                        f"on_failure must be continue/skip_dependents/abort, got {vtok.value!r}",
                         vtok.line,
                         vtok.col,
                     )

@@ -18,36 +18,58 @@ class AdaptiveScheduler:
         extended = list(steps)
 
         http_services = [
-            a for a in assets if a.get("type") == "service" and "http" in str(a.get("protocol", "")).lower()
+            a
+            for a in assets
+            if a.get("type") == "service" and "http" in str(a.get("protocol", "")).lower()
         ]
         tls_services = [a for a in assets if a.get("type") == "certificate"]
-        ssh_services = [a for a in assets if a.get("type") == "service" and a.get("protocol") == "ssh"]
+        ssh_services = [
+            a for a in assets if a.get("type") == "service" and a.get("protocol") == "ssh"
+        ]
 
         if http_services:
-            extended.append({
-                "id": "web_recon_branch",
-                "module": "web.http_probe",
-                "depends_on": ["network_discovery"],
-                "only_if": {"field": "network_discovery.http_services_count", "op": ">", "value": 0},
-                "inputs": {},
-            })
+            extended.append(
+                {
+                    "id": "web_recon_branch",
+                    "module": "web.http_probe",
+                    "depends_on": ["network_discovery"],
+                    "only_if": {
+                        "field": "network_discovery.http_services_count",
+                        "op": ">",
+                        "value": 0,
+                    },
+                    "inputs": {},
+                }
+            )
 
         if tls_services:
-            extended.append({
-                "id": "tls_branch",
-                "module": "tls.certificate_audit",
-                "depends_on": ["network_discovery"],
-                "only_if": {"field": "network_discovery.tls_services_count", "op": ">", "value": 0},
-                "inputs": {},
-            })
+            extended.append(
+                {
+                    "id": "tls_branch",
+                    "module": "tls.certificate_audit",
+                    "depends_on": ["network_discovery"],
+                    "only_if": {
+                        "field": "network_discovery.tls_services_count",
+                        "op": ">",
+                        "value": 0,
+                    },
+                    "inputs": {},
+                }
+            )
 
         if ssh_services:
-            extended.append({
-                "id": "ssh_branch",
-                "module": "protocols.ssh_audit",
-                "depends_on": ["network_discovery"],
-                "only_if": {"field": "network_discovery.ssh_services_count", "op": ">", "value": 0},
-                "inputs": {},
-            })
+            extended.append(
+                {
+                    "id": "ssh_branch",
+                    "module": "protocols.ssh_audit",
+                    "depends_on": ["network_discovery"],
+                    "only_if": {
+                        "field": "network_discovery.ssh_services_count",
+                        "op": ">",
+                        "value": 0,
+                    },
+                    "inputs": {},
+                }
+            )
 
         return extended

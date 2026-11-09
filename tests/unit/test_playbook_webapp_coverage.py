@@ -105,9 +105,7 @@ class TestPlaybookDefinition:
 
     def test_empty_wordlist_uses_default(self):
         tool = PlaybookWebappTool()
-        definition = tool._playbook_definition(
-            {"target": "http://example.com", "wordlist": ""}
-        )
+        definition = tool._playbook_definition({"target": "http://example.com", "wordlist": ""})
         ffuf = self._steps_by_id(definition)["ffuf"]
         assert ffuf["args"]["wordlist"] == "/usr/share/wordlists/dirb/common.txt"
 
@@ -156,12 +154,15 @@ class TestExecute:
     async def test_execute_success(self):
         tool = PlaybookWebappTool()
         fake_result = _FakeResult()
-        with patch(
-            "kali_mcp.workflow.load_playbook", return_value={"name": "playbook_webapp"}
-        ) as mock_load, patch(
-            "kali_mcp.workflow.run_playbook_async",
-            new=AsyncMock(return_value=fake_result),
-        ) as mock_run:
+        with (
+            patch(
+                "kali_mcp.workflow.load_playbook", return_value={"name": "playbook_webapp"}
+            ) as mock_load,
+            patch(
+                "kali_mcp.workflow.run_playbook_async",
+                new=AsyncMock(return_value=fake_result),
+            ) as mock_run,
+        ):
             result = await tool.execute({"target": "http://example.com"})
         mock_load.assert_called_once()
         mock_run.assert_awaited_once()
@@ -172,12 +173,13 @@ class TestExecute:
     async def test_execute_resume_true(self):
         tool = PlaybookWebappTool()
         fake_result = _FakeResult()
-        with patch(
-            "kali_mcp.workflow.load_playbook", return_value={"name": "pb"}
-        ), patch(
-            "kali_mcp.workflow.run_playbook_async",
-            new=AsyncMock(return_value=fake_result),
-        ) as mock_run:
+        with (
+            patch("kali_mcp.workflow.load_playbook", return_value={"name": "pb"}),
+            patch(
+                "kali_mcp.workflow.run_playbook_async",
+                new=AsyncMock(return_value=fake_result),
+            ) as mock_run,
+        ):
             await tool.execute({"target": "http://example.com", "resume": True})
         assert mock_run.await_args.kwargs["resume"] is True
 

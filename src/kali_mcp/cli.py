@@ -211,9 +211,7 @@ def _backfill_env(env_path: Path, template_text: str) -> list[str]:
             changes.append(f"{key}: generated secure value (was missing)")
         elif value.strip() == "":
             new_value = _generate_env_value(key)
-            content = re.sub(
-                rf"^{key}=(\s*)$", f"{key}={new_value}", content, flags=re.MULTILINE
-            )
+            content = re.sub(rf"^{key}=(\s*)$", f"{key}={new_value}", content, flags=re.MULTILINE)
             changes.append(f"{key}: generated secure value (was empty)")
 
     # 2. Keys present in the template but not in .env: append the template default.
@@ -224,12 +222,7 @@ def _backfill_env(env_path: Path, template_text: str) -> list[str]:
         changes.append(f"{key}: added default from .env.example")
 
     if fills:
-        content = (
-            content.rstrip("\n")
-            + "\n\n# Added by `kmcp init`\n"
-            + "\n".join(fills)
-            + "\n"
-        )
+        content = content.rstrip("\n") + "\n\n# Added by `kmcp init`\n" + "\n".join(fills) + "\n"
         modified = True
 
     if modified:
@@ -521,9 +514,7 @@ def cmd_playbook_list(args: argparse.Namespace) -> int:
         ]
         for r in rows
     ]
-    _print_table(
-        table, ["playbook_id", "name", "status", "category", "current_version"]
-    )
+    _print_table(table, ["playbook_id", "name", "status", "category", "current_version"])
     return 0
 
 
@@ -536,7 +527,7 @@ def cmd_playbook_create(args: argparse.Namespace) -> int:
         print("database unavailable", file=sys.stderr)
         return 1
     try:
-        row = create_playbook(
+        create_playbook(
             db,
             playbook_id=args.id,
             name=args.name,
@@ -606,7 +597,9 @@ def cmd_playbook_validate(args: argparse.Namespace) -> int:
     if findings:
         print(f"findings ({len(findings)}):")
         for f in findings:
-            print(f"  [{f.get('severity')}] {f.get('step_id') or '-'}:{f.get('field') or '-'} {f.get('message')}")
+            print(
+                f"  [{f.get('severity')}] {f.get('step_id') or '-'}:{f.get('field') or '-'} {f.get('message')}"
+            )
     else:
         print("no findings")
     return 0 if result["valid"] else 1
@@ -679,7 +672,10 @@ def cmd_playbook_publish(args: argparse.Namespace) -> int:
     if not validation["valid"]:
         print("definition failed validation:", file=sys.stderr)
         for f in validation.get("findings", []):
-            print(f"  [{f.get('severity')}] {f.get('step_id') or '-'}:{f.get('field') or '-'} {f.get('message')}", file=sys.stderr)
+            print(
+                f"  [{f.get('severity')}] {f.get('step_id') or '-'}:{f.get('field') or '-'} {f.get('message')}",
+                file=sys.stderr,
+            )
         return 1
 
     try:
@@ -710,7 +706,13 @@ def cmd_playbook_versions(args: argparse.Namespace) -> int:
         print("(no versions)")
         return 0
     table = [
-        [str(v.get("id")), v.get("version_id", ""), v.get("version", ""), v.get("published_at") or "-", v.get("notes") or "-"]
+        [
+            str(v.get("id")),
+            v.get("version_id", ""),
+            v.get("version", ""),
+            v.get("published_at") or "-",
+            v.get("notes") or "-",
+        ]
         for v in versions
     ]
     _print_table(table, ["id", "version_id", "version", "published_at", "notes"])
@@ -730,7 +732,9 @@ def cmd_playbook_rollback(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    print(f"rolled back '{args.id}' to version '{row.get('version')}' (version_id: {row.get('version_id')})")
+    print(
+        f"rolled back '{args.id}' to version '{row.get('version')}' (version_id: {row.get('version_id')})"
+    )
     return 0
 
 
@@ -768,7 +772,9 @@ def cmd_playbook_import(args: argparse.Namespace) -> int:
     if not result["ok"]:
         print(f"error: {result['error']}", file=sys.stderr)
         return 1
-    print(f"imported '{result['playbook_id']}' ({result['versions_imported']} version(s)), status: {result['status']}")
+    print(
+        f"imported '{result['playbook_id']}' ({result['versions_imported']} version(s)), status: {result['status']}"
+    )
     return 0
 
 
@@ -800,7 +806,13 @@ def cmd_tool_list(args: argparse.Namespace) -> int:
         db, provider=args.provider, visibility=args.visibility, enabled=args.enabled
     )
     table = [
-        [r.get("tool_id", ""), r.get("name", "")[:40], r.get("provider", ""), r.get("visibility", ""), str(r.get("enabled", 0))]
+        [
+            r.get("tool_id", ""),
+            r.get("name", "")[:40],
+            r.get("provider", ""),
+            r.get("visibility", ""),
+            str(r.get("enabled", 0)),
+        ]
         for r in rows
     ]
     _print_table(table, ["tool_id", "name", "provider", "visibility", "enabled"])
@@ -813,7 +825,10 @@ def cmd_tool_visibility(args: argparse.Namespace) -> int:
 
     valid = {"agent_callable", "playbook_selectable", "internal", "hidden"}
     if args.visibility not in valid:
-        print(f"invalid visibility '{args.visibility}' — use: {', '.join(sorted(valid))}", file=sys.stderr)
+        print(
+            f"invalid visibility '{args.visibility}' — use: {', '.join(sorted(valid))}",
+            file=sys.stderr,
+        )
         return 1
     db = _get_db()
     if db is None:
@@ -838,9 +853,17 @@ def cmd_execution_list(args: argparse.Namespace) -> int:
     if db is None:
         print("database unavailable", file=sys.stderr)
         return 1
-    rows = list_executions(db, status=args.status, playbook_id=args.playbook_id, limit=args.limit, offset=args.offset)
+    rows = list_executions(
+        db, status=args.status, playbook_id=args.playbook_id, limit=args.limit, offset=args.offset
+    )
     table = [
-        [r.get("execution_id", ""), r.get("playbook_id", ""), r.get("status", ""), r.get("started_at") or "-", r.get("completed_at") or "-"]
+        [
+            r.get("execution_id", ""),
+            r.get("playbook_id", ""),
+            r.get("status", ""),
+            r.get("started_at") or "-",
+            r.get("completed_at") or "-",
+        ]
         for r in rows
     ]
     _print_table(table, ["execution_id", "playbook_id", "status", "started_at", "completed_at"])
@@ -875,18 +898,27 @@ def build_parser() -> argparse.ArgumentParser:
 
     # start / s
     p_start = sub.add_parser("start", aliases=["s"], help="Start the MCP server")
-    p_start.add_argument("--host", default=None, help="Listen address (default: MCP_HOST or 0.0.0.0)")
+    p_start.add_argument(
+        "--host", default=None, help="Listen address (default: MCP_HOST or 0.0.0.0)"
+    )
     p_start.add_argument("--port", default=None, help="Listen port (default: MCP_PORT or 8399)")
     p_start.set_defaults(func=cmd_start)
 
     # monitor / m
     p_monitor = sub.add_parser("monitor", aliases=["m"], help="Launch the monitor TUI")
-    p_monitor.add_argument("url", nargs="?", default=None, help="Base URL of the MCP server (default: http://127.0.0.1:8399)")
+    p_monitor.add_argument(
+        "url",
+        nargs="?",
+        default=None,
+        help="Base URL of the MCP server (default: http://127.0.0.1:8399)",
+    )
     p_monitor.set_defaults(func=cmd_monitor)
 
     # purge / p
     p_purge = sub.add_parser("purge", aliases=["p"], help="Purge stored data")
-    p_purge.add_argument("scope", choices=["db", "vault", "all"], help="What to purge: db | vault | all")
+    p_purge.add_argument(
+        "scope", choices=["db", "vault", "all"], help="What to purge: db | vault | all"
+    )
     p_purge.add_argument("--confirm", "-y", action="store_true", help="Skip confirmation prompt")
     p_purge.set_defaults(func=cmd_purge)
 
@@ -913,7 +945,9 @@ def build_parser() -> argparse.ArgumentParser:
     pb_validate = pb_sub.add_parser("validate", help="Validate a playbook definition")
     pb_validate.add_argument("id", help="Playbook ID")
     pb_validate.add_argument("--definition", default=None, help="JSON string or file path")
-    pb_validate.add_argument("--for-publish", action="store_true", help="Apply stricter publish-time rules")
+    pb_validate.add_argument(
+        "--for-publish", action="store_true", help="Apply stricter publish-time rules"
+    )
     pb_validate.set_defaults(func=cmd_playbook_validate)
 
     pb_preview = pb_sub.add_parser("preview", help="Dry-run a playbook (no execution)")
@@ -944,13 +978,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     pb_export = pb_sub.add_parser("export", help="Export a playbook package")
     pb_export.add_argument("id", help="Playbook ID")
-    pb_export.add_argument("--out", default=None, help="Output file path (default: print to stdout)")
+    pb_export.add_argument(
+        "--out", default=None, help="Output file path (default: print to stdout)"
+    )
     pb_export.set_defaults(func=cmd_playbook_export)
 
     pb_import = pb_sub.add_parser("import", help="Import a playbook package")
     pb_import.add_argument("file", help="Package JSON file path")
-    pb_import.add_argument("--require-approval", action="store_true", default=True, help="Require approval before activation (default: true)")
-    pb_import.add_argument("--no-require-approval", dest="require_approval", action="store_false", help="Activate without approval")
+    pb_import.add_argument(
+        "--require-approval",
+        action="store_true",
+        default=True,
+        help="Require approval before activation (default: true)",
+    )
+    pb_import.add_argument(
+        "--no-require-approval",
+        dest="require_approval",
+        action="store_false",
+        help="Activate without approval",
+    )
     pb_import.set_defaults(func=cmd_playbook_import)
 
     pb_seed = pb_sub.add_parser("seed", help="Seed built-in YAML playbooks into the DB")
@@ -968,7 +1014,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     t_vis = tool_sub.add_parser("visibility", help="Set tool visibility")
     t_vis.add_argument("id", help="Tool ID")
-    t_vis.add_argument("visibility", help="Visibility mode: agent_callable | playbook_selectable | internal | hidden")
+    t_vis.add_argument(
+        "visibility",
+        help="Visibility mode: agent_callable | playbook_selectable | internal | hidden",
+    )
     t_vis.set_defaults(func=cmd_tool_visibility)
 
     # ── execution ────────────────────────────────────────────────
@@ -1005,12 +1054,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Open the Playbook Studio UI in a browser (starts the server if needed)",
     )
     p_studio.add_argument(
-        "url", nargs="?", default=None, help="MCP server or Studio URL (default: from MCP_HOST/MCP_PORT or STUDIO_PORT)"
+        "url",
+        nargs="?",
+        default=None,
+        help="MCP server or Studio URL (default: from MCP_HOST/MCP_PORT or STUDIO_PORT)",
     )
-    p_studio.add_argument("--host", default=None, help="Server host (default: MCP_HOST or 127.0.0.1)")
-    p_studio.add_argument("--port", default=None, help="Studio port (default: STUDIO_PORT or MCP_PORT)")
     p_studio.add_argument(
-        "--no-browser", "--no-open", dest="no_browser", action="store_true", help="Print the URL instead of opening a browser"
+        "--host", default=None, help="Server host (default: MCP_HOST or 127.0.0.1)"
+    )
+    p_studio.add_argument(
+        "--port", default=None, help="Studio port (default: STUDIO_PORT or MCP_PORT)"
+    )
+    p_studio.add_argument(
+        "--no-browser",
+        "--no-open",
+        dest="no_browser",
+        action="store_true",
+        help="Print the URL instead of opening a browser",
     )
     p_studio.set_defaults(func=cmd_studio)
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from kali_mcp.cli import cmd_init, main
@@ -46,7 +45,9 @@ class TestInitFresh:
         content = env_path.read_text()
         assert "MCP_API_TOKEN=" in content
         token = dict(
-            line.split("=", 1) for line in content.splitlines() if "=" in line and not line.startswith("#")
+            line.split("=", 1)
+            for line in content.splitlines()
+            if "=" in line and not line.startswith("#")
         )["MCP_API_TOKEN"]
         assert len(token) >= 32
 
@@ -69,7 +70,7 @@ class TestInitBackfill:
         assert rc == 0
         content = env_path.read_text()
         assert "MCP_HOST=127.0.0.1" in content  # untouched
-        token = [l for l in content.splitlines() if l.startswith("MCP_API_TOKEN=")][0]
+        token = next(l for l in content.splitlines() if l.startswith("MCP_API_TOKEN="))
         assert len(token.split("=", 1)[1]) >= 32
 
     def test_does_not_touch_a_set_token(self, tmp_path) -> None:
@@ -79,14 +80,14 @@ class TestInitBackfill:
         assert "MCP_API_TOKEN=existing_secret_value" in content
 
     def test_reports_complete_when_all_set(self, tmp_path) -> None:
-        rc, env_path = _init(tmp_path, existing_env="MCP_API_TOKEN=abc\n")
+        rc, _env_path = _init(tmp_path, existing_env="MCP_API_TOKEN=abc\n")
         assert rc == 0
 
     def test_idempotent(self, tmp_path) -> None:
         _init(tmp_path, existing_env="MCP_API_TOKEN=s\n")
-        first, env_path = _init(tmp_path, existing_env=None)
+        _first, env_path = _init(tmp_path, existing_env=None)
         before = env_path.read_text()
-        second, env_path = _init(tmp_path, existing_env=None)
+        _second, env_path = _init(tmp_path, existing_env=None)
         assert env_path.read_text() == before
 
 

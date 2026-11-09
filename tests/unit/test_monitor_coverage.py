@@ -51,7 +51,9 @@ class TestMonitorSnapshot:
             {"session_id": "sess-1", "connected_at": "t", "last_activity": "t", "client_info": {}}
         ]
         engine = MagicMock()
-        engine.get_active_jobs.return_value = [{"request_id": "req-1", "tool": "nmap", "elapsed_seconds": 1.0}]
+        engine.get_active_jobs.return_value = [
+            {"request_id": "req-1", "tool": "nmap", "elapsed_seconds": 1.0}
+        ]
         health = MagicMock()
         health.get_status.return_value = {"status": "healthy"}
 
@@ -247,7 +249,14 @@ class TestTuiLayout:
     def test_build_layout(self):
         snapshot = {
             "timestamp": "2026-11-03T12:00:00+00:00",
-            "sessions": [{"session_id": "sess-1", "connected_at": "10:00:00", "last_activity": "10:00:05", "client_info": {}}],
+            "sessions": [
+                {
+                    "session_id": "sess-1",
+                    "connected_at": "10:00:00",
+                    "last_activity": "10:00:05",
+                    "client_info": {},
+                }
+            ],
             "jobs": [{"request_id": "req-1", "tool": "nmap", "elapsed_seconds": 5.0}],
             "health": {"status": "healthy"},
         }

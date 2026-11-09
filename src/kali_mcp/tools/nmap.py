@@ -9,7 +9,7 @@ from kali_mcp.execution import engine
 from kali_mcp.models import ToolError
 from kali_mcp.responses import error_response, success_response
 from kali_mcp.tools.base import BaseTool
-from kali_mcp.validation import validate_cidr, validate_ip, validate_required, validate_timeout
+from kali_mcp.validation import validate_cidr, validate_ip, validate_timeout
 
 
 class NmapTool(BaseTool):
@@ -79,7 +79,7 @@ class NmapTool(BaseTool):
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         cmd = ["nmap"]
         cmd.append(arguments.get("scan_type", "-sV"))
-        if "ports" in arguments and arguments["ports"]:
+        if arguments.get("ports"):
             cmd.extend(["-p", str(arguments["ports"])])
         extra = arguments.get("extra_args")
         if extra:

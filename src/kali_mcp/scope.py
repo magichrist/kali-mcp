@@ -64,15 +64,15 @@ def load_scope() -> Scope:
     policy = os.getenv("MCP_SCOPE_POLICY", "safe_active").strip()
     expiration = os.getenv("MCP_SCOPE_EXPIRATION", "").strip() or None
 
-    allowed_targets = tuple(
-        t.strip() for t in allowed_raw.split(",") if t.strip()
-    ) if allowed_raw else tuple()
-    excluded_targets = tuple(
-        t.strip() for t in excluded_raw.split(",") if t.strip()
-    ) if excluded_raw else tuple()
-    allowed_operations = tuple(
-        o.strip() for o in ops_raw.split(",") if o.strip()
-    ) if ops_raw else tuple()
+    allowed_targets = (
+        tuple(t.strip() for t in allowed_raw.split(",") if t.strip()) if allowed_raw else ()
+    )
+    excluded_targets = (
+        tuple(t.strip() for t in excluded_raw.split(",") if t.strip()) if excluded_raw else ()
+    )
+    allowed_operations = (
+        tuple(o.strip() for o in ops_raw.split(",") if o.strip()) if ops_raw else ()
+    )
 
     return Scope(
         allowed_targets=allowed_targets,
@@ -122,9 +122,7 @@ def check_scope(
     if target:
         for pattern in scope.excluded_targets:
             if _matches_pattern(target, pattern):
-                raise ValueError(
-                    f"target '{target}' is excluded by scope pattern '{pattern}'"
-                )
+                raise ValueError(f"target '{target}' is excluded by scope pattern '{pattern}'")
 
     # Check allowed targets (if any are configured, target must match one)
     if scope.allowed_targets and target:
@@ -135,12 +133,11 @@ def check_scope(
             )
 
     # Check allowed operations (if any are configured, tool must be in list)
-    if scope.allowed_operations and tool_name:
-        if tool_name not in scope.allowed_operations:
-            raise ValueError(
-                f"operation '{tool_name}' is not in allowed scope operations: "
-                f"{', '.join(scope.allowed_operations)}"
-            )
+    if scope.allowed_operations and tool_name and tool_name not in scope.allowed_operations:
+        raise ValueError(
+            f"operation '{tool_name}' is not in allowed scope operations: "
+            f"{', '.join(scope.allowed_operations)}"
+        )
 
 
 def is_target_allowed(target: str | None, scope: Scope | None = None) -> bool:

@@ -94,14 +94,16 @@ class AssessmentDiffer:
                     "to": fb.get("validation_status"),
                 }
             if changes:
-                changed_findings.append({
-                    "finding_id": fb.get("id"),
-                    "title": fb.get("title"),
-                    "asset_id": fb.get("asset_id"),
-                    "changes": changes,
-                    "current": fb,
-                    "previous": fa,
-                })
+                changed_findings.append(
+                    {
+                        "finding_id": fb.get("id"),
+                        "title": fb.get("title"),
+                        "asset_id": fb.get("asset_id"),
+                        "changes": changes,
+                        "current": fb,
+                        "previous": fa,
+                    }
+                )
 
         # Assets
         ids_a = {a.get("asset_id") for a in assets_a}
@@ -111,7 +113,7 @@ class AssessmentDiffer:
 
         # Services
         svc_keys_a = {self._service_key(s) for s in services_a}
-        svc_keys_b = {self._service_key(s) for s in services_b}
+        {self._service_key(s) for s in services_b}
         new_services = [s for s in services_b if self._service_key(s) not in svc_keys_a]
 
         summary = {
@@ -197,4 +199,6 @@ class AssessmentDiffer:
 
     @staticmethod
     def _service_key(service: dict[str, Any]) -> str:
-        return f"{service.get('asset_id', '')}:{service.get('port', '')}/{service.get('protocol', '')}"
+        return (
+            f"{service.get('asset_id', '')}:{service.get('port', '')}/{service.get('protocol', '')}"
+        )

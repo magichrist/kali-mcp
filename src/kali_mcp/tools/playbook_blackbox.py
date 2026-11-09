@@ -191,9 +191,7 @@ class PlaybookRunTool(BaseTool):
     def validate(self, arguments: dict[str, Any]) -> None:
         # Accept aliases for playbook and target.
         playbook = (
-            arguments.get("playbook")
-            or arguments.get("playbook_id")
-            or arguments.get("name")
+            arguments.get("playbook") or arguments.get("playbook_id") or arguments.get("name")
         )
         template_id = arguments.get("template") or arguments.get("template_id")
         target = (
@@ -237,10 +235,7 @@ class PlaybookRunTool(BaseTool):
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         playbook = (
-            arguments.get("playbook")
-            or arguments.get("playbook_id")
-            or arguments.get("name")
-            or ""
+            arguments.get("playbook") or arguments.get("playbook_id") or arguments.get("name") or ""
         )
         template_id = arguments.get("template") or arguments.get("template_id") or ""
         target = (
@@ -257,9 +252,7 @@ class PlaybookRunTool(BaseTool):
 
     async def execute(self, arguments: dict[str, Any]) -> dict[str, Any]:
         playbook = (
-            arguments.get("playbook")
-            or arguments.get("playbook_id")
-            or arguments.get("name")
+            arguments.get("playbook") or arguments.get("playbook_id") or arguments.get("name")
         )
         template_id = arguments.get("template") or arguments.get("template_id")
         target = (
@@ -310,9 +303,11 @@ class PlaybookRunTool(BaseTool):
                 job_id=job_id,
             )
             STATUS = JOB_REGISTRY[job_id]
-            STATUS["status"] = assessment.get("execution", {}).get(
-                "status", "completed"
-            ) if isinstance(assessment.get("execution"), dict) else "completed"
+            STATUS["status"] = (
+                assessment.get("execution", {}).get("status", "completed")
+                if isinstance(assessment.get("execution"), dict)
+                else "completed"
+            )
             STATUS["result"] = assessment
             STATUS["finished_at"] = utc_now_iso()
             _truncate_payload(assessment)
@@ -323,9 +318,7 @@ class PlaybookRunTool(BaseTool):
 
         pb = get_playbook(playbook)
         est_timeout = int((pb.get("execution") or {}).get("timeout", 300))
-        wants_background = bool(
-            arguments.get("background", est_timeout > 300)
-        )
+        wants_background = bool(arguments.get("background", est_timeout > 300))
 
         if wants_background:
             asyncio.create_task(_run_background(job_id, run))
@@ -365,7 +358,8 @@ class PlaybookRunTool(BaseTool):
         }
         if detail == "full":
             payload["context"] = {
-                k: assessment.get(k) for k in ("evidence", "coverage", "module_results")
+                k: assessment.get(k)
+                for k in ("evidence", "coverage", "module_results")
                 if k in assessment
             }
 
@@ -475,9 +469,7 @@ class PlaybookRunTool(BaseTool):
 
     # ── Studio (DB) playbook execution (Phase 6) ─────────────────────
 
-    async def _execute_studio(
-        self, arguments: dict[str, Any], playbook: str
-    ) -> dict[str, Any]:
+    async def _execute_studio(self, arguments: dict[str, Any], playbook: str) -> dict[str, Any]:
         """Run a published Studio playbook through the DAG engine.
 
         Enforcement (06_MCP_ARCHITECTURE §6): when the request resolves to an
@@ -506,27 +498,25 @@ class PlaybookRunTool(BaseTool):
         execution_id = _new_id("wexec")
         job_id = _new_id("job")
         assessment_id = _new_id("assessment")
-        if profile is not None and not agent_context.is_playbook_assigned(
-            profile, playbook
-        ):
-            return _error_payload_text(
-                forbidden_playbook_payload(playbook, profile)
-            )
+        if profile is not None and not agent_context.is_playbook_assigned(profile, playbook):
+            return _error_payload_text(forbidden_playbook_payload(playbook, profile))
 
         try:
             defn, meta = _studio_run_definition(playbook, route_inputs)
         except ValueError as exc:
-            return error_response(
-                ToolError(error=exc.args[0] if exc.args else str(exc))
-            )
+            return error_response(ToolError(error=exc.args[0] if exc.args else str(exc)))
 
         if db is not None:
             try:
                 _record_studio_execution(
-                    db, execution_id, playbook, meta["version_id"], job_id,
-                    assessment_id, profile,
-                    {k: v for k, v in defn.inputs.items()
-                     if v == route_inputs.get(k)},
+                    db,
+                    execution_id,
+                    playbook,
+                    meta["version_id"],
+                    job_id,
+                    assessment_id,
+                    profile,
+                    {k: v for k, v in defn.inputs.items() if v == route_inputs.get(k)},
                 )
             except Exception:
                 logger.exception("workflow_execution record failed")
@@ -539,14 +529,18 @@ class PlaybookRunTool(BaseTool):
         except ScopeViolationError as exc:
             if db is not None:
                 db.update_workflow_execution(
-                    execution_id, status="failed", error=str(exc),
+                    execution_id,
+                    status="failed",
+                    error=str(exc),
                     completed_at=utc_now_iso(),
                 )
             return error_response(ToolError(error=f"scope violation: {exc}"))
         except Exception as exc:
             if db is not None:
                 db.update_workflow_execution(
-                    execution_id, status="failed", error=str(exc),
+                    execution_id,
+                    status="failed",
+                    error=str(exc),
                     completed_at=utc_now_iso(),
                 )
             logger.exception("studio playbook run failed: %s", playbook)
@@ -680,7 +674,7 @@ def _truncate_payload(assessment: dict[str, Any], limit: int = 5_000_000) -> Non
     for key in ("evidence", "module_results"):
         node = assessment.get(key)
         if isinstance(node, dict):
-            for sub_key in list(node.keys())[: -3]:
+            for sub_key in list(node.keys())[:-3]:
                 node.pop(sub_key)
 
 
@@ -726,15 +720,12 @@ def _studio_run_definition(
         raise ValueError(f"unknown playbook: {playbook_id}")
     if row.get("status") != "published":
         raise ValueError(
-            f"playbook {playbook_id!r} has no published version "
-            f"(status: {row.get('status')})"
+            f"playbook {playbook_id!r} has no published version (status: {row.get('status')})"
         )
     vid = row.get("current_version_id")
     version = db.get_playbook_version(vid) if vid is not None else None
     if not version:
-        raise ValueError(
-            f"playbook {playbook_id!r} is published but its version is missing"
-        )
+        raise ValueError(f"playbook {playbook_id!r} is published but its version is missing")
     definition = version.get("definition")
     if isinstance(definition, str):
         try:
@@ -754,9 +745,7 @@ def _studio_run_definition(
         if isinstance(spec, dict) and spec.get("required") and name not in merged
     )
     if missing:
-        raise ValueError(
-            f"missing required playbook inputs: {', '.join(missing)}"
-        )
+        raise ValueError(f"missing required playbook inputs: {', '.join(missing)}")
     return defn, {"version_id": version.get("id"), "version": version.get("version")}
 
 
@@ -914,16 +903,12 @@ class PlaybookCatalogTool(BaseTool):
                         if isinstance(definition, dict):
                             entry["description"] = definition.get("description", "")
                             if detail == "compact":
-                                entry["inputs"] = sorted(
-                                    (definition.get("inputs") or {}).keys()
-                                )
-                                entry["outputs"] = sorted(
-                                    (definition.get("outputs") or {}).keys()
-                                )
+                                entry["inputs"] = sorted((definition.get("inputs") or {}).keys())
+                                entry["outputs"] = sorted((definition.get("outputs") or {}).keys())
                             else:
                                 entry["definition"] = definition
-                            entry["estimated_duration"] = (
-                                (definition.get("execution") or {}).get("timeout", 300)
+                            entry["estimated_duration"] = (definition.get("execution") or {}).get(
+                                "timeout", 300
                             )
                     except Exception:  # noqa: BLE001 — unparsable definition never blocks the catalog
                         logger.debug(
@@ -946,8 +931,12 @@ class PlaybookCatalogTool(BaseTool):
         playbooks = list_playbooks()
         if detail == "compact":
             playbooks = [
-                {"id": p["id"], "name": p["name"], "description": p["description"],
-                 "estimated_duration": p.get("estimated_duration", 300)}
+                {
+                    "id": p["id"],
+                    "name": p["name"],
+                    "description": p["description"],
+                    "estimated_duration": p.get("estimated_duration", 300),
+                }
                 for p in playbooks
             ]
         payload = {"playbooks": playbooks, "count": len(playbooks)}
@@ -1100,8 +1089,7 @@ class PlaybookResultTool(BaseTool):
                     "job_id": key,
                     "status": "found",
                     "candidate_rows": [
-                        {"category": r.get("category"), "name": r.get("name")}
-                        for r in rows[:5]
+                        {"category": r.get("category"), "name": r.get("name")} for r in rows[:5]
                     ],
                     "next_actions": [
                         "Use playbook_result with the job_id (row name) of a candidate."

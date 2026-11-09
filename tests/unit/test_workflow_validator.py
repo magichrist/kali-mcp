@@ -57,7 +57,14 @@ class TestHappyPath:
     def test_dangling_step_reference_is_error(self) -> None:
         # "{{steps.ghost.field}}" refers to a step that does not exist at all.
         step = StepDefinition(id="probe", tool="dnsx", args={"target": "{{steps.ghost.field}}"})
-        defn = _defn(steps=[step], raw={"steps": [{"id": "probe", "tool": "dnsx", "args": {"target": "{{steps.ghost.field}}"}}]})
+        defn = _defn(
+            steps=[step],
+            raw={
+                "steps": [
+                    {"id": "probe", "tool": "dnsx", "args": {"target": "{{steps.ghost.field}}"}}
+                ]
+            },
+        )
         findings = validate_playbook(defn, tool_catalog=FAKE_TOOLS)
         assert not is_valid(findings)
         assert _severity(findings, "ghost") in {"error", None}
@@ -73,8 +80,9 @@ class TestGraphIntegrity:
         defn = _defn(steps=steps)
         findings = validate_playbook(defn, tool_catalog=FAKE_TOOLS)
         assert not is_valid(findings)
-        assert any("dup" in str(f.get("step_id")) or "dup" in str(f.get("message", ""))
-                   for f in findings)
+        assert any(
+            "dup" in str(f.get("step_id")) or "dup" in str(f.get("message", "")) for f in findings
+        )
 
     def test_bad_depends_on_error(self) -> None:
         steps = [StepDefinition(id="a", tool="dnsx", depends_on=["missing_step"])]
@@ -201,17 +209,26 @@ class TestForEach:
         # order, so referencing a non-dependency step must be an error.
         steps = [
             StepDefinition(id="dns", tool="dnsx"),
-            StepDefinition(id="iter", tool="nmap", foreach="{{steps.later.items}}",
-                           depends_on=["dns"]),
+            StepDefinition(
+                id="iter", tool="nmap", foreach="{{steps.later.items}}", depends_on=["dns"]
+            ),
             StepDefinition(id="later", tool="httpx"),
         ]
-        defn = _defn(steps=steps, raw={
-            "steps": [
-                {"id": "dns", "tool": "dnsx"},
-                {"id": "iter", "tool": "nmap", "foreach": "{{steps.later.items}}", "depends_on": ["dns"]},
-                {"id": "later", "tool": "httpx"},
-            ]
-        })
+        defn = _defn(
+            steps=steps,
+            raw={
+                "steps": [
+                    {"id": "dns", "tool": "dnsx"},
+                    {
+                        "id": "iter",
+                        "tool": "nmap",
+                        "foreach": "{{steps.later.items}}",
+                        "depends_on": ["dns"],
+                    },
+                    {"id": "later", "tool": "httpx"},
+                ]
+            },
+        )
         findings = validate_playbook(defn, tool_catalog=FAKE_TOOLS)
         assert not is_valid(findings)
 
@@ -223,8 +240,11 @@ class TestEscalationMode:
         assert is_valid(findings)
 
     def test_for_publish_no_catalog_is_error(self) -> None:
-        findings = validate_playbook(_defn(steps=[StepDefinition(id="p", tool="weird_tool")]),
-                                     tool_catalog=None, for_publish=True)
+        findings = validate_playbook(
+            _defn(steps=[StepDefinition(id="p", tool="weird_tool")]),
+            tool_catalog=None,
+            for_publish=True,
+        )
         assert not is_valid(findings)
 
 
@@ -235,12 +255,17 @@ class TestSpecExampleShape:
             StepDefinition(id="validate", tool="dnsx"),
             StepDefinition(id="scope", tool="dnsx", depends_on=["validate"]),
             StepDefinition(id="dns", tool="dnsx", depends_on=["scope"]),
-            StepDefinition(id="correlate", tool="httpx", depends_on=["dns"],
-                           args={"data": "{{steps.dns.resolved_ips}}"}),
+            StepDefinition(
+                id="correlate",
+                tool="httpx",
+                depends_on=["dns"],
+                args={"data": "{{steps.dns.resolved_ips}}"},
+            ),
         ]
         defn = _defn(name="custom.domain_recon", steps=steps)
-        findings = validate_playbook(defn, tool_catalog=FAKE_TOOLS,
-                                     module_catalog=["target.validate", "dns.resolve"])
+        findings = validate_playbook(
+            defn, tool_catalog=FAKE_TOOLS, module_catalog=["target.validate", "dns.resolve"]
+        )
         assert is_valid(findings), format_findings(findings)
 
 
@@ -283,7 +308,8 @@ class TestOutputContract:
             assert set(f) >= {"severity", "step_id", "field", "message"}
 
     def test_format_findings_rendering(self) -> None:
-        findings = validate_playbook(_defn(steps=[StepDefinition(id="a", tool="nmapx"),
-                                                    StepDefinition(id="a", tool="dnsx")]))
+        findings = validate_playbook(
+            _defn(steps=[StepDefinition(id="a", tool="nmapx"), StepDefinition(id="a", tool="dnsx")])
+        )
         rendered = format_findings(findings)
         assert rendered  # something renders

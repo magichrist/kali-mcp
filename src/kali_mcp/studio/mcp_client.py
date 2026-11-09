@@ -25,8 +25,9 @@ from typing import Any
 
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-from mcp.client.streamable_http import streamablehttp_client
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamablehttp_client
+from typing_extensions import Self
 
 logger = logging.getLogger("kali_mcp.studio.mcp_client")
 
@@ -39,7 +40,9 @@ _SECRET_PATTERNS = [
     re.compile(r"\b[A-Za-z0-9+/]{20,}={0,2}"),  # base64-ish tokens
     re.compile(r"\b(sk|pk|ghp|xoxb|xoxp|glpat|sk_live|sk_test)_[A-Za-z0-9]{10,}\b"),
     re.compile(r"\b[A-Fa-f0-9]{32,64}\b"),  # hex digests / keys
-    re.compile(r"\b(password|secret|token|api_key|apikey|private_key)\b\s*[:=]\s*\S+", re.I),
+    re.compile(
+        r"\b(password|secret|token|api_key|apikey|private_key)\b\s*[:=]\s*\S+", re.IGNORECASE
+    ),
 ]
 
 
@@ -97,7 +100,7 @@ class ExternalMCPClient:
 
     # ── context manager ──────────────────────────────────────────────────
 
-    async def __aenter__(self) -> "ExternalMCPClient":
+    async def __aenter__(self) -> Self:
         await self.connect()
         return self
 
@@ -123,9 +126,7 @@ class ExternalMCPClient:
             else:  # streamable-http
                 if self.url is None:
                     raise MCPClientError("streamable-http requires a url")
-                transport_cm = streamablehttp_client(
-                    url=self.url, headers=self.headers
-                )
+                transport_cm = streamablehttp_client(url=self.url, headers=self.headers)
 
             # The transport factories return async context managers; enter
             # them explicitly and store for cleanup in disconnect().
@@ -135,10 +136,8 @@ class ExternalMCPClient:
             await self._session.__aenter__()
             await self._session.initialize()
             self._connected = True
-            logger.info(
-                "Connected to external MCP server (transport=%s)", self.transport
-            )
-        except Exception as exc:  # noqa: BLE001 — wrap into MCPClientError
+            logger.info("Connected to external MCP server (transport=%s)", self.transport)
+        except Exception as exc:
             await self.disconnect()
             raise MCPClientError(f"failed to connect: {exc}") from exc
 
@@ -171,12 +170,10 @@ class ExternalMCPClient:
             raise MCPClientError("not connected")
 
         try:
-            result = await asyncio.wait_for(
-                self._session.list_tools(), timeout=self.timeout
-            )
+            result = await asyncio.wait_for(self._session.list_tools(), timeout=self.timeout)
         except asyncio.TimeoutError as exc:
             raise MCPClientError("list_tools timed out") from exc
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise MCPClientError(f"list_tools failed: {exc}") from exc
 
         tools: list[dict[str, Any]] = []
@@ -192,9 +189,7 @@ class ExternalMCPClient:
 
     # ── execution ────────────────────────────────────────────────────────
 
-    async def call_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Call a tool on the external server and return a redacted result.
 
         The result is passed through :func:`redact_result` before returning,
@@ -209,7 +204,7 @@ class ExternalMCPClient:
             )
         except asyncio.TimeoutError as exc:
             raise MCPClientError(f"call_tool {name} timed out") from exc
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise MCPClientError(f"call_tool {name} failed: {exc}") from exc
 
         # Normalize MCP result into a dict
@@ -240,7 +235,16 @@ def redact_result(result: dict[str, Any]) -> dict[str, Any]:
     for key, value in result.items():
         key_lower = str(key).lower()
         is_secret_key = any(
-            kw in key_lower for kw in ("secret", "token", "password", "api_key", "apikey", "private_key", "credential")
+            kw in key_lower
+            for kw in (
+                "secret",
+                "token",
+                "password",
+                "api_key",
+                "apikey",
+                "private_key",
+                "credential",
+            )
         )
         if is_secret_key and isinstance(value, (str, int, float, bool)):
             redacted[key] = "***REDACTED***"
@@ -263,8 +267,8 @@ def _redact_string(text: str) -> str:
 
 
 __all__ = [
+    "DEFAULT_TIMEOUT",
     "ExternalMCPClient",
     "MCPClientError",
     "redact_result",
-    "DEFAULT_TIMEOUT",
 ]

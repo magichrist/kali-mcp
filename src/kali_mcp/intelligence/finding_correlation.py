@@ -90,9 +90,7 @@ class FindingCorrelator:
 
     # ── public API ────────────────────────────────────────────────────
 
-    def correlate(
-        self, observations: list[dict], ctx: Any | None = None
-    ) -> list[Finding]:
+    def correlate(self, observations: list[dict], ctx: Any | None = None) -> list[Finding]:
         """Correlate a list of raw observations into merged findings.
 
         Args:
@@ -108,13 +106,16 @@ class FindingCorrelator:
         """
         groups = self._group_similar(observations)
         findings: list[Finding] = []
-        for key, group in groups.items():
+        for group in groups.values():
             finding = self._merge_group(group)
             findings.append(finding)
 
         # Sort by severity then confidence for deterministic output
         severity_order = {
-            "critical": 0, "high": 1, "medium": 2, "low": 3,
+            "critical": 0,
+            "high": 1,
+            "medium": 2,
+            "low": 3,
             "informational": 4,
         }
         findings.sort(
@@ -194,7 +195,9 @@ class FindingCorrelator:
 
         # Confidence: base 0.5 + 0.1 per additional source, capped at 0.99
         num_sources = len(source_tools)
-        confidence = min(self.MAX_CONFIDENCE, self.BASE_CONFIDENCE + (num_sources - 1) * self.CORROBORATION_BONUS)
+        confidence = min(
+            self.MAX_CONFIDENCE, self.BASE_CONFIDENCE + (num_sources - 1) * self.CORROBORATION_BONUS
+        )
         # If an observation had a higher explicit confidence, respect it
         for obs in group:
             explicit = obs.get("confidence")

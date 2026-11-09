@@ -55,9 +55,7 @@ def _seed_profile(db, profile_id="p1", tool="nmap", playbook=None):
 class TestResolveProfileFromHeaders:
     def test_valid_profile_resolves(self, patch_db):
         _seed_profile(patch_db, "p1")
-        assert agent_context.resolve_profile_from_headers(
-            {HEADER_PROFILE: "p1"}
-        ) == "p1"
+        assert agent_context.resolve_profile_from_headers({HEADER_PROFILE: "p1"}) == "p1"
 
     def test_missing_header_is_no_context(self, patch_db):
         assert agent_context.resolve_profile_from_headers({}) is None
@@ -66,18 +64,14 @@ class TestResolveProfileFromHeaders:
         assert agent_context.resolve_profile_from_headers(None) is None
 
     def test_unknown_profile_is_ignored(self, patch_db):
-        assert agent_context.resolve_profile_from_headers(
-            {HEADER_PROFILE: "ghost-profile"}
-        ) is None
+        assert agent_context.resolve_profile_from_headers({HEADER_PROFILE: "ghost-profile"}) is None
 
     def test_empty_header_is_ignored(self, patch_db):
         assert agent_context.resolve_profile_from_headers({HEADER_PROFILE: "  "}) is None
 
     def test_db_unavailable_is_no_context(self, monkeypatch):
         monkeypatch.setattr(db_manager, "get_db", lambda: None)
-        assert agent_context.resolve_profile_from_headers(
-            {HEADER_PROFILE: "p1"}
-        ) is None
+        assert agent_context.resolve_profile_from_headers({HEADER_PROFILE: "p1"}) is None
 
 
 def _bind_config_profile(profile_id: str):
@@ -224,17 +218,13 @@ class TestDbManagerHelpers:
         db.grant_tool_permission("p1", "sqlmap", granted=False)
         all_rows = db.list_tool_permission_rows("p1")
         assert len(all_rows) == 2
-        granted_ids = {
-            r["tool_id"] for r in db.list_tool_permission_rows("p1", granted_only=True)
-        }
+        granted_ids = {r["tool_id"] for r in db.list_tool_permission_rows("p1", granted_only=True)}
         assert granted_ids == {"nmap"}
 
     def test_list_playbook_assignments(self, db):
         _seed_profile(db, "p1", playbook="pb.ok")
         rows = db.list_playbook_assignments("p1")
-        assert rows == [
-            {"playbook_id": "pb.ok", "granted": 1, "granted_at": rows[0]["granted_at"]}
-        ]
+        assert rows == [{"playbook_id": "pb.ok", "granted": 1, "granted_at": rows[0]["granted_at"]}]
 
     def test_list_helpers_for_unknown_profile(self, db):
         assert db.list_tool_permission_rows("nobody") == []
