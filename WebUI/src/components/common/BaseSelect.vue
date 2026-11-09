@@ -22,7 +22,7 @@ const emit = defineEmits(["update:modelValue"]);
     class="select"
     :value="modelValue ?? ''"
     :disabled="disabled"
-    @change="$emit('update:modelValue', $event.target.value)"
+    @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
   >
     <option value="">{{ placeholder || "" }}</option>
     <option v-for="opt in options" :key="opt.value" :value="opt.value">
