@@ -44,7 +44,7 @@ def _setup_db(tmp_path, monkeypatch):
 
 class TestStoreEvidenceExtended:
     def test_writes_artifact_file_and_records_row(self, tmp_path, monkeypatch):
-        db = _setup_db(tmp_path, monkeypatch)
+        _setup_db(tmp_path, monkeypatch)
 
         evidence_id = store_evidence(
             tool="nmap",
@@ -58,11 +58,7 @@ class TestStoreEvidenceExtended:
         assert re.fullmatch(r"evidence_[0-9a-f]{12}", evidence_id)
 
         # File was written under the evidence dir.
-        files = list(
-            (tmp_path / "artifacts" / "evidence").rglob(
-                f"{evidence_id}_*.txt"
-            )
-        )
+        files = list((tmp_path / "artifacts" / "evidence").rglob(f"{evidence_id}_*.txt"))
         assert len(files) == 1
         assert files[0].read_text() == "Nmap scan report for 127.0.0.1\n"
 
@@ -80,7 +76,7 @@ class TestStoreEvidenceExtended:
         assert "captured_at" in row
 
     def test_stderr_artifact_type(self, tmp_path, monkeypatch):
-        db = _setup_db(tmp_path, monkeypatch)
+        _setup_db(tmp_path, monkeypatch)
 
         evidence_id = store_evidence(
             tool="nmap",
@@ -95,7 +91,7 @@ class TestStoreEvidenceExtended:
         assert row["artifact_type"] == "stderr"
 
     def test_file_content_persists(self, tmp_path, monkeypatch):
-        db = _setup_db(tmp_path, monkeypatch)
+        _setup_db(tmp_path, monkeypatch)
 
         content = "multi\nline\ncontent\n"
         evidence_id = store_evidence(
@@ -105,11 +101,7 @@ class TestStoreEvidenceExtended:
             content=content,
         )
 
-        files = list(
-            (tmp_path / "artifacts" / "evidence").rglob(
-                f"{evidence_id}_*.txt"
-            )
-        )
+        files = list((tmp_path / "artifacts" / "evidence").rglob(f"{evidence_id}_*.txt"))
         assert len(files) == 1
         assert files[0].read_text() == content
 
