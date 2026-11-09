@@ -85,8 +85,24 @@ def _is_structured_condition(condition: str) -> bool:
     Rejected: anything resembling shell execution, backticks, $(), etc.
     """
     # Reject shell-ish constructs
-    dangerous = ["$", "`", "(", ")", "exec", "eval", "import", "__", "subprocess",
-                 "os.", "sys.", "open(", "write(", "rm ", "curl ", "wget "]
+    dangerous = [
+        "$",
+        "`",
+        "(",
+        ")",
+        "exec",
+        "eval",
+        "import",
+        "__",
+        "subprocess",
+        "os.",
+        "sys.",
+        "open(",
+        "write(",
+        "rm ",
+        "curl ",
+        "wget ",
+    ]
     lower = condition.lower()
     for d in dangerous:
         if d in lower:
@@ -159,14 +175,14 @@ def load_playbook(source: str | dict[str, Any]) -> PlaybookDefinition:
         # Backward-compatible: legacy playbooks use {"tools": [{tool, args}, ...]};
         # canonical format uses {"tool": ..., "args": ...} per step.
         tool = step_raw.get("tool")
-        args = step_raw.get("args", {}) or {}
+        step_raw.get("args", {}) or {}
         if tool is None:
             tools = step_raw.get("tools")
             if isinstance(tools, (list, tuple)) and tools:
                 first = tools[0]
                 if isinstance(first, Mapping):
                     tool = first.get("tool")
-                    args = first.get("args", {}) or {}
+                    first.get("args", {}) or {}
 
         step = StepDefinition(
             id=step_id,
