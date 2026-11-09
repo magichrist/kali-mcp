@@ -16,10 +16,15 @@ def _workflow_run_status() -> dict:
 
     return RUN_STATUS
 
+
 BUILTIN_PLAYBOOKS: dict[str, dict[str, Any]] = {
     "playbook_recon": {
         "description": "External recon: validate → subfinder → httpx → masscan → whatweb+nmap (parallel) → nuclei → correlate → report",
-        "input": {"target": "domain or host", "skip_nuclei": "optional bool", "resume": "optional bool"},
+        "input": {
+            "target": "domain or host",
+            "skip_nuclei": "optional bool",
+            "resume": "optional bool",
+        },
         "workflow": "external_recon",
     },
     "playbook_webapp": {
@@ -29,7 +34,11 @@ BUILTIN_PLAYBOOKS: dict[str, dict[str, Any]] = {
     },
     "playbook_ad": {
         "description": "AD: validate → enum4linux → bloodhound → netexec+crackmapexec (parallel) → correlate → report",
-        "input": {"target": "DC host/IP", "domain": "optional AD domain", "resume": "optional bool"},
+        "input": {
+            "target": "DC host/IP",
+            "domain": "optional AD domain",
+            "resume": "optional bool",
+        },
         "workflow": "ad_assessment",
     },
 }
