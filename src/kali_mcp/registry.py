@@ -67,8 +67,7 @@ class ToolRegistry:
         """
         if visibility not in VISIBILITY_MODES:
             raise ValueError(
-                f"invalid visibility {visibility!r}; expected one of "
-                f"{sorted(VISIBILITY_MODES)}"
+                f"invalid visibility {visibility!r}; expected one of {sorted(VISIBILITY_MODES)}"
             )
         if tool.name in self._tools:
             logger.warning("Overwriting tool: %s", tool.name)
@@ -107,20 +106,15 @@ class ToolRegistry:
         """
         if visibility not in VISIBILITY_MODES:
             raise ValueError(
-                f"invalid visibility {visibility!r}; expected one of "
-                f"{sorted(VISIBILITY_MODES)}"
+                f"invalid visibility {visibility!r}; expected one of {sorted(VISIBILITY_MODES)}"
             )
         order = ["hidden", "internal", "playbook_selectable", "agent_callable"]
         min_rank = order.index(visibility)
         return [
-            defn.tool
-            for defn in self._tools.values()
-            if order.index(defn.visibility) >= min_rank
+            defn.tool for defn in self._tools.values() if order.index(defn.visibility) >= min_rank
         ]
 
-    def visible_tool_names(
-        self, visibility: str = DEFAULT_VISIBILITY
-    ) -> list[str]:
+    def visible_tool_names(self, visibility: str = DEFAULT_VISIBILITY) -> list[str]:
         """Return tool names visible at the given visibility mode."""
         return [t.name for t in self.visible_tools(visibility)]
 
@@ -131,8 +125,7 @@ class ToolRegistry:
         """
         if visibility not in VISIBILITY_MODES:
             raise ValueError(
-                f"invalid visibility {visibility!r}; expected one of "
-                f"{sorted(VISIBILITY_MODES)}"
+                f"invalid visibility {visibility!r}; expected one of {sorted(VISIBILITY_MODES)}"
             )
         defn = self._tools.get(name)
         if defn is None:
@@ -158,9 +151,9 @@ class ToolRegistry:
 registry = ToolRegistry()
 
 __all__ = [
-    "ToolRegistry",
-    "ToolDefinition",
-    "registry",
-    "VISIBILITY_MODES",
     "DEFAULT_VISIBILITY",
+    "VISIBILITY_MODES",
+    "ToolDefinition",
+    "ToolRegistry",
+    "registry",
 ]
