@@ -25,8 +25,8 @@ const routes: RouteRecordRaw[] = [
   {
     path: "/playbooks/:id",
     name: "playbook-editor",
-    component: () => import("@/pages/PlaybooksPage.vue"),
-    meta: { title: "Playbook Studio", crumb: "Playbooks" },
+    component: () => import("@/features/playbook-editor/EditorPage.vue"),
+    meta: { title: "Playbook Editor", crumb: "Editor" },
   },
   {
     path: "/executions",
