@@ -7,13 +7,11 @@ const props = defineProps<{
   items: unknown[];
   rowRenderer?: (item: unknown) => { cells: Array<string | { html: string }>; menu?: string };
   emptyText?: string;
-  class?: string;
-  style?: CSSProperties;
 }>();
 
 type Cell = string | { html: string };
 
-const computedColumns = computed(() => props.columns.length.map(() => "minmax(0,1fr)"));
+const gridCols = computed(() => `repeat(${props.columns.length}, minmax(0,1fr)) auto`);
 
 const computedRows = computed(() => {
   if (!props.rowRenderer || !props.items.length) {
@@ -34,12 +32,12 @@ function renderCell(cell: Cell): string {
 </script>
 
 <template>
-  <div class="panel table-panel" :class="class" :style="style">
+  <div class="panel table-panel">
     <div v-if="computedRows.length === 0" class="empty">
       {{ emptyText || "Nothing here yet." }}
     </div>
     <div v-else>
-      <div class="table-head" :style="{ 'grid-template-columns': `${computedColumns.join(" ")} auto` }">
+      <div class="table-head" :style="{ 'grid-template-columns': gridCols }">
         <span v-for="col in props.columns" :key="col.key">{{ col.label }}</span>
         <span></span>
       </div>
@@ -47,7 +45,7 @@ function renderCell(cell: Cell): string {
         v-for="(row, i) in computedRows"
         :key="i"
         class="table-row"
-        :style="{ 'grid-template-columns': `${computedColumns.join(" ")} auto` }"
+        :style="{ 'grid-template-columns': gridCols }"
       >
         <span v-for="(cell, ci) in row.cells" :key="ci">
           {{ renderCell(cell) }}
