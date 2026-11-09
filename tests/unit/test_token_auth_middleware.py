@@ -50,9 +50,7 @@ TOKEN = "secret-token"
 
 @pytest.fixture
 def mw():
-    return TokenAuthMiddleware(
-        app=AsyncMock(), token=TOKEN, open_paths=("/studio",)
-    )
+    return TokenAuthMiddleware(app=AsyncMock(), token=TOKEN, open_paths=("/studio",))
 
 
 class TestOpenPathPassthrough:
