@@ -39,6 +39,11 @@ const assignPlaybookId = ref("");
 
 const deleteConfirm = ref(false);
 
+function openGrantModal() { grantModal.value = true; }
+function closeGrantModal() { grantModal.value = false; }
+function openAssignModal() { assignModal.value = true; }
+function closeAssignModal() { assignModal.value = false; }
+
 /* ── actions ── */
 async function load(): Promise<void> {
   if (!id.value) return;
@@ -167,7 +172,7 @@ onMounted(() => {
     <div class="panel" style="min-height:140px; margin-top:14px">
       <div class="panel-head">
         <span>Tool grants</span>
-        <BaseButton size="sm" variant="ghost" @click="() => (grantModal.value = true)">Grant tool</BaseButton>
+        <BaseButton size="sm" variant="ghost" @click="openGrantModal">Grant tool</BaseButton>
       </div>
       <div style="padding:8px">
         <div v-if="!(agent.permissions || []).length" class="empty">No tool grants yet. Grant one to allow this agent to call a tool.</div>
@@ -202,7 +207,7 @@ onMounted(() => {
     <div class="panel" style="min-height:140px; margin-top:14px">
       <div class="panel-head">
         <span>Playbook assignments</span>
-        <BaseButton size="sm" variant="ghost" @click="() => (assignModal.value = true)">Assign playbook</BaseButton>
+        <BaseButton size="sm" variant="ghost" @click="openAssignModal">Assign playbook</BaseButton>
       </div>
       <div style="padding:8px">
         <div v-if="!(agent.assignments || []).length" class="empty">No playbook assignments yet.</div>
@@ -242,8 +247,8 @@ onMounted(() => {
       <BaseInput v-model="grantToolId" placeholder="nmap" />
     </div>
     <template #footer>
-      <BaseButton @click="() => (grantModal.value = false)">Cancel</BaseButton>
-      <BaseButton variant="primary" :disabled="granting || !grantToolId.value" @click="handleGrant">Grant</BaseButton>
+      <BaseButton @click="closeGrantModal">Cancel</BaseButton>
+      <BaseButton variant="primary" :disabled="granting || !grantToolId" @click="handleGrant">Grant</BaseButton>
     </template>
   </BaseModal>
 
@@ -254,8 +259,8 @@ onMounted(() => {
       <BaseInput v-model="assignPlaybookId" placeholder="my_playbook" />
     </div>
     <template #footer>
-      <BaseButton @click="() => (assignModal.value = false)">Cancel</BaseButton>
-      <BaseButton variant="primary" :disabled="assigning || !assignPlaybookId.value" @click="handleAssign">Assign</BaseButton>
+      <BaseButton @click="closeAssignModal">Cancel</BaseButton>
+      <BaseButton variant="primary" :disabled="assigning || !assignPlaybookId" @click="handleAssign">Assign</BaseButton>
     </template>
   </BaseModal>
 </template>
