@@ -101,6 +101,7 @@ _REF_BODY_RE = re.compile(
     r"^(?:"
     r"(?P<target>target)"
     r"|inputs\.(?P<input>[A-Za-z_][A-Za-z0-9_]*)"
+    r"|options\.(?P<option>[A-Za-z_][A-Za-z0-9_]*)(?P<ofields>(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
     r"|steps\.(?P<step>[A-Za-z_][A-Za-z0-9_]*)(?P<fields>(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
     r")$"
 )
@@ -1040,6 +1041,43 @@ def _check_reference(
             )
         return
 
+    if kind == "options":
+        name = parsed[1]
+        nested_fields = parsed[2:]
+        spec = context.input_specs.get(name)
+        if spec is None:
+            hint = _suggestion(name, set(context.input_specs))
+            findings.append(
+                _finding(
+                    "error",
+                    consumer,
+                    field,
+                    f"reference to undeclared option input {name!r}{hint}",
+                )
+            )
+            return
+        if spec.type not in (None, "object"):
+            findings.append(
+                _finding(
+                    "error",
+                    consumer,
+                    field,
+                    f"option input {name!r} is declared as {spec.type!r}, expected object",
+                )
+            )
+            return
+        if nested_fields:
+            findings.append(
+                _finding(
+                    "warning",
+                    consumer,
+                    field,
+                    f"cannot verify nested option field {nested_fields[0]!r} on {name!r}: "
+                    "input schema properties are not available for validation",
+                )
+            )
+        return
+
     step_id = parsed[1]
     nested_fields = parsed[2:]
     if step_id not in context.step_ids:
@@ -1101,6 +1139,9 @@ def _parse_reference(body: str) -> tuple[str, ...] | None:
         return ("target",)
     if match.group("input"):
         return ("inputs", match.group("input"))
+    if match.group("option"):
+        ofields = tuple(part for part in (match.group("ofields") or "").split(".") if part)
+        return ("options", match.group("option"), *ofields)
     fields = tuple(part for part in match.group("fields").split(".") if part)
     step_id = match.group("step")
     return ("steps", step_id, *fields)
