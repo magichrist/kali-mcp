@@ -88,21 +88,43 @@ class TestUpsertGet:
 
 class TestList:
     def test_list_all(self, db):
-        upsert_tool_definition(db, tool_id="a", name="a", provider=PROVIDER_NATIVE, visibility="agent_callable")
-        upsert_tool_definition(db, tool_id="b", name="b", provider=PROVIDER_NATIVE, visibility="internal")
+        upsert_tool_definition(
+            db, tool_id="a", name="a", provider=PROVIDER_NATIVE, visibility="agent_callable"
+        )
+        upsert_tool_definition(
+            db, tool_id="b", name="b", provider=PROVIDER_NATIVE, visibility="internal"
+        )
         rows = list_tool_definitions(db)
         assert len(rows) == 2
 
     def test_list_by_visibility(self, db):
-        upsert_tool_definition(db, tool_id="a", name="a", provider=PROVIDER_NATIVE, visibility="agent_callable")
-        upsert_tool_definition(db, tool_id="b", name="b", provider=PROVIDER_NATIVE, visibility="internal")
+        upsert_tool_definition(
+            db, tool_id="a", name="a", provider=PROVIDER_NATIVE, visibility="agent_callable"
+        )
+        upsert_tool_definition(
+            db, tool_id="b", name="b", provider=PROVIDER_NATIVE, visibility="internal"
+        )
         rows = list_tool_definitions(db, visibility="internal")
         assert len(rows) == 1
         assert rows[0]["tool_id"] == "b"
 
     def test_list_by_enabled(self, db):
-        upsert_tool_definition(db, tool_id="a", name="a", provider=PROVIDER_NATIVE, visibility="agent_callable", enabled=True)
-        upsert_tool_definition(db, tool_id="b", name="b", provider=PROVIDER_NATIVE, visibility="agent_callable", enabled=False)
+        upsert_tool_definition(
+            db,
+            tool_id="a",
+            name="a",
+            provider=PROVIDER_NATIVE,
+            visibility="agent_callable",
+            enabled=True,
+        )
+        upsert_tool_definition(
+            db,
+            tool_id="b",
+            name="b",
+            provider=PROVIDER_NATIVE,
+            visibility="agent_callable",
+            enabled=False,
+        )
         rows = list_tool_definitions(db, enabled=True)
         assert len(rows) == 1
         assert rows[0]["tool_id"] == "a"
@@ -110,7 +132,9 @@ class TestList:
 
 class TestVisibility:
     def test_set_tool_visibility(self, db):
-        upsert_tool_definition(db, tool_id="nmap", name="nmap", provider=PROVIDER_NATIVE, visibility="agent_callable")
+        upsert_tool_definition(
+            db, tool_id="nmap", name="nmap", provider=PROVIDER_NATIVE, visibility="agent_callable"
+        )
         assert set_tool_visibility(db, "nmap", "internal") is True
         row = get_tool_definition(db, "nmap")
         assert row["visibility"] == "internal"
@@ -125,7 +149,14 @@ class TestVisibility:
             )
 
     def test_enable_tool(self, db):
-        upsert_tool_definition(db, tool_id="nmap", name="nmap", provider=PROVIDER_NATIVE, visibility="agent_callable", enabled=True)
+        upsert_tool_definition(
+            db,
+            tool_id="nmap",
+            name="nmap",
+            provider=PROVIDER_NATIVE,
+            visibility="agent_callable",
+            enabled=True,
+        )
         assert enable_tool(db, "nmap", False) is True
         row = get_tool_definition(db, "nmap")
         assert row["enabled"] == 0
@@ -153,7 +184,6 @@ class TestSyncRegistryToDb:
 
 class TestImportExternalMcp:
     def test_import_external_mcp_tools_sync(self, db, monkeypatch):
-        import kali_mcp.studio.service_tools as st
 
         # Fake client that returns tools without connecting
         class FakeClient:
@@ -162,12 +192,18 @@ class TestImportExternalMcp:
                     {
                         "name": "read_file",
                         "description": "Read a file",
-                        "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}},
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"path": {"type": "string"}},
+                        },
                     },
                     {
                         "name": "list_dir",
                         "description": "List a directory",
-                        "inputSchema": {"type": "object", "properties": {"dir": {"type": "string"}}},
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {"dir": {"type": "string"}},
+                        },
                     },
                 ]
 
