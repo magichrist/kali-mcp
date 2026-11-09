@@ -148,9 +148,7 @@ def run_playbook(playbook: dict[str, Any], resume: bool = False) -> ExecutionRes
     return asyncio.run(eng.run(playbook, resume=resume))
 
 
-async def run_playbook_async(
-    playbook: dict[str, Any], resume: bool = False
-) -> ExecutionResult:
+async def run_playbook_async(playbook: dict[str, Any], resume: bool = False) -> ExecutionResult:
     """Async-native entry point: directly awaits the engine's ``run()``."""
     eng = PlaybookEngine()
     return await eng.run(playbook, resume=resume)
