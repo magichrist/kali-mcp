@@ -478,8 +478,12 @@ async function pagePlaybookEditor(id) {
       </div>
     </div>
     <div class="dsl-panel" id="dslPanel" hidden>
-      <div id="dslCode" contenteditable="true" class="code-area" spellcheck="false" placeholder="Playbook definition (JSON as returned by /definition)…"></div>
-      <div class="dsl-bar"><span class="dim">Canonical model — the graph above edits this same JSON. Graph ⇄ DSL is always in sync.</span></div>
+      <textarea id="dslCode" class="code-area" spellcheck="false" placeholder="Playbook definition (JSON as returned by /definition)…"></textarea>
+      <div class="dsl-bar">
+        <button class="btn icon" id="dslUndo" title="Undo (Ctrl+Z)">↶</button>
+        <button class="btn icon" id="dslRedo" title="Redo (Ctrl+Y)">↷</button>
+        <span class="dim">Canonical model — the graph above edits this same JSON. Graph ⇄ DSL is always in sync.</span>
+      </div>
     </div>
     <div class="result-wrap"><pre class="result" id="editorResult" hidden></pre></div>
   </section>`;
@@ -495,18 +499,29 @@ async function pagePlaybookEditor(id) {
     if (crumbEl) crumbEl.textContent = d.name || id;
     $("#pbMeta").innerHTML = `${BADGE(d.status)} <span class="version">v ${esc(d.current_version_id || "no version")}</span><span class="dim mono">${esc(id)}</span>`;
     rawDsl = def ? JSON.stringify(def, null, 2) : "";
-    $("#dslCode").textContent = rawDsl;
-    renderDsl();
-    $("#dslCode").addEventListener("input", () => {
-      const text = $("#dslCode").textContent || "";
-      try {
-        JSON.parse(text);
+    $("#dslCode").value = rawDsl;
+    // Restore unsaved DSL draft from localStorage if present
+    const saved = localStorage.getItem(`kmcp_dsl_${selectedId}`);
+    if (saved && saved !== rawDsl) {
+      rawDsl = saved;
+      $("#dslCode").value = rawDsl;
+    }
+    $("#dslCode").addEventListener("input", onDslInput);
+    $("#dslCode").addEventListener("change", onDslInput);
+    $("#dslCode").addEventListener("blur", onDslInput);
+
+    function onDslInput() {
+      const text = $("#dslCode").value || "";
+      // Track every edit for undo/redo regardless of JSON validity.
+      // JSON is validated at save/publish time, not on every keystroke.
+      if (text !== rawDsl) {
+        dslHistory.push(rawDsl);
+        if (dslHistory.length > 40) dslHistory.shift();
+        dslFuture = [];
         rawDsl = text;
-      } catch {
-        // keep last valid rawDsl
+        localStorage.setItem(`kmcp_dsl_${selectedId}`, rawDsl);
       }
-      renderDsl();
-    });
+    }
   } catch (err) {
     $("#pbName").textContent = id;
     $("#pbMeta").innerHTML = `<span class="error">${esc(err.message)}</span>`;
@@ -544,6 +559,24 @@ async function pagePlaybookEditor(id) {
 
   $$("#builderSwitch button").forEach((btn) =>
     btn.addEventListener("click", () => switchBuilderView(btn.dataset.view)));
+
+  /* DSL undo / redo */
+  $("#dslUndo")?.addEventListener("click", () => {
+    if (!dslHistory.length) return toast("Nothing to undo");
+    dslFuture.push(rawDsl);
+    rawDsl = dslHistory.pop();
+    $("#dslCode").value = rawDsl;
+    localStorage.setItem(`kmcp_dsl_${selectedId}`, rawDsl);
+    toast("Undo");
+  });
+  $("#dslRedo")?.addEventListener("click", () => {
+    if (!dslFuture.length) return toast("Nothing to redo");
+    dslHistory.push(rawDsl);
+    rawDsl = dslFuture.pop();
+    $("#dslCode").value = rawDsl;
+    localStorage.setItem(`kmcp_dsl_${selectedId}`, rawDsl);
+    toast("Redo");
+  });
 
   /* sidebar minimize toggle */
   const sidebarToggle = $("#sidebarToggle");
@@ -712,6 +745,8 @@ let graphPan = { x: 0, y: 0 };
 let inspectorHidden = false;
 let historyStack = [];
 let futureStack = [];
+let dslHistory = [];   // undo stack for DSL edits
+let dslFuture = [];    // redo stack for DSL edits
 let inspectTab = "general";
 let runStatus = {};           // {stepId: status} from the latest execution
 let stepResults = {};         // {stepId: {outputs, error, tool_id}} from the latest execution
@@ -756,10 +791,15 @@ function loadGraphFromDSL() {
 function captureGraphToDSL() {
   if (builderView !== "graph" || !graphDef) return;
   const t = $("#dslCode");
-  if (t) { rawDsl = JSON.stringify(graphDef, null, 2); t.textContent = rawDsl; renderDsl(); }
+  if (t) { rawDsl = JSON.stringify(graphDef, null, 2); t.value = rawDsl; }
 }
 
 function switchBuilderView(view) {
+  // Always sync rawDsl from the DSL textarea first, so unsaved edits are
+  // never lost when switching between graph and DSL views.
+  const t = $("#dslCode");
+  if (t) rawDsl = t.value || rawDsl;
+
   if (view === builderView && view === "graph" && graphDef) { renderBuilder(); return; }
   if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
   if (view === "graph") {
@@ -771,7 +811,10 @@ function switchBuilderView(view) {
   if (gr) gr.hidden = view !== "graph";
   $$("#builderSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   if (view === "graph") renderBuilder();
-  else if (view === "dsl") renderDsl();
+  else if (view === "dsl") {
+    const tt = $("#dslCode");
+    if (tt) tt.value = rawDsl;
+  }
 }
 
 /* ── undo / redo (JSON snapshots of the canonical model) ───────────── */
@@ -2153,13 +2196,39 @@ async function validateDefinition() {
   const out = $("#editorResult");
   if (!selectedId) return toast("Select a playbook first", true);
   if (builderView === "graph") { applyTabFields(stepById(graphSel)); captureGraphToDSL(); }
+  let def;
   try {
-    const r = await api(`/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
-      method: "POST", body: JSON.stringify({ definition: JSON.parse(rawDsl) }),
-    });
+    def = JSON.parse(rawDsl);
+  } catch (err) {
     out.hidden = false;
-    out.textContent = JSON.stringify(r, null, 2);
-    toast(r.valid ? "Definition valid" : "Validation failed", !r.valid);
+    out.textContent = `Invalid JSON: ${err.message}`;
+    toast("Validation failed — invalid JSON", true);
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/playbooks/${encodeURIComponent(selectedId)}/validate-definition`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token() ? { Authorization: `Bearer ${token()}` } : {}) },
+      body: JSON.stringify({ definition: def }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      out.hidden = false;
+      const details = body?.details ?? [];
+      const lines = details.map((f) => {
+        const loc = [
+          f.step_id ? `step "${f.step_id}"` : "",
+          f.field ? `field "${f.field}"` : "",
+        ].filter(Boolean).join(" ");
+        return `${f.severity?.toUpperCase() ?? "ERROR"}: ${loc} ${f.message ?? ""}`.trim();
+      });
+      out.textContent = `Validation failed (${details.length} finding${details.length !== 1 ? "s" : ""}):\n\n${lines.join("\n") || JSON.stringify(body, null, 2)}`;
+      toast("Validation failed — see details below", true);
+      return;
+    }
+    out.hidden = false;
+    out.textContent = JSON.stringify(body, null, 2);
+    toast(body.valid ? "Definition valid" : "Validation failed", !body.valid);
   } catch (err) {
     out.hidden = false;
     out.textContent = `Validation error: ${err.message}`;
@@ -2176,6 +2245,7 @@ async function saveDraft() {
       method: "PUT", body: JSON.stringify(body),
     });
     toast("Draft saved");
+    localStorage.removeItem(`kmcp_dsl_${selectedId}`);
   } catch (err) {
     toast(err.message, true);
   }
@@ -2191,6 +2261,7 @@ async function publish() {
       method: "POST", body: JSON.stringify({ definition: def, version }),
     });
     toast(`Published ${version}`);
+    localStorage.removeItem(`kmcp_dsl_${selectedId}`);
     await refreshPlaybooks();
   } catch (err) {
     if (/approval/i.test(err.message || "")) {
