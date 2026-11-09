@@ -5,7 +5,8 @@ const base = import.meta.env.VITE_API_BASE ?? "/api";
 
 function mockFetch(response: unknown, status = 200, opts: { headers?: Record<string, string> } = {}) {
   const headers = new Headers({ "content-type": "application/json", ...opts.headers });
-  return vi.fn(() => Promise.resolve(new Response(JSON.stringify(response), { status, headers }))) as unknown as typeof fetch;
+  const mock = vi.fn(() => Promise.resolve(new Response(JSON.stringify(response), { status, headers })));
+  return mock as unknown as typeof fetch & { mock: { calls: any[] } };
 }
 
 describe("API client", () => {
