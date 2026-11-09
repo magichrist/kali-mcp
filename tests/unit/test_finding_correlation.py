@@ -14,6 +14,7 @@ def correlator() -> FindingCorrelator:
 
 # ── Finding dataclass ────────────────────────────────────────────────
 
+
 def test_finding_defaults():
     f = Finding(finding_id="f1", title="Test finding")
     assert f.finding_id == "f1"
@@ -29,8 +30,11 @@ def test_finding_defaults():
 
 def test_finding_to_dict():
     f = Finding(
-        finding_id="f1", title="SSL Expired", severity="high",
-        confidence=0.85, asset_id="example.com",
+        finding_id="f1",
+        title="SSL Expired",
+        severity="high",
+        confidence=0.85,
+        asset_id="example.com",
         source_tools=["nuclei", "whatweb"],
         evidence_refs=["ev1", "ev2"],
     )
@@ -46,6 +50,7 @@ def test_finding_to_dict():
 
 
 # ── Correlation: grouping ────────────────────────────────────────────
+
 
 def test_correlate_groups_by_asset_and_title(correlator):
     observations = [
@@ -66,6 +71,7 @@ def test_correlate_empty_list(correlator):
 
 # ── Correlation: merging ─────────────────────────────────────────────
 
+
 def test_merge_aggregates_source_tools(correlator):
     observations = [
         {"title": "XSS", "asset_id": "app.com", "tool": "nuclei"},
@@ -80,10 +86,8 @@ def test_merge_aggregates_source_tools(correlator):
 
 def test_merge_aggregates_evidence_refs(correlator):
     observations = [
-        {"title": "SQLi", "asset_id": "app.com", "tool": "sqlmap",
-         "evidence_ref": "ev1"},
-        {"title": "SQLi", "asset_id": "app.com", "tool": "sqlmap",
-         "evidence_ref": "ev2"},
+        {"title": "SQLi", "asset_id": "app.com", "tool": "sqlmap", "evidence_ref": "ev1"},
+        {"title": "SQLi", "asset_id": "app.com", "tool": "sqlmap", "evidence_ref": "ev2"},
     ]
     findings = correlator.correlate(observations)
     assert len(findings) == 1
@@ -96,32 +100,36 @@ def test_confidence_increases_with_corroboration(correlator):
     assert findings[0].confidence == 0.5
 
     # Two sources: 0.5 + 0.1 = 0.6
-    findings = correlator.correlate([
-        {"title": "T", "asset_id": "a", "tool": "nmap"},
-        {"title": "T", "asset_id": "a", "tool": "nuclei"},
-    ])
+    findings = correlator.correlate(
+        [
+            {"title": "T", "asset_id": "a", "tool": "nmap"},
+            {"title": "T", "asset_id": "a", "tool": "nuclei"},
+        ]
+    )
     assert findings[0].confidence == 0.6
 
     # Five sources: 0.5 + 0.4 = 0.9
-    findings = correlator.correlate([
-        {"title": "T", "asset_id": "a", "tool": f"tool_{i}"} for i in range(5)
-    ])
+    findings = correlator.correlate(
+        [{"title": "T", "asset_id": "a", "tool": f"tool_{i}"} for i in range(5)]
+    )
     assert findings[0].confidence == 0.9
 
 
 def test_confidence_capped_at_0_99(correlator):
     # Many sources should cap at 0.99
-    findings = correlator.correlate([
-        {"title": "T", "asset_id": "a", "tool": f"tool_{i}"} for i in range(20)
-    ])
+    findings = correlator.correlate(
+        [{"title": "T", "asset_id": "a", "tool": f"tool_{i}"} for i in range(20)]
+    )
     assert findings[0].confidence <= 0.99
 
 
 def test_confidence_respects_explicit_higher_value(correlator):
-    findings = correlator.correlate([
-        {"title": "T", "asset_id": "a", "tool": "nmap", "confidence": 0.95},
-        {"title": "T", "asset_id": "a", "tool": "nuclei", "confidence": 0.6},
-    ])
+    findings = correlator.correlate(
+        [
+            {"title": "T", "asset_id": "a", "tool": "nmap", "confidence": 0.95},
+            {"title": "T", "asset_id": "a", "tool": "nuclei", "confidence": 0.6},
+        ]
+    )
     assert findings[0].confidence == 0.95
 
 
@@ -131,6 +139,7 @@ def test_validation_status_defaults_to_observed(correlator):
 
 
 # ── Correlation metadata ─────────────────────────────────────────────
+
 
 def test_correlation_metadata(correlator):
     observations = [
@@ -146,6 +155,7 @@ def test_correlation_metadata(correlator):
 
 
 # ── Sorting ──────────────────────────────────────────────────────────
+
 
 def test_findings_sorted_by_severity_then_confidence(correlator):
     observations = [
