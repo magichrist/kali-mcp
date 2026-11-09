@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import pytest
 
 from kali_mcp.db.manager import DBManager
@@ -94,7 +93,10 @@ class TestPublish:
     def test_publish_version(self, db):
         playbook_service.create_playbook(db, playbook_id="pb1", name="PB1")
         vid = playbook_service.publish_version(
-            db, playbook_id="pb1", version="1.0.0", definition=VALID_DEFINITION,
+            db,
+            playbook_id="pb1",
+            version="1.0.0",
+            definition=VALID_DEFINITION,
             notes="Initial release",
         )
         assert vid > 0
@@ -153,12 +155,18 @@ class TestPreview:
         defn = dict(VALID_DEFINITION)
         defn["steps"] = [
             {
-                "id": "a", "tool": "target.validate", "type": "custom",
-                "depends_on": ["b"], "inputs": {"target": "{{inputs.target}}"},
+                "id": "a",
+                "tool": "target.validate",
+                "type": "custom",
+                "depends_on": ["b"],
+                "inputs": {"target": "{{inputs.target}}"},
             },
             {
-                "id": "b", "tool": "target.validate", "type": "custom",
-                "depends_on": ["a"], "inputs": {"target": "{{inputs.target}}"},
+                "id": "b",
+                "tool": "target.validate",
+                "type": "custom",
+                "depends_on": ["a"],
+                "inputs": {"target": "{{inputs.target}}"},
             },
         ]
         result = playbook_service.preview_playbook(db, "pb1", defn)
@@ -170,7 +178,7 @@ class TestRollback:
     def test_rollback_version(self, db):
         playbook_service.create_playbook(db, playbook_id="pb1", name="PB1")
         v1 = playbook_service.publish_version(db, "pb1", "1.0.0", definition=VALID_DEFINITION)
-        v2 = playbook_service.publish_version(db, "pb1", "2.0.0", definition=VALID_DEFINITION)
+        playbook_service.publish_version(db, "pb1", "2.0.0", definition=VALID_DEFINITION)
         # Rollback to v1
         row = playbook_service.rollback_version(db, "pb1", v1)
         assert row["version"] == "1.0.0"
