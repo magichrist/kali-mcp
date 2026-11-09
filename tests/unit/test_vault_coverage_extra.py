@@ -13,7 +13,6 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -140,7 +139,9 @@ class TestSecretRefs:
 
     def test_resolve_secret_ref_returns_value(self):
         vault.vault_write(
-            "secrets", "api-key", {"value": "sk-live_12345678", "ref": "secret:api-key"},
+            "secrets",
+            "api-key",
+            {"value": "sk-live_12345678", "ref": "secret:api-key"},
             tags="secret",
         )
         assert vault.resolve_secret_ref("secret:api-key") == "sk-live_12345678"
@@ -177,11 +178,7 @@ class TestRedaction:
         assert "eyJhbGci" not in out
 
     def test_redact_secrets_private_key(self):
-        pem = (
-            "-----BEGIN RSA PRIVATE KEY-----\n"
-            "MIIEogIBAAKCAQEA\n"
-            "-----END RSA PRIVATE KEY-----\n"
-        )
+        pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEogIBAAKCAQEA\n-----END RSA PRIVATE KEY-----\n"
         out = vault.redact_secrets(pem)
         assert out == "[REDACTED PRIVATE KEY]\n"
 
@@ -204,15 +201,19 @@ class TestRedaction:
 class TestCanAccess:
     def test_can_access_db_error_defaults_true(self, monkeypatch):
         monkeypatch.setattr(
-            vault, "_connect", lambda: (_ for _ in ()).throw(sqlite3.Error("down")),
+            vault,
+            "_connect",
+            lambda: (_ for _ in ()).throw(sqlite3.Error("down")),
         )
         assert vault.can_access("any-assessment") is True
 
     def test_can_access_row_without_owner_tag_allows(self):
         vault.ensure_vault_dirs()
         vault.vault_write(
-            "assessments", "shared-assessment",
-            {"assessment_id": "shared-assessment"}, tags="scope:full",
+            "assessments",
+            "shared-assessment",
+            {"assessment_id": "shared-assessment"},
+            tags="scope:full",
         )
         # Row exists but no owner: tag -> access allowed regardless of caller.
         assert vault.can_access("shared-assessment") is True
@@ -232,7 +233,9 @@ class TestIndexAndMirrorFailure:
         """DB row missing + mirror present-but-unreadable -> not found JSON."""
         mirror_path = vault.VAULT_ROOT / "findings" / "ghost.json"
         monkeypatch.setattr(
-            vault, "_mirror_path", lambda cat, name: FakeMirror(mirror_path, readable=False),
+            vault,
+            "_mirror_path",
+            lambda cat, name: FakeMirror(mirror_path, readable=False),
         )
         raw = vault.vault_read("findings", "ghost")
         assert json.loads(raw) == {"error": "not found"}
