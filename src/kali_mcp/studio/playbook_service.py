@@ -14,7 +14,6 @@ import hashlib
 import json
 import logging
 import os
-import uuid
 from typing import Any
 
 import yaml
@@ -23,12 +22,9 @@ from kali_mcp.db.manager import DBManager
 from kali_mcp.models import utc_now_iso
 from kali_mcp.tools.persist import now_iso
 from kali_mcp.workflow import modules_runtime
-from kali_mcp.workflow.dag_executor import MAX_ITERATIONS, PlaybookEngine
-from kali_mcp.workflow.dsl import compile as dsl_compile
-from kali_mcp.workflow.dsl import deserialize as dsl_serialize
-from kali_mcp.workflow.dsl import parse as dsl_parse
+from kali_mcp.workflow.dag_executor import PlaybookEngine
 from kali_mcp.workflow.validator import validate_playbook
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition, load_playbook
+from kali_mcp.workflow.yaml_loader import load_playbook
 
 logger = logging.getLogger("kali_mcp.studio.playbook_service")
 
@@ -235,7 +231,7 @@ def test_playbook(
         result = asyncio.run(engine.run(defn))
         payload = json.loads(result.stdout)
         return {"ok": True, "payload": payload}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("test playbook failed")
         return {"ok": False, "error": str(exc)}
 
@@ -298,17 +294,19 @@ def export_playbook(db: DBManager, playbook_id: str) -> dict[str, Any] | None:
             {
                 "version_id": v["version_id"],
                 "version": v["version"],
-                "definition": json.loads(v["definition"]) if isinstance(v.get("definition"), str) else v.get("definition"),
-                "inputs_schema": json.loads(v["inputs_schema"]) if isinstance(v.get("inputs_schema"), str) else v.get("inputs_schema"),
+                "definition": json.loads(v["definition"])
+                if isinstance(v.get("definition"), str)
+                else v.get("definition"),
+                "inputs_schema": json.loads(v["inputs_schema"])
+                if isinstance(v.get("inputs_schema"), str)
+                else v.get("inputs_schema"),
                 "notes": v.get("notes"),
                 "published_at": v.get("published_at"),
                 "published_by": v.get("published_by"),
             }
         )
     # Add integrity hash
-    package["hash"] = hashlib.sha256(
-        json.dumps(package, sort_keys=True).encode()
-    ).hexdigest()
+    package["hash"] = hashlib.sha256(json.dumps(package, sort_keys=True).encode()).hexdigest()
     return package
 
 
@@ -402,7 +400,9 @@ def seed_builtin_playbooks(
     if definitions_dir is None:
         # Resolve relative to this package so it works from any CWD
         definitions_dir = str(
-            _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "playbooks", "definitions")
+            _os.path.join(
+                _os.path.dirname(_os.path.abspath(__file__)), "..", "playbooks", "definitions"
+            )
         )
 
     count = 0
@@ -418,7 +418,7 @@ def seed_builtin_playbooks(
         version = str(data.get("version", "1.0.0"))
         definition = data
         # Compute a hash to detect changes on re-seed
-        content_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+        hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
         existing = db.get_playbook(pb_id)
         if existing:
@@ -487,18 +487,18 @@ def seed_builtin_playbooks(
 
 __all__ = [
     "create_playbook",
-    "get_playbook",
-    "list_playbooks",
-    "update_playbook",
     "delete_playbook",
-    "publish_version",
-    "get_version",
-    "list_versions",
-    "validate_definition",
-    "preview_playbook",
-    "test_playbook",
-    "rollback_version",
     "export_playbook",
+    "get_playbook",
+    "get_version",
     "import_playbook",
+    "list_playbooks",
+    "list_versions",
+    "preview_playbook",
+    "publish_version",
+    "rollback_version",
     "seed_builtin_playbooks",
+    "test_playbook",
+    "update_playbook",
+    "validate_definition",
 ]
