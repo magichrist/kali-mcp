@@ -6,6 +6,7 @@ import LoadingState from "@/components/common/LoadingState.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import ErrorState from "@/components/common/ErrorState.vue";
 import BaseBadge from "@/components/common/BaseBadge.vue";
+import { badgeVariant } from "@/components/common/badgeVariant";
 import BaseButton from "@/components/common/BaseButton.vue";
 import BaseInput from "@/components/common/BaseInput.vue";
 import BaseSelect from "@/components/common/BaseSelect.vue";
@@ -96,13 +97,13 @@ onMounted(() => {
         </div>
         <div
           v-for="f in findings"
-          :key="f.test_name + f.created_at"
+          :key="((f.test_name || '') + '|' + (f.created_at || ''))"
           class="table-row"
           :style="{ 'grid-template-columns': 'repeat(5,minmax(0,1fr))' }"
         >
           <span>{{ f.test_name || f.checkname || f.name || "—" }}</span>
           <span>
-            <BaseBadge :variant="f.severity">{{ f.severity }}</BaseBadge>
+            <BaseBadge :variant="badgeVariant(f.severity)">{{ f.severity }}</BaseBadge>
           </span>
           <span>{{ f.tool || "—" }}</span>
           <span>{{ f.status || f.validation_status || "—" }}</span>
