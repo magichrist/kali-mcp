@@ -11,7 +11,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-MODULES_DIR = Path(__file__).resolve().parent.parent.parent / "src" / "kali_mcp" / "playbooks" / "modules"
+MODULES_DIR = (
+    Path(__file__).resolve().parent.parent.parent / "src" / "kali_mcp" / "playbooks" / "modules"
+)
 
 
 def _load_modules() -> list[dict]:
@@ -39,9 +41,7 @@ def test_module_ids_unique():
     assert len(ids) == len(set(ids)), f"duplicate module ids: {sorted(ids)}"
 
 
-@pytest.mark.parametrize(
-    "module", ALL_MODULES, ids=lambda m: m["id"]
-)
+@pytest.mark.parametrize("module", ALL_MODULES, ids=lambda m: m["id"])
 def test_required_fields(module):
     assert module["id"]
     assert module.get("name"), f"{module['id']}: missing name"
@@ -61,20 +61,21 @@ def test_modules_registered_in_registry():
         assert mod.get("tool") == module["tool"]
 
 
-@pytest.mark.parametrize(
-    "module", ALL_MODULES, ids=lambda m: m["id"]
-)
+@pytest.mark.parametrize("module", ALL_MODULES, ids=lambda m: m["id"])
 def test_inputs_are_typed(module):
     for name, spec in (module.get("inputs") or {}).items():
         assert "type" in spec, f"{module['id']}.{name}: input spec missing type"
         assert spec["type"] in (
-            "string", "integer", "number", "boolean", "array", "object",
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "array",
+            "object",
         ), f"{module['id']}.{name}: unknown input type {spec['type']}"
 
 
-@pytest.mark.parametrize(
-    "module", ALL_MODULES, ids=lambda m: m["id"]
-)
+@pytest.mark.parametrize("module", ALL_MODULES, ids=lambda m: m["id"])
 def test_outputs_are_declared(module):
     outputs = module.get("outputs") or []
     assert isinstance(outputs, list) and outputs, (
@@ -93,9 +94,7 @@ def test_module_tools_are_registered_tools():
     tool_names = {t.name for t in ALL_TOOLS}
     for module in ALL_MODULES:
         tool = module.get("tool")
-        assert tool in tool_names, (
-            f"{module['id']} references unregistered tool {tool!r}"
-        )
+        assert tool in tool_names, f"{module['id']} references unregistered tool {tool!r}"
 
 
 def test_module_sensitivity_guardrails():
