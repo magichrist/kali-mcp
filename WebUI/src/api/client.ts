@@ -7,41 +7,31 @@
  */
 
 import type {
-  AgentAssignmentRow,
   AgentDetailResponse,
   AgentListResponse,
-  AgentPermissionRow,
   ApiErrorBody,
   CancelResumeResponse,
-  Connection,
   ConnectionDetailResponse,
   ConnectionListResponse,
   CreateAgentPayload,
   CreateConnectionPayload,
   CreatePlaybookPayload,
   DiscoverConnectionResponse,
-  Execution,
   ExecutionDetailResponse,
   ExecutionListResponse,
   FindingsResponse,
   OverviewResponse,
-  Playbook,
   PlaybookDefinition,
   PlaybookDetail,
   PlaybookListResponse,
-  RecentExecutionSummary,
-  RecentFindingSummary,
   ServerInfo,
   StartExecutionPayload,
   StartExecutionResponse,
   TestConnectionResponse,
-  Tool,
   ToolListResponse,
-  ToolVisibilityPayload,
-  ValidateDefinitionResult,
 } from "@/types/api";
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
+export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api";
 const TOKEN_KEY = "kmcp_token";
 
 export class ApiError extends Error {
@@ -115,13 +105,19 @@ export async function apiRequest(
 
   const body = await parseBody(res);
   if (!res.ok) {
+    const rawErr = (body as ApiErrorBody)?.error;
     const msg =
-      (body as ApiErrorBody)?.error?.message ??
-      (body as ApiErrorBody)?.error ??
-      `${res.status} ${res.statusText}`;
-    throw new ApiError(String(msg), res.status, body);
+      rawErr && typeof rawErr === "object" && "message" in rawErr
+        ? (rawErr as { message: string }).message
+        : String(rawErr ?? `${res.status} ${res.statusText}`);
+    throw new ApiError(msg, res.status, body);
   }
   return body;
+}
+
+/* Typed request wrapper used by the api service modules. */
+export async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  return apiRequest(path, opts) as Promise<T>;
 }
 
 /* Low-level wrappers used by the api service modules. */
