@@ -1,0 +1,74 @@
+id: cloud_assessment
+name: "Cloud Asset & Configuration Posture Assessment"
+description: "Cloud asset and configuration posture — discover resources, check configuration against benchmarks, audit IAM, correlate findings, and report."
+version: "2.0.0"
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Cloud account ID, subscription, project, or region to assess"
+  options:
+    type: object
+    description: "Optional assessment options"
+    properties:
+      provider:
+        type: string
+        description: "Cloud provider: aws | azure | gcp"
+        default: aws
+      credentials:
+        type: string
+        description: "Credentials reference or profile name"
+execution:
+  max_parallel: 2
+  timeout: 900
+  resume: true
+steps:
+  - id: validate
+    type: scope_check
+    depends_on: []
+    checkpoint: true
+    description: "Validate target against active assessment scope"
+  - id: cloud_discovery
+    module: cloud_discovery
+    depends_on: [validate]
+    inputs:
+      target: "{{target}}"
+      provider: "{{options.provider}}"
+      credentials: "{{options.credentials}}"
+    checkpoint: true
+    description: "List cloud resources via provider APIs"
+  - id: config_posture_check
+    module: config_posture_check
+    depends_on: [cloud_discovery]
+    inputs:
+      target: "{{target}}"
+      provider: "{{options.provider}}"
+      credentials: "{{options.credentials}}"
+    checkpoint: true
+    description: "Check configuration against CIS benchmarks"
+  - id: iam_audit
+    module: iam_audit
+    depends_on: [cloud_discovery]
+    inputs:
+      target: "{{target}}"
+      provider: "{{options.provider}}"
+      credentials: "{{options.credentials}}"
+    parallel: true
+    checkpoint: true
+    description: "Audit IAM users, MFA, and access keys"
+  - id: correlate
+    type: finding_correlation
+    depends_on: [config_posture_check, iam_audit]
+    checkpoint: true
+    description: "Deduplicate and correlate findings across modules"
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    description: "Generate the assessment report"
+outputs:
+  - assessment_id
+  - findings
+  - assets
+  - artifacts
+  - next_actions
+  - recommended_next_playbooks
