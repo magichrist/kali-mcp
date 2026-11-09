@@ -64,7 +64,9 @@ class TestDnsModules:
 
     def test_dns_resolve_unregistered_tool(self):
         # Use a tool name that is definitely not registered
-        res = mr.execute("dns.resolve", CTX, {"target": "example.com", "tool": "nonexistent_dns_tool_xyz"})
+        res = mr.execute(
+            "dns.resolve", CTX, {"target": "example.com", "tool": "nonexistent_dns_tool_xyz"}
+        )
         assert "not registered" in res.get("error", "")
         assert res["target"] == "example.com"
 
@@ -74,7 +76,9 @@ class TestTlsModules:
         assert mr.has("tls.certificate")
 
     def test_tls_certificate_unregistered_tool(self):
-        res = mr.execute("tls.certificate", CTX, {"target": "example.com", "tool": "nonexistent_tls_tool_xyz"})
+        res = mr.execute(
+            "tls.certificate", CTX, {"target": "example.com", "tool": "nonexistent_tls_tool_xyz"}
+        )
         assert "not registered" in res.get("error", "")
 
 
@@ -83,7 +87,11 @@ class TestNetworkModules:
         assert mr.has("network.port_discovery")
 
     def test_network_port_discovery_unregistered_tool(self):
-        res = mr.execute("network.port_discovery", CTX, {"target": "127.0.0.1", "tool": "nonexistent_network_tool_xyz"})
+        res = mr.execute(
+            "network.port_discovery",
+            CTX,
+            {"target": "127.0.0.1", "tool": "nonexistent_network_tool_xyz"},
+        )
         assert "not registered" in res.get("error", "")
 
 
@@ -92,7 +100,11 @@ class TestWebModules:
         assert mr.has("web.http_probe")
 
     def test_web_http_probe_unregistered_tool(self):
-        res = mr.execute("web.http_probe", CTX, {"url": "https://example.com", "tool": "nonexistent_web_tool_xyz"})
+        res = mr.execute(
+            "web.http_probe",
+            CTX,
+            {"url": "https://example.com", "tool": "nonexistent_web_tool_xyz"},
+        )
         assert "not registered" in res.get("error", "")
 
 
@@ -103,8 +115,20 @@ class TestIntelligenceModules:
     def test_intelligence_correlate_dedupes(self):
         findings = [
             {"id": "f1", "target": "127.0.0.1", "type": "xss", "name": "XSS", "severity": "high"},
-            {"id": "f2", "target": "example.org", "type": "sqli", "name": "SQLi", "severity": "critical"},
-            {"id": "f1", "target": "127.0.0.1", "type": "xss", "name": "XSS", "severity": "high"},  # dup
+            {
+                "id": "f2",
+                "target": "example.org",
+                "type": "sqli",
+                "name": "SQLi",
+                "severity": "critical",
+            },
+            {
+                "id": "f1",
+                "target": "127.0.0.1",
+                "type": "xss",
+                "name": "XSS",
+                "severity": "high",
+            },  # dup
         ]
         res = mr.execute("intelligence.correlate", CTX, {"findings": findings})
         assert res["count"] == 2
