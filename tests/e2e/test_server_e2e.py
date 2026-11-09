@@ -116,9 +116,7 @@ async def test_generic_command_roundtrip_over_http(server_url):
         ClientSession(read, write) as session,
     ):
         await session.initialize()
-        result = await session.call_tool(
-            "generic_command", {"command": "echo e2e-server-ok"}
-        )
+        result = await session.call_tool("generic_command", {"command": "echo e2e-server-ok"})
         assert result.isError is False
         payload = json.loads(result.content[0].text)
         assert payload["success"] is True
@@ -138,9 +136,7 @@ async def test_monitor_action_http_endpoint(server_url):
     assert resp.status_code == 400
 
     # get_snapshot -> 200 with snapshot shape
-    resp = httpx.post(
-        f"{base}/monitor/action", json={"action": "get_snapshot"}, timeout=2
-    )
+    resp = httpx.post(f"{base}/monitor/action", json={"action": "get_snapshot"}, timeout=2)
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, dict)
