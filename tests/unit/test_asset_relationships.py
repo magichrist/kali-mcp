@@ -14,6 +14,7 @@ def builder() -> AssetRelationshipBuilder:
 
 # ── Asset registration ───────────────────────────────────────────────
 
+
 def test_add_asset_creates_node(builder):
     node = builder.add_asset("d1", "domain", "example.com")
     assert node.asset_id == "d1"
@@ -31,13 +32,15 @@ def test_add_asset_updates_existing(builder):
 
 
 def test_add_asset_with_attributes(builder):
-    node = builder.add_asset("ip1", "ip", "127.0.0.1",
-                             attributes={"cidr": "127.0.0.0/24", "asn": "AS1234"})
+    node = builder.add_asset(
+        "ip1", "ip", "127.0.0.1", attributes={"cidr": "127.0.0.0/24", "asn": "AS1234"}
+    )
     assert node.attributes["cidr"] == "127.0.0.0/24"
     assert node.attributes["asn"] == "AS1234"
 
 
 # ── Relationships ────────────────────────────────────────────────────
+
 
 def test_add_relationship_creates_edge(builder):
     builder.add_asset("d1", "domain", "example.com")
@@ -71,6 +74,7 @@ def test_add_relationship_invalid_type_raises(builder):
 
 
 # ── Graph building ───────────────────────────────────────────────────
+
 
 def test_build_graph_returns_assets_and_relationships(builder):
     builder.add_asset("d1", "domain", "example.com")
@@ -107,6 +111,7 @@ def test_query_relationships_nonexistent_asset(builder):
 
 # ── Relationship types ───────────────────────────────────────────────
 
+
 def test_all_valid_relationship_types(builder):
     builder.add_asset("a1", "domain", "example.com")
     builder.add_asset("a2", "ip", "127.0.0.1")
@@ -126,6 +131,7 @@ def test_all_valid_relationship_types(builder):
 
 
 # ── Context merge ────────────────────────────────────────────────────
+
 
 def test_build_graph_merges_context_assets(builder):
     class FakeAsset:
