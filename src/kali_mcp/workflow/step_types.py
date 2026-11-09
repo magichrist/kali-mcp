@@ -16,17 +16,23 @@ async def step_tool(step: dict[str, Any], state: dict[str, Any], engine: Playboo
     return await engine._run_tool_step(step, state)
 
 
-async def step_scope_check(step: dict[str, Any], state: dict[str, Any], engine: PlaybookEngine) -> Any:
+async def step_scope_check(
+    step: dict[str, Any], state: dict[str, Any], engine: PlaybookEngine
+) -> Any:
     """Validate target against scope."""
     return await engine._run_scope_check(step, state)
 
 
-async def step_finding_correlation(step: dict[str, Any], state: dict[str, Any], engine: PlaybookEngine) -> Any:
+async def step_finding_correlation(
+    step: dict[str, Any], state: dict[str, Any], engine: PlaybookEngine
+) -> Any:
     """Correlate findings from multiple steps."""
     return await engine._run_finding_correlation(step, state)
 
 
-async def step_assessment_report(step: dict[str, Any], state: dict[str, Any], engine: PlaybookEngine) -> Any:
+async def step_assessment_report(
+    step: dict[str, Any], state: dict[str, Any], engine: PlaybookEngine
+) -> Any:
     """Generate assessment report."""
     return await engine._run_assessment_report(step, state)
 
