@@ -8,7 +8,7 @@ const props = defineProps<{
   data: { step: any; __status?: string };
   selected?: boolean;
 }>();
-const emit = defineEmits<[e: "click", id: string]>();
+const emit = defineEmits<{ (e: "click", id: string): void }>();
 const step = props.data.step;
 const type: StepType = step?.type || "tool";
 const icon = TYPE_ICONS[type] ?? TYPE_ICONS.tool;
@@ -27,7 +27,7 @@ function handleClick(e: MouseEvent) { e.stopPropagation(); emit("click", props.i
       </div>
       <span class="node-status" :class="nodeStatus" :title="`run status: ${nodeStatus || '—'}`"></span>
     </div>
-    <div class="node-body"><slot /></div>
+    <div class="node-body"><slot></slot></div>
     <div class="node-foot">
       <span class="chip">{{ (step.depends_on || []).length }} in</span>
       <span v-if="step.inputs && Object.keys(step.inputs).length" class="chip">{{ Object.keys(step.inputs).length }} inputs</span>
