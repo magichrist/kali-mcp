@@ -24,7 +24,7 @@ const emit = defineEmits(["update:modelValue"]);
     :value="modelValue ?? ''"
     :placeholder="placeholder"
     :disabled="disabled"
-    @input="$emit('update:modelValue', $event.target.value)"
+    @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
   />
 </template>
 
