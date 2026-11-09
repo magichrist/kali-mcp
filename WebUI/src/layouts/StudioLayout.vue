@@ -19,6 +19,8 @@ const sidebarMinimized = ref(
     : false
 );
 
+const confirmOpen = ref(false);
+
 function toggleSidebar(): void {
   sidebarMinimized.value = !sidebarMinimized.value;
   if (typeof localStorage !== "undefined") {
@@ -49,7 +51,7 @@ onBeforeRouteLeave((_to, _from) => {
       </PageContainer>
     </main>
     <ToastContainer />
-    <ConfirmDialog />
+    <ConfirmDialog v-model:open="confirmOpen" />
   </div>
 </template>
 
