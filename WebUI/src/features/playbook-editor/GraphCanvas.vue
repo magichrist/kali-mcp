@@ -4,16 +4,9 @@
  * Renders nodes/edges from the store, handles dragging, connecting,
  * edge double-click delete, palette drag-and-drop, fit-to-screen and zoom.
  */
-import { ref, onMounted, onUnmounted, watch } from "vue";
-import {
-  useVueFlow,
-  Background,
-  Controls,
-  MiniMap,
-  type VueFlowNode,
-  type VueFlowEdge,
-} from "@vue-flow/core";
-import { usePlaybookEditorStore } from "@/stores/playbook-editor";
+import { ref, onMounted, onUnmounted, watch, defineExpose } from "vue";
+import { useVueFlow } from "@vue-flow/core";
+import { usePlaybookEditorStore, type PlaybookEditorStore } from "@/stores/playbook-editor";
 import { useGraphKeyboard } from "@/features/playbook-editor/composables/useGraphKeyboard";
 import { useNotificationsStore } from "@/stores/notifications";
 
@@ -24,7 +17,7 @@ import FindingNode from "./nodes/FindingNode.vue";
 import AssessmentNode from "./nodes/AssessmentNode.vue";
 import CustomNode from "./nodes/CustomNode.vue";
 
-const store = usePlaybookEditorStore();
+const store: PlaybookEditorStore = usePlaybookEditorStore() as unknown as PlaybookEditorStore;
 const notifications = useNotificationsStore();
 
 const nodeTypes = {
@@ -37,9 +30,12 @@ const nodeTypes = {
 };
 
 const vf = useVueFlow();
-const { fitView, zoomIn, zoomOut, setZoom, getZoom, toSnapPoint, setNodes, setEdges } = vf;
+const { fitView, zoomIn, zoomOut, zoomTo, getViewport, project, setNodes, setEdges } = vf;
 
 const dragEndTimer = ref<number | null>(null);
+const onInit = () => {
+  /* vue-flow pane ready; no-op hook kept for template binding. */
+};
 
 function toastError(msg: string) { notifications.notify(msg, "error"); }
 function toastInfo(msg: string) { notifications.notify(msg, "info"); }
@@ -72,8 +68,9 @@ watch(
 );
 
 /* Exposed for the toolbar (ref="graph"). */
-const fitToScreen = () => { fitView({ pad: 0.1, maxZoom: 1.25, minZoom: 0.25 }); };
-const setZoomLevel = (z: number) => setZoom(z);
+const fitToScreen = () => { fitView({ padding: 0.1, maxZoom: 1.25, minZoom: 0.25 }); };
+const setZoomLevel = (z: number) => zoomTo(z);
+const getZoom = () => getViewport().zoom;
 
 /* ── dragging: keep graphPos in sync while dragging, snapshot on drag end ── */
 function onNodesChange(changes: any[]) {
@@ -115,7 +112,7 @@ function onConnect(params: any) {
   const target = params?.target ?? params?.targetHandle;
   if (!source || !target || source === target) return;
   const result = store.addEdge(source, target);
-  if (!result.ok) toastError(result.message);
+  if (!result.ok) toastError(result.message ?? "");
 }
 
 function onEdgeDblClick(event: any) {
@@ -149,7 +146,7 @@ function onDragEnd() { draggedType = null; }
 function onPaneDrop(event: DragEvent) {
   const type = event.dataTransfer?.getData("type") || draggedType;
   if (!type) return;
-  const point = toSnapPoint([event.clientX, event.clientY]);
+  const point = project({ x: event.clientX, y: event.clientY });
   switch (type) {
     case "tool": store.addToolStep(undefined, { x: point.x, y: point.y }); break;
     case "shell": store.addShellStep({ x: point.x, y: point.y }); break;
@@ -162,6 +159,14 @@ function onPaneDrop(event: DragEvent) {
 }
 
 /* live execution state from the store is reflected via node __status (computed). */
+
+defineExpose<{
+  fitToScreen: () => void;
+  setZoomLevel: (z: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  getZoom: () => number;
+}>({ fitToScreen, setZoomLevel, zoomIn, zoomOut, getZoom });
 </script>
 
 <template>
@@ -172,6 +177,7 @@ function onPaneDrop(event: DragEvent) {
     :edges="store.edges"
     fit-on-init
     :fit-view-on-init="true"
+    aria-label="Playbook graph"
     @init="onInit"
     @nodes-change="onNodesChange"
     @edges-change="onEdgesChange"
@@ -183,18 +189,8 @@ function onPaneDrop(event: DragEvent) {
     @pane-drop="onPaneDrop"
     @dragover.prevent
   >
-    <Background gap={16} offset={0} />
-    <Controls />
-    <MiniMap />
   </vue-flow>
 </template>
-
-<script lang="ts">
-import { defineComponent } from "vue";
-export default defineComponent({
-  expose: { fitToScreen, setZoomLevel, zoomIn, zoomOut, getZoom },
-});
-</script>
 
 <style scoped>
 /deep/ .vue-flow { background: #0b1016; }
