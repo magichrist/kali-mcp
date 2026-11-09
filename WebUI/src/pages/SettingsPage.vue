@@ -37,10 +37,10 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useNotifications } from "@/stores/notifications";
+import { useNotificationsStore } from "@/stores/notifications";
 import { apiRequest } from "@/api/client";
 
-const notify = useNotifications();
+const { notify } = useNotificationsStore();
 const server = ref<any>(null);
 const error = ref<string | null>(null);
 
@@ -51,7 +51,7 @@ onMounted(async () => {
 
 function clearToken() {
   localStorage.removeItem("kmcp_token");
-  notify.toast("Stored token cleared");
+  notify("Stored token cleared");
   server.value = null;
   error.value = null;
 }
