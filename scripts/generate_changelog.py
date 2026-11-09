@@ -91,7 +91,7 @@ def _classify(subject: str) -> tuple[str, str]:
     """Map a commit subject to (section_title, cleaned_subject)."""
     for prefix, title in _SECTIONS:
         if subject.lower().startswith(prefix):
-            head, sep, tail = subject.partition(":")
+            _head, sep, tail = subject.partition(":")
             if sep:  # conventional commit: strip the "prefix(scope):" head
                 return title, tail.strip()
     return _OTHER, subject
@@ -129,9 +129,7 @@ def generate(tag: str) -> str:
                 lines.append("")
 
     if slug and prev:
-        lines.append(
-            f"**Full Changelog**: https://github.com/{slug}/compare/{prev}...{tag}"
-        )
+        lines.append(f"**Full Changelog**: https://github.com/{slug}/compare/{prev}...{tag}")
     return "\n".join(lines).strip() + "\n"
 
 
