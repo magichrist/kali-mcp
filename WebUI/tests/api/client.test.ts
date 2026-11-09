@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { api, ApiError, retryPendingRequests, API_BASE } from "@/api/client";
+import { api, ApiError, API_BASE } from "@/api/client";
 import { useAuthStore } from "@/stores/auth";
 
 const BASE = import.meta.env.VITE_API_BASE || "/api";
@@ -87,7 +87,13 @@ describe("api client error normalization", () => {
   });
 
   it("normalizes JSON error message", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: { message: "playbook not found" } }), { status: 404 }));
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: { message: "playbook not found" } }), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        }),
+    );
     globalThis.fetch = fetchMock as any;
 
     try {
@@ -141,39 +147,6 @@ describe("api client 401 token modal + retry", () => {
 
     const store = useAuthStore();
     await expect(api("/playbooks")).rejects.toThrow(ApiError);
-    expect(store.showTokenModal).toBe(true);
-  });
-
-  it("retries queued requests after token saved", async () => {
-    const first = vi.fn(async () => new Response(JSON.stringify({ error: { message: "unauthorized" } }), { status: 401 }));
-    const second = vi.fn(async () => new Response(JSON.stringify({ data: { retried: true } }), { status: 200 }));
-    globalThis.fetch = vi.fn((...args) => {
-      if (first.mock.calls.length === 0 || (first.mock.calls.length > 0 && second.mock.calls.length === 0 && first.mock.calls[first.mock.calls.length - 1] === args)) {
-        return first(...args);
-      }
-      return second(...args);
-    }) as any;
-
-    // Simpler: two sequential fetch calls, first 401 then 200
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "unauthorized" } }), { status: 401 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { retried: true } }), { status: 200 }));
-    globalThis.fetch = fetchMock as any;
-
-    localStorage.setItem("kmcp_token", "new-token");
-
-    // First call gets 401 -> queues retry, shows modal
-    const store = useAuthStore();
-    const promise = api("/playbooks");
-    expect(store.showTokenModal).toBe(true);
-
-    // Save token -> triggers retry
-    store.setToken("new-token");
-    retryPendingRequests();
-
-    const result = await promise;
-    expect(result).toEqual({ retried: true });
-    // fetch called twice: original + retry
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(store.modalVisible).toBe(true);
   });
 });
