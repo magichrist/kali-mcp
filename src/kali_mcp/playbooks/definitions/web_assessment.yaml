@@ -42,7 +42,6 @@ steps:
   - id: map
     module: katana
     depends_on: [resolve]
-    when: "resolve.http_services_count > 0"
     args:
       target: "{{target}}"
     checkpoint: true
