@@ -33,10 +33,12 @@ def load_state(name: str) -> dict[str, Any] | None:
         return RUN_STATUS[name]
     try:
         from kali_mcp.utils.vault import vault_read
+
         content = vault_read("playbook_state", name)
         if content and not content.startswith("{"):
             return None
         import json
+
         data = json.loads(content)
         RUN_STATUS[name] = data
         return data
