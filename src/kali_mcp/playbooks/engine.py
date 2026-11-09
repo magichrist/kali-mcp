@@ -128,24 +128,29 @@ class PlaybookEngine:
                 obs = dict(f)
                 obs["tool"] = mod_id
                 obs.setdefault("asset_id", obs.get("asset_id") or ctx.target)
-                obs.setdefault("evidence_ref", obs.get("evidence_refs", [None])[0] if obs.get("evidence_refs") else None)
+                obs.setdefault(
+                    "evidence_ref",
+                    obs.get("evidence_refs", [None])[0] if obs.get("evidence_refs") else None,
+                )
                 all_observations.append(obs)
         # Also include findings directly added to context
         for f in ctx.findings.values():
-            all_observations.append({
-                "finding_id": f.finding_id,
-                "title": f.title,
-                "finding_type": f.title,
-                "severity": f.severity,
-                "confidence": f.confidence,
-                "asset_id": f.asset_id,
-                "tool": ",".join(f.source_modules) if f.source_modules else "context",
-                "evidence_refs": f.evidence_refs,
-                "evidence_ref": f.evidence_refs[0] if f.evidence_refs else None,
-                "description": f.description,
-                "first_seen": f.first_seen,
-                "last_seen": f.last_seen,
-            })
+            all_observations.append(
+                {
+                    "finding_id": f.finding_id,
+                    "title": f.title,
+                    "finding_type": f.title,
+                    "severity": f.severity,
+                    "confidence": f.confidence,
+                    "asset_id": f.asset_id,
+                    "tool": ",".join(f.source_modules) if f.source_modules else "context",
+                    "evidence_refs": f.evidence_refs,
+                    "evidence_ref": f.evidence_refs[0] if f.evidence_refs else None,
+                    "description": f.description,
+                    "first_seen": f.first_seen,
+                    "last_seen": f.last_seen,
+                }
+            )
 
         # Run finding correlation
         correlator = FindingCorrelator()
@@ -157,7 +162,7 @@ class PlaybookEngine:
 
         # Build asset relationship graph
         builder = AssetRelationshipBuilder()
-        for aid, asset in ctx.assets.items():
+        for asset in ctx.assets.values():
             builder.add_asset(
                 asset_id=asset.asset_id,
                 asset_type=asset.asset_type,
@@ -208,9 +213,7 @@ class PlaybookEngine:
         timeout = int(step.get("timeout", mod_def.get("timeout", 300)))
 
         try:
-            result = await asyncio.wait_for(
-                module.execute(ctx, inputs), timeout=timeout
-            )
+            result = await asyncio.wait_for(module.execute(ctx, inputs), timeout=timeout)
             ctx.set_module_result(mod_id, result)
             ctx.log(mod_id, "completed", "info")
 
@@ -284,7 +287,9 @@ class PlaybookEngine:
             if isinstance(mod_result, dict):
                 mod_result = mod_result.get(part)
             elif isinstance(mod_result, list):
-                mod_result = [item.get(part) if isinstance(item, dict) else None for item in mod_result]
+                mod_result = [
+                    item.get(part) if isinstance(item, dict) else None for item in mod_result
+                ]
             else:
                 return None
             if mod_result is None:
@@ -371,9 +376,7 @@ class PlaybookEngine:
 
     # ── absorb module output ──────────────────────────────────────────
 
-    def _absorb_module_output(
-        self, mod_id: str, result: Any, ctx: AssessmentContext
-    ) -> None:
+    def _absorb_module_output(self, mod_id: str, result: Any, ctx: AssessmentContext) -> None:
         """Absorb discovered assets, findings, and evidence from a module result."""
         if not isinstance(result, dict):
             return
@@ -474,6 +477,7 @@ class PlaybookEngine:
 
 # ── Generic module wrapper ────────────────────────────────────────────
 
+
 class GenericModule:
     """Generic module that wraps an existing Kali tool call."""
 
@@ -484,7 +488,12 @@ class GenericModule:
     async def execute(self, ctx: AssessmentContext, inputs: dict[str, Any]) -> dict[str, Any]:
         tool = _get_tool_registry().get(self.tool_name)
         if tool is None:
-            return {"error": f"tool not found: {self.tool_name}", "assets": [], "findings": [], "evidence": []}
+            return {
+                "error": f"tool not found: {self.tool_name}",
+                "assets": [],
+                "findings": [],
+                "evidence": [],
+            }
 
         args = dict(inputs)
         args.pop("_assessment_id", None)
@@ -505,7 +514,9 @@ class GenericModule:
         evidence: list[dict] = []
 
         try:
-            text = res.get("content", [{}])[0].get("text", "{}") if isinstance(res, dict) else str(res)
+            text = (
+                res.get("content", [{}])[0].get("text", "{}") if isinstance(res, dict) else str(res)
+            )
             data = json.loads(text)
         except (json.JSONDecodeError, IndexError, AttributeError, TypeError):
             data = {}
@@ -514,21 +525,25 @@ class GenericModule:
         success = data.get("success", False) if isinstance(data, dict) else False
 
         eid = _new_id("evidence")
-        evidence.append({
-            "evidence_id": eid,
-            "type": "stdout",
-            "content": stdout[:100_000],
-            "success": success,
-        })
+        evidence.append(
+            {
+                "evidence_id": eid,
+                "type": "stdout",
+                "content": stdout[:100_000],
+                "success": success,
+            }
+        )
 
         if stdout.strip():
-            findings.append({
-                "finding_id": _new_id("finding"),
-                "title": f"{self.tool_name} execution",
-                "severity": "informational" if success else "high",
-                "confidence": 0.7,
-                "source_modules": [self.mod_def.get("id", self.tool_name)],
-                "evidence_refs": [eid],
-            })
+            findings.append(
+                {
+                    "finding_id": _new_id("finding"),
+                    "title": f"{self.tool_name} execution",
+                    "severity": "informational" if success else "high",
+                    "confidence": 0.7,
+                    "source_modules": [self.mod_def.get("id", self.tool_name)],
+                    "evidence_refs": [eid],
+                }
+            )
 
         return {"assets": assets, "findings": findings, "evidence": evidence, "raw_stdout": stdout}
