@@ -56,12 +56,12 @@ watch(
       <div class="segmented" id="builderSwitch">
         <button
           data-view="graph"
-          :class="{ active: store.view === "graph" }"
+          :class="{ active: store.view === 'graph' }"
           @click="store.setView('graph')"
         >Graph</button>
         <button
           data-view="dsl"
-          :class="{ active: store.view === "dsl" }"
+          :class="{ active: store.view === 'dsl' }"
           @click="store.setView('dsl')"
         >DSL</button>
       </div>
