@@ -56,4 +56,4 @@ export type {
   ApiErrorBody,
 } from "@/api/types";
 
-export { api, ApiError, retryPendingRequests, API_BASE } from "@/api/client";
+export { api, ApiError, API_BASE } from "@/api/client";
