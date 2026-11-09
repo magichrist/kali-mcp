@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { gatherRunSpecs } from "@/features/playbook-editor/composables/useRunInputs";
-import { useNotifications } from "@/stores/notifications";
+import { useNotificationsStore } from "@/stores/notifications";
 
 const props = defineProps<{
   show: boolean;
@@ -60,10 +60,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: "update:show", show: boolean): void; (e: "run-start", payload: { inputs: Record<string, unknown>; debug: boolean }): void }>();
 
-const notify = useNotifications();
+const { notify } = useNotificationsStore();
 const busy = ref(false);
 const debug = ref(true);
 const extraJson = ref("{}");
+const name = computed(() => String(props.definition?.name || props.playbookId || ""));
 
 const values: Record<string, unknown> = reactive({});
 const boolValues: Record<string, string> = reactive({});
@@ -116,7 +117,7 @@ async function start() {
     else if (s.spec.type === "object" || s.spec.type === "array") {
       const raw = jsonValues[s.name] ?? "";
       if (!raw.trim()) { delete inputs[s.name]; continue; }
-      try { v = JSON.parse(raw); } catch { notify.toast(`Input ${s.name} must be valid JSON`, "error"); ok = false; continue; }
+      try { v = JSON.parse(raw); } catch { notify(`Input ${s.name} must be valid JSON`, "error"); ok = false; continue; }
     } else {
       v = values[s.name] ?? "";
       if (v === "") { delete inputs[s.name]; continue; }
@@ -126,7 +127,7 @@ async function start() {
   let extra: Record<string, unknown> = {};
   const raw = extraJson.value.trim();
   if (raw) {
-    try { extra = JSON.parse(raw); } catch { notify.toast("Extra inputs must be valid JSON", "error"); ok = false; }
+    try { extra = JSON.parse(raw); } catch { notify("Extra inputs must be valid JSON", "error"); ok = false; }
   }
   if (!ok) return;
   Object.assign(inputs, extra);
