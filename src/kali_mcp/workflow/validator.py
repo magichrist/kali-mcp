@@ -256,7 +256,7 @@ def format_findings(findings: Iterable[Finding]) -> str:
         if step_id:
             location = f'step "{step_id}"'
         if field:
-            location = f"{location} field \"{field}\":" if location else f'field "{field}":'
+            location = f'{location} field "{field}":' if location else f'field "{field}":'
         message = finding.get("message", "")
         lines.append(f"{severity}: {location} {message}".replace(" :", ":"))
     return "\n".join(lines)
@@ -281,9 +281,7 @@ def _validate_execution(defn: PlaybookDefinition, findings: list[Finding]) -> No
     """Validate the execution block: bounds and known keys."""
     execution = defn.execution
     if not isinstance(execution, Mapping):
-        findings.append(
-            _finding("error", None, "execution", "execution block must be a mapping")
-        )
+        findings.append(_finding("error", None, "execution", "execution block must be a mapping"))
         return
 
     for key in ("max_parallel", "timeout", "max_iterations"):
@@ -320,9 +318,7 @@ def _validate_execution(defn: PlaybookDefinition, findings: list[Finding]) -> No
 # ── inputs ──────────────────────────────────────────────────────────────
 
 
-def _validate_inputs(
-    defn: PlaybookDefinition, findings: list[Finding]
-) -> dict[str, _InputSpec]:
+def _validate_inputs(defn: PlaybookDefinition, findings: list[Finding]) -> dict[str, _InputSpec]:
     """Normalise and validate every declared playbook input."""
     raw_inputs = defn.inputs
     specs: dict[str, _InputSpec] = {}
@@ -339,9 +335,7 @@ def _validate_inputs(
 
     for name, declaration in items:
         if not isinstance(name, str) or not _IDENT_RE.match(name):
-            findings.append(
-                _finding("error", None, "inputs", f"invalid input name {name!r}")
-            )
+            findings.append(_finding("error", None, "inputs", f"invalid input name {name!r}"))
             continue
 
         spec_map: Mapping[str, Any]
@@ -367,22 +361,16 @@ def _validate_inputs(
     return specs
 
 
-def _validate_input_spec(
-    name: str, spec: Mapping[str, Any], findings: list[Finding]
-) -> _InputSpec:
+def _validate_input_spec(name: str, spec: Mapping[str, Any], findings: list[Finding]) -> _InputSpec:
     """Validate a single input declaration and return its normalised spec."""
     field = f"inputs.{name}"
     declared_type = spec.get("type")
     base_type: str | None = None
 
     if declared_type is None:
-        findings.append(
-            _finding("warning", None, field, f"input {name!r} does not declare a type")
-        )
+        findings.append(_finding("warning", None, field, f"input {name!r} does not declare a type"))
     elif not isinstance(declared_type, str) or not declared_type.strip():
-        findings.append(
-            _finding("error", None, field, "input type must be a non-empty string")
-        )
+        findings.append(_finding("error", None, field, "input type must be a non-empty string"))
     else:
         parsed = _parse_type(declared_type)
         if parsed is None:
@@ -407,8 +395,7 @@ def _validate_input_spec(
                     "error",
                     None,
                     field,
-                    f"input {name!r} source must be one of {sorted(INPUT_SOURCES)}, "
-                    f"got {source!r}",
+                    f"input {name!r} source must be one of {sorted(INPUT_SOURCES)}, got {source!r}",
                 )
             )
         else:
@@ -449,8 +436,7 @@ def _validate_input_spec(
                         "error",
                         None,
                         field,
-                        f"default {default!r} is not one of the enum values "
-                        f"{list(enum_values)!r}",
+                        f"default {default!r} is not one of the enum values {list(enum_values)!r}",
                     )
                 )
 
@@ -532,13 +518,9 @@ def _validate_steps(
             )
             continue
         if not _IDENT_RE.match(step_id):
-            findings.append(
-                _finding("error", step_id, "id", f"invalid step id {step_id!r}")
-            )
+            findings.append(_finding("error", step_id, "id", f"invalid step id {step_id!r}"))
         if step_id in seen:
-            findings.append(
-                _finding("error", step_id, "id", f"duplicate step id {step_id!r}")
-            )
+            findings.append(_finding("error", step_id, "id", f"duplicate step id {step_id!r}"))
         seen.add(step_id)
 
         _validate_step_type(step, raw_index, findings)
@@ -568,9 +550,7 @@ def _validate_steps(
                         )
                     )
         if not isinstance(step.retry, int) or isinstance(step.retry, bool) or step.retry < 0:
-            findings.append(
-                _finding("error", step_id, "retry", "retry must be an integer >= 0")
-            )
+            findings.append(_finding("error", step_id, "retry", "retry must be an integer >= 0"))
         if step.on_failure not in VALID_ON_FAILURE:
             findings.append(
                 _finding(
@@ -874,9 +854,7 @@ def _validate_graph(
         )
 
     roots = {
-        step.id
-        for step in steps
-        if isinstance(step.id, str) and step.id and not step.depends_on
+        step.id for step in steps if isinstance(step.id, str) and step.id and not step.depends_on
     }
     reachable: set[str] = set(roots)
     queue = deque(sorted(roots))
@@ -1128,9 +1106,7 @@ def _parse_reference(body: str) -> tuple[str, ...] | None:
     return ("steps", step_id, *fields)
 
 
-def _parse_bare_step_reference(
-    body: str, step_ids: set[str]
-) -> tuple[str, ...] | None:
+def _parse_bare_step_reference(body: str, step_ids: set[str]) -> tuple[str, ...] | None:
     """Accept engine-style ``step.field`` references (no ``steps.`` prefix)."""
     match = _BARE_STEP_REF_RE.match(body)
     if match is None or match.group("step") not in step_ids:
@@ -1171,9 +1147,7 @@ def _validate_foreach(
     if body.startswith("{{") and body.endswith("}}"):
         body = body[2:-2].strip()
     if not body:
-        findings.append(
-            _finding("error", step.id, "foreach", "empty foreach reference")
-        )
+        findings.append(_finding("error", step.id, "foreach", "empty foreach reference"))
         return
     parsed = _parse_reference(body)
     if parsed is None:
@@ -1575,9 +1549,7 @@ def _parse_type(type_name: str) -> tuple[str, str | None] | None:
     return None
 
 
-def _default_matches_type(
-    value: Any, base_type: str, enum_values: tuple[Any, ...] | None
-) -> bool:
+def _default_matches_type(value: Any, base_type: str, enum_values: tuple[Any, ...] | None) -> bool:
     """Return ``True`` when a default value is compatible with a declared type."""
     if value is None:
         return True
@@ -1610,9 +1582,7 @@ def _suggestion(value: str, candidates: Iterable[str]) -> str:
     return f" (did you mean {close[0]!r}?)" if close else ""
 
 
-def _finding(
-    severity: Severity, step_id: str | None, field: str | None, message: str
-) -> Finding:
+def _finding(severity: Severity, step_id: str | None, field: str | None, message: str) -> Finding:
     """Create one finding in the canonical contract shape."""
     return {
         "severity": severity,
@@ -1625,9 +1595,7 @@ def _finding(
 def _finalise(findings: list[Finding], steps: list[StepDefinition]) -> list[Finding]:
     """Deduplicate and deterministically order findings (errors first)."""
     order = {
-        step.id: index
-        for index, step in enumerate(steps)
-        if isinstance(step.id, str) and step.id
+        step.id: index for index, step in enumerate(steps) if isinstance(step.id, str) and step.id
     }
     seen: set[tuple[Any, ...]] = set()
     unique: list[Finding] = []
