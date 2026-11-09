@@ -27,8 +27,7 @@ logger = logging.getLogger(__name__)
 
 #: arg keys carrying potentially sensitive targets that must be scope-checked.
 TARGET_ARG_KEYS = frozenset(
-    {"target", "targets", "host", "hosts", "urls", "url", "ip", "ips",
-     "cidr", "domain", "domains"}
+    {"target", "targets", "host", "hosts", "urls", "url", "ip", "ips", "cidr", "domain", "domains"}
 )
 
 
