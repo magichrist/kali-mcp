@@ -945,6 +945,8 @@ class PlaybookEngine:
 
         Supported forms:
           - ``{{inputs.X}}`` or ``inputs.X``        → playbook input ``X``
+          - ``{{inputs.X.Y}}`` or ``inputs.X.Y``    → field ``Y`` of object input ``X``
+          - ``{{options.X.Y}}`` or ``options.X.Y``  → field ``Y`` of the object input ``options``
           - ``target``                               → playbook-level target value
           - ``{{steps.X.Y}}`` or ``steps.X.Y``       → field ``Y`` of step ``X``'s result
           - ``X.Y`` (bare)                           → field ``Y`` of step ``X``'s result
@@ -957,10 +959,26 @@ class PlaybookEngine:
         if raw.startswith("{{") and raw.endswith("}}"):
             raw = raw[2:-2].strip()
 
-        # inputs.X
+        # inputs.X (or inputs.X.Y → traverse into object-typed inputs)
         if raw.startswith("inputs."):
-            key = raw[len("inputs.") :]
-            return self._playbook_inputs.get(key)
+            parts = raw[len("inputs.") :].split(".")
+            result = self._playbook_inputs.get(parts[0])
+            for part in parts[1:]:
+                if isinstance(result, dict):
+                    result = result.get(part)
+                else:
+                    return None
+            return result
+
+        # options.X.Y → playbook input "options" (object), traversed by field
+        if raw.startswith("options."):
+            result: Any = self._playbook_inputs.get("options")
+            for part in raw.split(".")[1:]:
+                if isinstance(result, dict):
+                    result = result.get(part)
+                else:
+                    return None
+            return result
 
         # target shortcut
         if raw == "target":

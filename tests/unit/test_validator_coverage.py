@@ -175,11 +175,24 @@ class TestInputs:
         )
         assert not is_valid(findings)
 
-    def test_required_no_default_no_source_is_error(self) -> None:
+    def test_required_no_default_no_source_is_warning(self) -> None:
+        # Legacy definitions omit ``source`` entirely; the engine collects such
+        # inputs from the operator at run time, so this is a warning, not an error.
         findings = validate_playbook(
             _defn(inputs={"x": {"type": "string", "required": True}}), tool_catalog=FAKE_TOOLS
         )
+        assert is_valid(findings)
+        assert any(
+            f.get("field") == "inputs.x" and f.get("severity") == "warning" for f in findings
+        )
+
+    def test_required_static_source_without_default_is_error(self) -> None:
+        findings = validate_playbook(
+            _defn(inputs={"x": {"type": "string", "required": True, "source": "static"}}),
+            tool_catalog=FAKE_TOOLS,
+        )
         assert not is_valid(findings)
+        assert any("source: static" in str(f.get("message", "")) for f in findings)
 
     def test_required_with_source_agent_ok(self) -> None:
         defn = _defn(inputs={"x": {"type": "string", "required": True, "source": "agent"}})

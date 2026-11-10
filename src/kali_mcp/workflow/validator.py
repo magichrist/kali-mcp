@@ -100,7 +100,7 @@ _REF_RE = re.compile(r"\{\{\s*([^{}]*?)\s*\}\}")
 _REF_BODY_RE = re.compile(
     r"^(?:"
     r"(?P<target>target)"
-    r"|inputs\.(?P<input>[A-Za-z_][A-Za-z0-9_]*)"
+    r"|inputs\.(?P<input>[A-Za-z_][A-Za-z0-9_]*)(?P<ifields>(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
     r"|options\.(?P<option>[A-Za-z_][A-Za-z0-9_]*)(?P<ofields>(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
     r"|steps\.(?P<step>[A-Za-z_][A-Za-z0-9_]*)(?P<fields>(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
     r")$"
@@ -150,6 +150,7 @@ class _InputSpec:
     has_default: bool
     default: Any
     enum_values: tuple[Any, ...] | None = None
+    properties: frozenset[str] | None = None  # declared keys of an object-typed input
 
 
 @dataclass(frozen=True)
@@ -406,16 +407,30 @@ def _validate_input_spec(name: str, spec: Mapping[str, Any], findings: list[Find
     has_default = "default" in spec
     default = spec.get("default")
 
-    if required and not has_default and source_value not in ("agent", "operator"):
-        findings.append(
-            _finding(
-                "error",
-                None,
-                field,
-                f"required input {name!r} has no default and must declare "
-                "source: agent or source: operator",
+    if required and not has_default:
+        if source_value == "static":
+            findings.append(
+                _finding(
+                    "error",
+                    None,
+                    field,
+                    f"required input {name!r} is declared source: static but has no default",
+                )
             )
-        )
+        elif source_value is None:
+            # Legacy definitions do not declare a source at all; the engine
+            # collects such inputs from the operator at run time, so this is a
+            # style nudge rather than an error.
+            findings.append(
+                _finding(
+                    "warning",
+                    None,
+                    field,
+                    f"required input {name!r} has no default and no declared source; "
+                    "it will be operator-supplied at run time "
+                    "(declare source: agent or source: operator to make it explicit)",
+                )
+            )
 
     enum_values: tuple[Any, ...] | None = None
     if base_type == "enum":
@@ -478,6 +493,11 @@ def _validate_input_spec(name: str, spec: Mapping[str, Any], findings: list[Find
         has_default=has_default,
         default=default,
         enum_values=enum_values,
+        properties=(
+            frozenset(props)
+            if isinstance((props := spec.get("properties")), Mapping) and props
+            else None
+        ),
     )
 
 
@@ -960,12 +980,35 @@ def _validate_playbook_outputs(
     if outputs is None:
         return
     if not isinstance(outputs, Mapping):
+        # Legacy YAML format: a plain list of output identifiers.
+        if isinstance(outputs, (list, tuple)):
+            for entry in outputs:
+                if not isinstance(entry, str):
+                    findings.append(
+                        _finding(
+                            "error",
+                            None,
+                            "outputs",
+                            f"output entry must be an identifier string, got {entry!r}",
+                        )
+                    )
+                elif not _IDENT_RE.match(entry):
+                    findings.append(
+                        _finding(
+                            "error",
+                            None,
+                            "outputs",
+                            f"output entry {entry!r} is not a valid identifier",
+                        )
+                    )
+            return
         findings.append(
             _finding(
                 "warning",
                 None,
                 "outputs",
-                "outputs should be a mapping of names to variable references",
+                "outputs should be a mapping of names to variable references "
+                "(a list of identifiers is also accepted for legacy definitions)",
             )
         )
         return
@@ -1027,55 +1070,66 @@ def _check_reference(
             )
         return
 
-    if kind == "inputs":
-        name = parsed[1]
-        if name not in context.input_specs:
-            hint = _suggestion(name, set(context.input_specs))
-            findings.append(
-                _finding(
-                    "error",
-                    consumer,
-                    field,
-                    f"reference to undeclared input {name!r}{hint}",
-                )
-            )
-        return
-
-    if kind == "options":
-        name = parsed[1]
-        nested_fields = parsed[2:]
-        spec = context.input_specs.get(name)
+    if kind in ("inputs", "options"):
+        if kind == "options":
+            # ``options.X.Y`` → the ``options`` playbook input, then its fields.
+            input_name = "options"
+            fields = parsed[1:]
+        else:
+            input_name = parsed[1]
+            fields = parsed[2:]
+        spec = context.input_specs.get(input_name)
         if spec is None:
-            hint = _suggestion(name, set(context.input_specs))
+            hint = _suggestion(input_name, set(context.input_specs))
             findings.append(
-                _finding(
-                    "error",
-                    consumer,
-                    field,
-                    f"reference to undeclared option input {name!r}{hint}",
-                )
+                _finding("error", consumer, field, f"reference to undeclared input {input_name!r}{hint}")
             )
             return
-        if spec.type not in (None, "object"):
-            findings.append(
-                _finding(
-                    "error",
-                    consumer,
-                    field,
-                    f"option input {name!r} is declared as {spec.type!r}, expected object",
+        if fields:
+            # Traversing into an object-typed input (e.g. options.wordlist).
+            if spec.type not in (None, "object"):
+                findings.append(
+                    _finding(
+                        "error",
+                        consumer,
+                        field,
+                        f"nested field reference on input {input_name!r} declared as "
+                        f"{spec.type!r}, expected object",
+                    )
                 )
-            )
-            return
-        if nested_fields:
-            findings.append(
-                _finding(
-                    "warning",
-                    consumer,
-                    field,
-                    f"cannot verify nested option field {nested_fields[0]!r} on {name!r}: "
-                    "input schema properties are not available for validation",
+                return
+            if spec.properties is not None:
+                if fields[0] not in spec.properties:
+                    hint = _suggestion(fields[0], set(spec.properties))
+                    findings.append(
+                        _finding(
+                            "error",
+                            consumer,
+                            field,
+                            f"reference to undeclared field {fields[0]!r} of input "
+                            f"{input_name!r}{hint}",
+                        )
+                    )
+                    return
+            else:
+                findings.append(
+                    _finding(
+                        "warning",
+                        consumer,
+                        field,
+                        f"cannot verify nested field {fields[0]!r}: input {input_name!r} "
+                        "declares no properties schema",
+                    )
                 )
-            )
+            if len(fields) > 1:
+                findings.append(
+                    _finding(
+                        "warning",
+                        consumer,
+                        field,
+                        f"cannot verify nested sub-field {fields[1]!r} inside {fields[0]!r}",
+                    )
+                )
         return
 
     step_id = parsed[1]
@@ -1138,8 +1192,11 @@ def _parse_reference(body: str) -> tuple[str, ...] | None:
     if match.group("target"):
         return ("target",)
     if match.group("input"):
-        return ("inputs", match.group("input"))
+        ifields = tuple(part for part in (match.group("ifields") or "").split(".") if part)
+        return ("inputs", match.group("input"), *ifields)
     if match.group("option"):
+        # ``options.X.Y`` → the ``options`` playbook input, then its field chain
+        # (X may be nested inside object properties; deeper parts are sub-fields).
         ofields = tuple(part for part in (match.group("ofields") or "").split(".") if part)
         return ("options", match.group("option"), *ofields)
     fields = tuple(part for part in match.group("fields").split(".") if part)
