@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import signal
+import sys
 import threading
 import time
 import uuid
@@ -708,6 +709,38 @@ def main() -> None:
         config.transport,
         config.debug,
     )
+
+    # Announce the API MCP token once the server is accepting requests.
+    # Runs on a daemon thread that polls the token-less /studio static mount
+    # on loopback, so the banner lands *after* uvicorn's own "Uvicorn running
+    # ..." line — as the last startup output the operator sees.
+    if api_token:
+
+        def _print_token_banner() -> None:
+            import time
+
+            import httpx
+
+            ready_url = f"http://127.0.0.1:{config.port}/studio"
+            for _ in range(40):  # up to ~10s; falls back to printing anyway
+                try:
+                    if httpx.get(ready_url, timeout=0.5, follow_redirects=True).status_code < 500:
+                        break
+                except httpx.HTTPError:
+                    pass
+                time.sleep(0.25)
+
+            print("\n" + "─" * 66)
+            print("  ✦ API MCP token  (MCP_API_TOKEN from .env)")
+            print()
+            print(f"      {api_token}")
+            print()
+            print("  Use it as:  Authorization: Bearer <token>  on every API/MCP call")
+            print("─" * 66)
+            sys.stdout.flush()
+
+        threading.Thread(target=_print_token_banner, name="token-banner", daemon=True).start()
+
     uvicorn.run(
         app,
         host=config.host,

@@ -13,6 +13,11 @@ def _args(**overrides) -> SimpleNamespace:
     return SimpleNamespace(**defaults)
 
 
+def _stub_browser(monkeypatch) -> None:
+    """Patch browser opening so tests never spawn a real browser."""
+    monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
+
+
 class TestParser:
     def test_studio_registers_with_alias(self) -> None:
         parser = build_parser()
@@ -40,16 +45,19 @@ class TestStudioPortSelection:
             "kali_mcp.cli._server_reachable",
             lambda url, timeout=1.5: reached.setdefault(url, True) or True,
         )
-        monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
+        _stub_browser(monkeypatch)
 
         assert cmd_studio(_args(url="http://localhost:7777", port="9999")) == 0
-        assert "http://localhost:7777/studio" in reached
+        # The loopback probe uses the URL's port (7777), proving the explicit
+        # URL won over the `port` flag (9999).
+        assert any(":7777/studio" in u for u in reached)
+        assert not any(":9999" in u for u in reached)
 
     def test_no_browser_on_existing_server_no_child(self, monkeypatch) -> None:
         monkeypatch.setenv("MCP_PORT", "8399")
         monkeypatch.delenv("STUDIO_PORT", raising=False)
         monkeypatch.setattr("kali_mcp.cli._server_reachable", lambda url, timeout=1.5: True)
-        monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
+        _stub_browser(monkeypatch)
 
         assert cmd_studio(_args()) == 0
 
@@ -65,7 +73,7 @@ class TestStudioPortSelection:
             return True
 
         monkeypatch.setattr("kali_mcp.cli._server_reachable", fake_reachable)
-        monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
+        _stub_browser(monkeypatch)
 
         assert cmd_studio(_args()) == 0
         assert any(":8340/studio" in u for u in reached)
@@ -79,7 +87,7 @@ class TestStudioPortSelection:
             "kali_mcp.cli._server_reachable",
             lambda url, timeout=1.5: reached.setdefault(url, True) or True,
         )
-        monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
+        _stub_browser(monkeypatch)
 
         assert cmd_studio(_args()) == 0
         assert any(":9001/studio" in u for u in reached)
@@ -99,7 +107,7 @@ class TestWildcardHostResolution:
             "kali_mcp.cli._server_reachable",
             lambda url, timeout=1.5: reached.setdefault(url, True) or True,
         )
-        monkeypatch.setattr("webbrowser.open", lambda *a, **k: True)
+        _stub_browser(monkeypatch)
 
         assert cmd_studio(_args()) == 0
         assert "http://127.0.0.1:8399/studio" in reached
@@ -135,6 +143,57 @@ class TestWildcardHostResolution:
 
         monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "127.0.0.1")
         assert _browser_url_for_host("0.0.0.0", 8340) == "http://127.0.0.1:8340/studio"
+
+
+class TestIsLanIp:
+    def test_accepts_private_lan_addresses(self) -> None:
+        from kali_mcp.cli import _is_lan_ip
+
+        assert _is_lan_ip("192.168.2.4")
+        assert _is_lan_ip("10.0.0.8")
+        assert _is_lan_ip("172.16.5.9")
+
+    def test_rejects_ghost_and_special_addresses(self) -> None:
+        from kali_mcp.cli import _is_lan_ip
+
+        # Reserved 240.0.0.0/4 — reported by UDP-route detection on machines
+        # with virtual/VPN tunnel interfaces; unroutable locally.
+        assert not _is_lan_ip("240.0.0.2")
+        assert not _is_lan_ip("127.0.0.1")       # loopback
+        assert not _is_lan_ip("169.254.3.2")     # link-local
+        assert not _is_lan_ip("224.0.0.5")       # multicast
+        assert not _is_lan_ip("8.8.8.8")         # public
+        assert not _is_lan_ip("not-an-ip")
+
+
+class TestBrowserOpenBehaviour:
+    def test_cmd_studio_prints_manual_hint_when_browser_raises(
+        self, monkeypatch, capsys
+    ) -> None:
+        monkeypatch.setenv("MCP_PORT", "8399")
+        monkeypatch.delenv("STUDIO_PORT", raising=False)
+        monkeypatch.setenv("KALI_MCP_INSECURE", "1")
+        monkeypatch.setattr("kali_mcp.cli._server_reachable", lambda url, timeout=1.5: True)
+
+        def boom(url, *a, **k):
+            raise RuntimeError("no browser on this host")
+
+        monkeypatch.setattr("webbrowser.open", boom)
+        assert cmd_studio(_args(no_browser=False)) == 0
+        err = capsys.readouterr().err
+        assert "open the URL manually" in err
+
+    def test_cmd_studio_opens_url_via_webbrowser(self, monkeypatch) -> None:
+        monkeypatch.setenv("MCP_PORT", "8399")
+        monkeypatch.delenv("STUDIO_PORT", raising=False)
+        monkeypatch.setenv("KALI_MCP_INSECURE", "1")
+        monkeypatch.setattr("kali_mcp.cli._server_reachable", lambda url, timeout=1.5: True)
+
+        opened: list[str] = []
+        monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
+
+        assert cmd_studio(_args(no_browser=False)) == 0
+        assert any(u.endswith(":8399/studio") for u in opened)
 
 
 class TestMainBehaviour:

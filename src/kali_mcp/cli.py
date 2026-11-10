@@ -38,6 +38,7 @@ just like ``just start``.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 import re
@@ -340,11 +341,11 @@ def _server_reachable(url: str, timeout: float = 1.5) -> bool:
         return False
 
 
-def _wait_for_server(url: str, proc: subprocess.Popen, timeout: float = 25.0) -> bool:
-    """Poll until the server answers, the child process dies, or timeout."""
+def _wait_for_server(urls: list[str], proc: subprocess.Popen, timeout: float = 25.0) -> bool:
+    """Poll until the server answers any of ``urls``, the child dies, or timeout."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if _server_reachable(url, timeout=1.0):
+        if any(_server_reachable(u, timeout=1.0) for u in urls):
             return True
         if proc.poll() is not None:
             return False
@@ -390,16 +391,43 @@ def _primary_lan_ip() -> str:
         sock.close()
 
 
+def _is_lan_ip(ip: str) -> bool:
+    """Return True when ``ip`` is an address a browser can actually route.
+
+    Rejects loopback, link-local, multicast, unspecified, public, and
+    reserved special-use addresses. This matters because UDP-route
+    detection (see :func:`_primary_lan_ip`) can report ghost addresses on
+    machines with virtual, VPN, or tunnel interfaces — e.g. ``240.0.0.2``
+    (reserved 240.0.0.0/4) — which looked like a LAN IP but is not locally
+    bindable, breaking the Studio readiness probe and browser URL.
+    """
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    if addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_unspecified:
+        return False
+    if addr.version == 4:
+        return addr.is_private and not addr.is_reserved
+    # IPv6: accept globally-routable and private (ULA fc00::/7) addresses.
+    return addr.is_global or addr.is_private
+
+
 def _browser_url_for_host(host: str, port: int) -> str:
     """Build the Studio URL a human should open in their browser.
 
     Bind-wildcard hosts (``0.0.0.0`` / ``::``) are not openable from other
     machines — map them to the machine's primary LAN IP so the same URL
-    works locally and across the network. Any explicit host (``127.0.0.1``,
-    a named host, a LAN IP) is kept as-is.
+    works locally and across the network. Bogus auto-detected addresses
+    (reserved/unroutable) fall back to ``127.0.0.1``. Any explicit host
+    (``127.0.0.1``, a named host, a LAN IP) is kept as-is.
     """
     if host in ("0.0.0.0", "::", ""):
-        host = _primary_lan_ip() or "127.0.0.1"
+        ip = _primary_lan_ip()
+        if not ip or not _is_lan_ip(ip):
+            ip = "127.0.0.1"
+        # IPv6 literals need brackets in URLs.
+        host = f"[{ip}]" if ":" in ip else ip
     return f"http://{host}:{port}/studio"
 
 
@@ -432,7 +460,17 @@ def cmd_studio(args: argparse.Namespace) -> int:
 
     started_child = False
     child: subprocess.Popen | None = None
-    if _server_reachable(url):
+    # Readiness probe order: loopback first. The server binds MCP_HOST
+    # (usually 0.0.0.0), which always covers 127.0.0.1 — while the display
+    # URL may point at an auto-detected LAN IP this process cannot connect
+    # to. Probing only the display URL previously made `kmcp st` give up
+    # (and never open the browser) whenever that IP was unroutable.
+    from urllib.parse import urlparse
+
+    port_in_url = urlparse(url).port
+    loopback_url = f"http://127.0.0.1:{port_in_url}/studio"
+    probe_urls = [loopback_url, url] if loopback_url != url else [url]
+    if any(_server_reachable(u) for u in probe_urls):
         print(f"server already running at {url}")
     else:
         # The child inherits STUDIO_PORT via the environment, so the server
@@ -451,7 +489,7 @@ def cmd_studio(args: argparse.Namespace) -> int:
         child = subprocess.Popen(cmd)
         started_child = True
         print("starting MCP server ...")
-        if not _wait_for_server(url, child):
+        if not _wait_for_server(probe_urls, child):
             if child.poll() is not None:
                 print(
                     f"error: server exited with code {child.returncode} before it became ready",
@@ -469,7 +507,7 @@ def cmd_studio(args: argparse.Namespace) -> int:
     if not getattr(args, "no_browser", False):
         try:
             webbrowser.open(url)
-        except Exception:  # noqa: BLE001 -- browser may be unavailable on headless hosts
+        except Exception:  # noqa: BLE001 -- browser may be unavailable
             print("could not open a browser — open the URL manually", file=sys.stderr)
     if os.getenv("KALI_MCP_INSECURE", "") != "1":
         api_token = os.getenv("MCP_API_TOKEN", "")
