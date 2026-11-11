@@ -249,6 +249,29 @@ async def seed_playbooks_api(request: Request) -> JSONResponse:
     return JSONResponse({"seeded": count})
 
 
+async def create_playbook_api(request: Request) -> JSONResponse:
+    """Create a new playbook."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    body = await request.json()
+    playbook_id = body.get("playbook_id")
+    name = body.get("name")
+    if not playbook_id or not name:
+        return JSONResponse({"error": "playbook_id and name required"}, status_code=400)
+    from kali_mcp.studio import playbook_service
+
+    try:
+        row = playbook_service.create_playbook(
+            db, playbook_id, name,
+            description=body.get("description"),
+            category=body.get("category", "custom"),
+        )
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return JSONResponse(row, status_code=201)
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Execution routes
 # ══════════════════════════════════════════════════════════════════════════════
@@ -811,6 +834,8 @@ def mount_studio_routes(app) -> None:
     # Playbook routes
     app.add_route("/api/playbooks", list_playbooks, methods=["GET"])
     app.add_route("/api/playbooks", import_playbook, methods=["POST"])
+    app.add_route("/api/playbooks/create", create_playbook_api, methods=["POST"])
+    app.add_route("/api/playbooks/seed", seed_playbooks_api, methods=["POST"])
     app.add_route("/api/playbooks/{id}", get_playbook, methods=["GET"])
     app.add_route("/api/playbooks/{id}", delete_playbook, methods=["DELETE"])
     app.add_route("/api/playbooks/{id}/definition", put_definition, methods=["PUT"])
@@ -820,7 +845,6 @@ def mount_studio_routes(app) -> None:
     app.add_route("/api/playbooks/{id}/versions", list_versions, methods=["GET"])
     app.add_route("/api/playbooks/{id}/rollback", rollback_playbook, methods=["POST"])
     app.add_route("/api/playbooks/{id}/export", export_playbook, methods=["GET"])
-    app.add_route("/api/playbooks/seed", seed_playbooks_api, methods=["POST"])
 
     # Server info
     app.add_route("/api/server", server_info, methods=["GET"])
