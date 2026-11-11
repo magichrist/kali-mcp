@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-from kali_mcp.resources import (
+from kmcp.resources import (
     _artifact_resource,
     _config_resource,
     _db_stats_resource,
@@ -43,7 +43,7 @@ class TestConfigResource:
 
 class TestToolsResource:
     def test_returns_registered_tools(self) -> None:
-        from kali_mcp.registry import registry
+        from kmcp.registry import registry
 
         text = _tools_resource()
         data = json.loads(text)
@@ -107,7 +107,7 @@ class TestArtifactResource:
         assert "artifact not found" in data["error"]
 
     def test_too_large_artifact(self, tmp_path) -> None:
-        import kali_mcp.resources as res_mod
+        import kmcp.resources as res_mod
 
         orig = res_mod.config.artifact_dir
         object.__setattr__(res_mod.config, "artifact_dir", tmp_path)
@@ -121,7 +121,7 @@ class TestArtifactResource:
             object.__setattr__(res_mod.config, "artifact_dir", orig)
 
     def test_reads_json_artifact(self, tmp_path) -> None:
-        import kali_mcp.resources as res_mod
+        import kmcp.resources as res_mod
 
         orig = res_mod.config.artifact_dir
         object.__setattr__(res_mod.config, "artifact_dir", tmp_path)
@@ -137,7 +137,7 @@ class TestArtifactResource:
 
 class TestDbStatsResource:
     def test_db_disabled(self) -> None:
-        with patch("kali_mcp.db.manager.get_db", return_value=None):
+        with patch("kmcp.db.manager.get_db", return_value=None):
             text = _db_stats_resource()
             data = json.loads(text)
             assert "error" in data
