@@ -1,0 +1,22 @@
+id: iam_audit
+name: Cloud IAM Audit
+description: Audit IAM users roles MFA and access keys for overprivileged identities
+tool: generic_command
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: Cloud account subscription project to audit
+  provider:
+    type: string
+    description: Cloud provider aws azure gcp
+    default: aws
+  credentials:
+    type: string
+    description: Credentials reference or profile name
+outputs:
+  - overprivileged_users
+  - mfa_status
+  - stale_access_keys
+  - unused_roles
