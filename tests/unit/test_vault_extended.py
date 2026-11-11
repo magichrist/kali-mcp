@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.utils.vault import (
+from kmcp.utils.vault import (
     _mirror_path,
     _safe_component,
     ensure_vault_dirs,
@@ -31,7 +31,7 @@ class TestVaultPathSafety:
 
     def test_mirror_path_stays_inside_vault_root(self, tmp_path) -> None:
         fake_root = tmp_path / "vault"
-        with patch("kali_mcp.utils.vault.VAULT_ROOT", fake_root):
+        with patch("kmcp.utils.vault.VAULT_ROOT", fake_root):
             path = _mirror_path("runs/generic_command", "2026_tool.json")
             assert str(path).startswith(str(fake_root))
             assert "runs/generic_command" in str(path)
@@ -39,7 +39,7 @@ class TestVaultPathSafety:
 
 class TestVaultWriteReadDelete:
     def _patch_vault_root(self, tmp_path) -> None:
-        return patch("kali_mcp.utils.vault.VAULT_ROOT", tmp_path / "vault")
+        return patch("kmcp.utils.vault.VAULT_ROOT", tmp_path / "vault")
 
     def test_write_and_read_roundtrip(self, tmp_path) -> None:
         with self._patch_vault_root(tmp_path):
@@ -142,7 +142,7 @@ class TestVaultWriteReadDelete:
 
 class TestVaultRowSizeLimit:
     def _patch_vault_root(self, tmp_path) -> None:
-        return patch("kali_mcp.utils.vault.VAULT_ROOT", tmp_path / "vault")
+        return patch("kmcp.utils.vault.VAULT_ROOT", tmp_path / "vault")
 
     def test_row_too_large_raises(self, tmp_path) -> None:
         with self._patch_vault_root(tmp_path):
@@ -150,8 +150,8 @@ class TestVaultRowSizeLimit:
             # Temporarily lower the max row size on a replaced config instance
             from dataclasses import replace
 
-            from kali_mcp import config as cfg
+            from kmcp import config as cfg
 
             small_cfg = replace(cfg.config, vault_max_row_bytes=100)
-            with patch("kali_mcp.utils.vault.config", small_cfg), pytest.raises(ValueError):
+            with patch("kmcp.utils.vault.config", small_cfg), pytest.raises(ValueError):
                 vault_write("runs/big", "big", {"data": "x" * 1000})
