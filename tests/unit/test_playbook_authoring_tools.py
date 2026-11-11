@@ -13,9 +13,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from kali_mcp.playbook_dsl import PLAYBOOK_DSL_GUIDE
-from kali_mcp.tools import ALL_TOOLS
-from kali_mcp.tools.playbook_authoring import (
+from kmcp.playbook_dsl import PLAYBOOK_DSL_GUIDE
+from kmcp.tools import ALL_TOOLS
+from kmcp.tools.playbook_authoring import (
     PlaybookCreateTool,
     PlaybookPublishTool,
     PlaybookValidateTool,
@@ -109,11 +109,11 @@ class TestPlaybookCreateTool:
         row = {"playbook_id": "pb1", "name": "PB 1", "status": "draft"}
         with (
             patch(
-                "kali_mcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db
+                "kmcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db
             ),
-            patch("kali_mcp.studio.playbook_service.get_playbook", return_value=None),
+            patch("kmcp.studio.playbook_service.get_playbook", return_value=None),
             patch(
-                "kali_mcp.studio.playbook_service.create_playbook", return_value=row
+                "kmcp.studio.playbook_service.create_playbook", return_value=row
             ) as create,
         ):
             response = await tool.execute(
@@ -133,10 +133,10 @@ class TestPlaybookCreateTool:
         fake_db = MagicMock()
         with (
             patch(
-                "kali_mcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db
+                "kmcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db
             ),
             patch(
-                "kali_mcp.studio.playbook_service.get_playbook",
+                "kmcp.studio.playbook_service.get_playbook",
                 return_value={"playbook_id": "pb1", "status": "published"},
             ),
         ):
@@ -148,7 +148,7 @@ class TestPlaybookCreateTool:
     @pytest.mark.asyncio
     async def test_create_db_unavailable(self) -> None:
         tool = PlaybookCreateTool()
-        with patch("kali_mcp.tools.playbook_authoring.db_manager.get_db", return_value=None):
+        with patch("kmcp.tools.playbook_authoring.db_manager.get_db", return_value=None):
             response = await tool.execute({"playbook_id": "pb1", "name": "PB 1"})
         assert response["isError"] is True
         assert "database unavailable" in _parse(response)["error"]
@@ -159,11 +159,11 @@ class TestPlaybookCreateTool:
         fake_db = MagicMock()
         with (
             patch(
-                "kali_mcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db
+                "kmcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db
             ),
-            patch("kali_mcp.studio.playbook_service.get_playbook", return_value=None),
+            patch("kmcp.studio.playbook_service.get_playbook", return_value=None),
             patch(
-                "kali_mcp.studio.playbook_service.create_playbook",
+                "kmcp.studio.playbook_service.create_playbook",
                 side_effect=ValueError("boom"),
             ),
         ):
@@ -188,7 +188,7 @@ class TestPlaybookValidateTool:
         tool = PlaybookValidateTool()
         validation = {"valid": True, "findings": []}
         with patch(
-            "kali_mcp.tools.playbook_authoring._validate_definition",
+            "kmcp.tools.playbook_authoring._validate_definition",
             return_value=validation,
         ) as vd:
             response = await tool.execute(
@@ -208,7 +208,7 @@ class TestPlaybookValidateTool:
         ]
         validation = {"valid": False, "findings": findings}
         with patch(
-            "kali_mcp.tools.playbook_authoring._validate_definition", return_value=validation
+            "kmcp.tools.playbook_authoring._validate_definition", return_value=validation
         ):
             response = await tool.execute(
                 {"playbook_id": "pb1", "definition": dict(INVALID_DEFINITION)}
@@ -223,7 +223,7 @@ class TestPlaybookValidateTool:
         tool = PlaybookValidateTool()
         validation = {"valid": True, "findings": []}
         with patch(
-            "kali_mcp.tools.playbook_authoring._validate_definition", return_value=validation
+            "kmcp.tools.playbook_authoring._validate_definition", return_value=validation
         ) as vd:
             response = await tool.execute(
                 {"playbook_id": "pb1", "definition": json.dumps(VALID_DEFINITION)}
@@ -252,8 +252,8 @@ class TestPlaybookPublishTool:
         tool = PlaybookPublishTool()
         fake_db = MagicMock()
         with (
-            patch("kali_mcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db),
-            patch("kali_mcp.studio.playbook_service.get_playbook", return_value=None),
+            patch("kmcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db),
+            patch("kmcp.studio.playbook_service.get_playbook", return_value=None),
         ):
             response = await tool.execute(
                 {"playbook_id": "pb1", "version": "1.0", "definition": VALID_DEFINITION}
@@ -269,16 +269,16 @@ class TestPlaybookPublishTool:
         fake_db = MagicMock()
         findings = [{"severity": "error", "step_id": None, "field": "definition", "message": "bad"}]
         with (
-            patch("kali_mcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db),
+            patch("kmcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db),
             patch(
-                "kali_mcp.studio.playbook_service.get_playbook",
+                "kmcp.studio.playbook_service.get_playbook",
                 return_value={"playbook_id": "pb1"},
             ),
             patch(
-                "kali_mcp.studio.playbook_service.validate_definition",
+                "kmcp.studio.playbook_service.validate_definition",
                 return_value={"valid": False, "findings": findings},
             ),
-            patch("kali_mcp.studio.playbook_service.publish_version"),  # must not be called
+            patch("kmcp.studio.playbook_service.publish_version"),  # must not be called
         ):
             response = await tool.execute(
                 {"playbook_id": "pb1", "version": "1.0", "definition": VALID_DEFINITION}
@@ -293,17 +293,17 @@ class TestPlaybookPublishTool:
         tool = PlaybookPublishTool()
         fake_db = MagicMock()
         with (
-            patch("kali_mcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db),
+            patch("kmcp.tools.playbook_authoring.db_manager.get_db", return_value=fake_db),
             patch(
-                "kali_mcp.studio.playbook_service.get_playbook",
+                "kmcp.studio.playbook_service.get_playbook",
                 return_value={"playbook_id": "pb1"},
             ),
             patch(
-                "kali_mcp.studio.playbook_service.validate_definition",
+                "kmcp.studio.playbook_service.validate_definition",
                 return_value={"valid": True, "findings": []},
             ),
             patch(
-                "kali_mcp.studio.playbook_service.publish_version", return_value=42
+                "kmcp.studio.playbook_service.publish_version", return_value=42
             ) as publish,
         ):
             response = await tool.execute(
@@ -338,14 +338,14 @@ class TestDslGuideWiring:
             assert token in PLAYBOOK_DSL_GUIDE
 
     def test_resource_reader_returns_guide(self) -> None:
-        from kali_mcp.resources import _playbook_dsl_resource
+        from kmcp.resources import _playbook_dsl_resource
 
         assert _playbook_dsl_resource() == PLAYBOOK_DSL_GUIDE
 
     def test_resource_registered(self) -> None:
         from unittest.mock import MagicMock
 
-        from kali_mcp.resources import register_resources
+        from kmcp.resources import register_resources
 
         fake_mcp = MagicMock()
         register_resources(fake_mcp)
@@ -353,7 +353,7 @@ class TestDslGuideWiring:
         assert "kali://playbook/dsl" in uris
 
     def test_prompt_registered(self) -> None:
-        from kali_mcp.prompts import register_prompts
+        from kmcp.prompts import register_prompts
 
         fake_mcp = MagicMock()
         register_prompts(fake_mcp)
