@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from kali_mcp.utils import vault
+from kmcp.utils import vault
 
 
 def test_read_missing_returns_error_json():
@@ -52,7 +52,7 @@ def test_can_access_default_allows():
 
 def test_can_access_respects_owner(monkeypatch, tmp_path):
     # Point the vault at a temp db so we can record an owner tag.
-    import kali_mcp.utils.vault as v
+    import kmcp.utils.vault as v
 
     orig_db_path = v._db_path
     try:
