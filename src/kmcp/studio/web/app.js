@@ -446,6 +446,7 @@ async function pagePlaybookEditor(id) {
         <button class="btn ghost" id="pbReset" title="Reset test results">↻ Reset</button>
         <button class="btn" id="pbSave" title="Save draft">Save draft</button>
         <button class="btn accent" id="pbRun" title="Run published version with test inputs">▶ Run test</button>
+        <button class="btn danger" id="pbCancelRun" title="Cancel current run" hidden>⏹ Cancel</button>
         <button class="btn primary" id="pbPublish">Publish</button>
         <div class="menu" id="pbMenuWrap">
           <button class="btn ghost" id="pbMore" title="More actions">⋯</button>
@@ -622,6 +623,7 @@ async function pagePlaybookEditor(id) {
   $("#pbSave").addEventListener("click", saveDraft);
   $("#pbPublish").addEventListener("click", publish);
   $("#pbRun").addEventListener("click", () => runModal(selectedId));
+  $("#pbCancelRun").addEventListener("click", cancelCurrentRun);
   $("#pbMore").addEventListener("click", () => {
     const l = $("#pbMenuList");
     if (l) l.hidden = !l.hidden;
@@ -771,6 +773,7 @@ let inspectTab = "general";
 let runStatus = {};           // {stepId: status} from the latest execution
 let stepResults = {};         // {stepId: {outputs, error, tool_id}} from the latest execution
 let runStatusTimer = null;
+let currentExecId = null;   // execution id of the run started from this editor
 
 const TYPE_ICONS = {
   tool: { cls: "scan", glyph: "◎" },
@@ -2147,6 +2150,8 @@ async function startRun(id, inputs, opts = {}) {
     const execId = r?.execution?.execution_id || r?.execution_id || "";
     if (!execId) { toast("Run started but no execution id"); return; }
     toast(`Run started: ${execId}`);
+    currentExecId = execId;
+    $("#pbCancelRun")?.hidden ? $("#pbCancelRun").hidden = false : null;
 
     // Poll execution status live so nodes highlight yellow while running
     runStatusTimer = setInterval(async () => {
@@ -2174,6 +2179,8 @@ async function startRun(id, inputs, opts = {}) {
         if (st !== "running" && st !== "pending") {
           clearInterval(runStatusTimer);
           runStatusTimer = null;
+          currentExecId = null;
+          $("#pbCancelRun")?.hidden ? null : ($("#pbCancelRun").hidden = true);
           renderBuilder();
           toast(st === "completed" ? "Run completed" : `Run ${st}`);
         }
@@ -2184,6 +2191,19 @@ async function startRun(id, inputs, opts = {}) {
     await loadRunStatus(id);
     if (builderView === "graph" && $("#canvasInner")) renderBuilder();
   } catch (err) { toast(err.message, true); }
+}
+
+async function cancelCurrentRun() {
+  if (!currentExecId) return toast("No run in progress", true);
+  if (!confirm(`Cancel run ${currentExecId}?`)) return;
+  try {
+    await api(`/executions/${encodeURIComponent(currentExecId)}/cancel`, { method: "POST" });
+    toast("Cancelling run…");
+    currentExecId = null;
+    $("#pbCancelRun")?.hidden ? null : ($("#pbCancelRun").hidden = true);
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 /* surface the latest execution's per-step status on the graph */
