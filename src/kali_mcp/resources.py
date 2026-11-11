@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from kali_mcp.config import config
+from kali_mcp.playbook_dsl import PLAYBOOK_DSL_GUIDE
 
 logger = logging.getLogger("kali_mcp.resources")
 
@@ -191,6 +192,11 @@ def _vault_index_resource() -> str:
         return json.dumps({"error": str(exc)}, indent=2)
 
 
+def _playbook_dsl_resource() -> str:
+    """Playbook DSL authoring guide (markdown) for AI agents."""
+    return PLAYBOOK_DSL_GUIDE
+
+
 def register_resources(mcp, health=None) -> None:
     """Register all kali:// resources and templates on the FastMCP server."""
     mcp.resource(
@@ -256,8 +262,15 @@ def register_resources(mcp, health=None) -> None:
         mime_type="application/json",
     )(_vault_index_resource)
 
+    mcp.resource(
+        f"{RESOURCE_NAMESPACE}://playbook/dsl",
+        name="kali_playbook_dsl",
+        description="Playbook DSL authoring guide — how to write/validate/publish playbooks",
+        mime_type="text/markdown",
+    )(_playbook_dsl_resource)
+
     logger.info(
         "Registered %d resources + %d templates",
-        9,
+        10,
         len(TEMPLATES),
     )
