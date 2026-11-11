@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.db.manager import DBManager, get_db
+from kmcp.db.manager import DBManager, get_db
 
 
 class TestDBManagerEdgeCases:
@@ -83,7 +83,7 @@ class TestDBManagerEdgeCases:
 
     def test_get_db_returns_singleton(self) -> None:
         # get_db caches the singleton; calling twice returns same object
-        from kali_mcp.db import manager as dbm
+        from kmcp.db import manager as dbm
 
         original = dbm._db_singleton
         dbm._db_singleton = None
