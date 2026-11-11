@@ -10,16 +10,16 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.scope import Scope
-from kali_mcp.workflow import dag_executor as de
-from kali_mcp.workflow.dag_executor import MAX_ITERATIONS, PlaybookEngine, run_playbook_async
-from kali_mcp.workflow.scope_gate import (
+from kmcp.scope import Scope
+from kmcp.workflow import dag_executor as de
+from kmcp.workflow.dag_executor import MAX_ITERATIONS, PlaybookEngine, run_playbook_async
+from kmcp.workflow.scope_gate import (
     ScopeViolationError,
     assert_target_allowed,
     extract_targets,
     gate_step_args,
 )
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
+from kmcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
 
 
 def _defn(steps, inputs=None):
@@ -109,7 +109,7 @@ class TestEngineIntegration:
     async def test_scope_violation_marks_step_failed(self, monkeypatch):
         scope = Scope(allowed_targets=("*.example.com",))
         monkeypatch.setattr(de, "load_scope", lambda: scope, raising=False)
-        monkeypatch.setattr("kali_mcp.workflow.scope_gate.load_scope", lambda: scope)
+        monkeypatch.setattr("kmcp.workflow.scope_gate.load_scope", lambda: scope)
         steps = [
             StepDefinition(id="probe", tool="dnsx", args={"target": "evil.com"}),
             StepDefinition(
@@ -124,7 +124,7 @@ class TestEngineIntegration:
 
     async def test_scope_pass_through_when_permissive(self, monkeypatch):
         monkeypatch.setattr(
-            "kali_mcp.workflow.scope_gate.load_scope",
+            "kmcp.workflow.scope_gate.load_scope",
             lambda: Scope(),
         )
         steps = [StepDefinition(id="probe", tool="dnsx", args={"target": "anything.com"})]
@@ -149,9 +149,9 @@ class TestEngineIntegration:
         engine = PlaybookEngine()
         engine._step_results["dns"] = {"resolved_hosts": small}
         # gate must be permissive
-        monkeypatch.setattr("kali_mcp.workflow.scope_gate.load_scope", lambda: Scope())
+        monkeypatch.setattr("kmcp.workflow.scope_gate.load_scope", lambda: Scope())
         monkeypatch.setattr(
-            "kali_mcp.workflow.dag_executor.gate_step_args",
+            "kmcp.workflow.dag_executor.gate_step_args",
             lambda *a, **kw: None,
         )
         monkeypatch.setattr(
@@ -165,7 +165,7 @@ class TestEngineIntegration:
 
     async def test_foreach_item_out_of_scope_flags_item(self, monkeypatch):
         scope = Scope(allowed_targets=("*.example.com",))
-        monkeypatch.setattr("kali_mcp.workflow.scope_gate.load_scope", lambda: scope)
+        monkeypatch.setattr("kmcp.workflow.scope_gate.load_scope", lambda: scope)
         step = StepDefinition(
             id="iter",
             tool="dnsx",
