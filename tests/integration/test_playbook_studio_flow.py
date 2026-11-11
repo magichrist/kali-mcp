@@ -13,16 +13,16 @@ import json
 
 import pytest
 
-from kali_mcp.agent_context import agent_context
-from kali_mcp.db import manager as db_manager_mod
-from kali_mcp.db.manager import DBManager
-from kali_mcp.tools.playbook_blackbox import (
+from kmcp.agent_context import agent_context
+from kmcp.db import manager as db_manager_mod
+from kmcp.db.manager import DBManager
+from kmcp.tools.playbook_blackbox import (
     JOB_REGISTRY,
     PlaybookCatalogTool,
     PlaybookResultTool,
     PlaybookRunTool,
 )
-from kali_mcp.workflow import modules_runtime as mr
+from kmcp.workflow import modules_runtime as mr
 
 
 def _run(coro):
