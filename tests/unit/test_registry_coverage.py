@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.registry import ToolRegistry
-from kali_mcp.tools.base import BaseTool
+from kmcp.registry import ToolRegistry
+from kmcp.tools.base import BaseTool
 
 
 class DummyTool(BaseTool):
@@ -59,7 +59,7 @@ class TestRegistry:
     def test_overwrite_logs_warning(self):
         reg = ToolRegistry()
         reg.register(DummyTool())
-        with patch("kali_mcp.registry.logger.warning") as mock_warning:
+        with patch("kmcp.registry.logger.warning") as mock_warning:
             reg.register(DummyTool())
             mock_warning.assert_called_once()
 
