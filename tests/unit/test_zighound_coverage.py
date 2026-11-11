@@ -1,4 +1,4 @@
-"""Coverage-focused tests for ``kali_mcp.tools.zighound`` (ZigHoundTool).
+"""Coverage-focused tests for ``kmcp.tools.zighound`` (ZigHoundTool).
 
 Covers schema, validate, build_command (scan/c2/agent/extra_args branches),
 execute success and both error paths, using mocking to avoid real subprocesses.
@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-from kali_mcp.models import ExecutionResult
-from kali_mcp.tools.zighound import ZighoundTool
+from kmcp.models import ExecutionResult
+from kmcp.tools.zighound import ZighoundTool
 
 COMMAND = "zighound scan --target 127.0.0.1"
 
@@ -149,7 +149,7 @@ class TestExecute:
     async def test_execute_success(self) -> None:
         tool = ZighoundTool()
         with patch(
-            "kali_mcp.tools.zighound.engine.execute", new=AsyncMock(return_value=_result())
+            "kmcp.tools.zighound.engine.execute", new=AsyncMock(return_value=_result())
         ) as m:
             result = await tool.execute({"command": "scan", "target": "127.0.0.1"})
             assert result["isError"] is False
@@ -162,7 +162,7 @@ class TestExecute:
     async def test_execute_uses_provided_timeout(self) -> None:
         tool = ZighoundTool()
         with patch(
-            "kali_mcp.tools.zighound.engine.execute", new=AsyncMock(return_value=_result())
+            "kmcp.tools.zighound.engine.execute", new=AsyncMock(return_value=_result())
         ) as m:
             await tool.execute({"command": "scan", "target": "127.0.0.1", "timeout": 120})
             assert m.await_args.kwargs["timeout"] == 120
