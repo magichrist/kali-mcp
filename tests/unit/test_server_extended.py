@@ -1,4 +1,4 @@
-"""Extended unit tests for the MCP server (kali_mcp/server.py).
+"""Extended unit tests for the MCP server (kmcp/server.py).
 
 Covers HealthMonitor stuck-execution cleanup, TokenAuthMiddleware token
 variants, health_check / force_cleanup output shapes, and the monitor_stream
@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from kali_mcp.server import (
+from kmcp.server import (
     HealthMonitor,
     TokenAuthMiddleware,
     force_cleanup,
@@ -31,8 +31,8 @@ class TestHealthMonitorExtended:
         fake_config = MagicMock()
         fake_config.max_concurrent = 10
         with (
-            patch("kali_mcp.server.engine") as mock_engine,
-            patch("kali_mcp.server.config", fake_config),
+            patch("kmcp.server.engine") as mock_engine,
+            patch("kmcp.server.config", fake_config),
         ):
             mock_engine.get_stuck_executions.return_value = stuck
             mock_engine.force_cleanup.return_value = 5
@@ -46,8 +46,8 @@ class TestHealthMonitorExtended:
         fake_config = MagicMock()
         fake_config.max_concurrent = 10
         with (
-            patch("kali_mcp.server.engine") as mock_engine,
-            patch("kali_mcp.server.config", fake_config),
+            patch("kmcp.server.engine") as mock_engine,
+            patch("kmcp.server.config", fake_config),
         ):
             mock_engine.get_stuck_executions.return_value = stuck
             mock_engine.active_count = 0
@@ -146,7 +146,7 @@ class TestHealthCheckAndForceCleanupExtended:
 
     def test_health_check_includes_stuck_executions_when_present(self) -> None:
         with patch(
-            "kali_mcp.server.engine.get_stuck_executions",
+            "kmcp.server.engine.get_stuck_executions",
             return_value=[{"request_id": "r1"}],
         ):
             data = json.loads(health_check())
@@ -180,7 +180,7 @@ class TestMonitorEndpoints:
         fake_request = MagicMock()
         fake_request.scope = scope
         fake_request.receive = receive
-        with patch("kali_mcp.server.monitor") as mock_monitor:
+        with patch("kmcp.server.monitor") as mock_monitor:
             mock_monitor.build_snapshot.return_value = {"uptime_seconds": 1.0}
             response = await monitor_action(fake_request)
             assert response.status_code == 200
