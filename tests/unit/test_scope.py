@@ -1,10 +1,10 @@
-"""Unit tests for the scope enforcement module (kali_mcp/scope.py)."""
+"""Unit tests for the scope enforcement module (kmcp/scope.py)."""
 
 from __future__ import annotations
 
 import pytest
 
-from kali_mcp.scope import (
+from kmcp.scope import (
     Scope,
     check_scope,
     is_operation_allowed,
