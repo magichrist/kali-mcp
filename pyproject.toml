@@ -9,7 +9,7 @@ description = "MCP server exposing Kali Linux penetration-testing tools to AI ag
 requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}
-authors = [{ name = "kali-mcp" }]
+authors = [{ name = "kmcp" }]
 dynamic = ["version"]
 
 dependencies = [
@@ -22,18 +22,18 @@ dependencies = [
 ]
 
 [project.scripts]
-kali-mcp = "kali_mcp.server:main"
-kali-mcp-monitor = "kali_mcp.monitor.tui:main"
-kmcp = "kali_mcp.cli:main"
+kmcp = "kmcp.server:main"
+kmcp-monitor = "kmcp.monitor.tui:main"
+kmcp = "kmcp.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-kali_mcp = ["studio/web/**/*"]
+kmcp = ["studio/web/**/*"]
 
 [tool.setuptools_scm]
-write_to = "src/kali_mcp/_version.py"
+write_to = "src/kmcp/_version.py"
 tag_regex = '^(?:v)?(?P<version>[^\+]+)$'
 
 [tool.pytest.ini_options]
