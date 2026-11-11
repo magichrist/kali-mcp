@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.scripts]
-kmcp = "kmcp.server:main"
+kmcp-server = "kmcp.server:main"
 kmcp-monitor = "kmcp.monitor.tui:main"
 kmcp = "kmcp.cli:main"
 
