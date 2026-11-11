@@ -53,13 +53,23 @@ class TestPromptFactories:
         assert "eng-1" in msgs[0]["content"]["text"]
         assert "Executive summary" in msgs[1]["content"]["text"]
 
+    def test_playbook_authoring_embeds_dsl_guide(self) -> None:
+        from kali_mcp.prompts import _playbook_authoring
+
+        msgs = _playbook_authoring("write a recon playbook")
+        assert "write a recon playbook" in msgs[0]["content"]["text"]
+        assert "draft → validate → publish" in msgs[0]["content"]["text"].lower()
+        # Assistant message carries the full DSL guide (markdown headings).
+        assert "## Step fields reference" in msgs[1]["content"]["text"]
+        assert "playbook_create" in msgs[1]["content"]["text"]
+
 
 class TestRegisterPrompts:
-    def test_register_prompts_registers_six(self) -> None:
+    def test_register_prompts_registers_seven(self) -> None:
         fake_mcp = MagicMock()
         register_prompts(fake_mcp)
-        # @mcp.prompt decorator is called 6 times → 6 registrations
-        assert fake_mcp.prompt.call_count == 6
+        # @mcp.prompt decorator is called 7 times → 7 registrations
+        assert fake_mcp.prompt.call_count == 7
         registered_names = [call.kwargs.get("name") for call in fake_mcp.prompt.call_args_list]
         expected = {
             "recon_workflow",
@@ -68,5 +78,6 @@ class TestRegisterPrompts:
             "osint_harvest",
             "quick_scan",
             "report_template",
+            "playbook_authoring",
         }
         assert set(registered_names) == expected
