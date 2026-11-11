@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.config import Config
+from kmcp.config import Config
 
 
 class TestConfigIntParsingExtended:
@@ -98,7 +98,7 @@ class TestConfigStringAndPathDefaults:
             {
                 "MCP_LOG_DIR": str(tmp_path / "logs"),
                 "MCP_ARTIFACT_DIR": str(tmp_path / "artifacts"),
-                "MCP_DB_PATH": str(tmp_path / "data" / "kali-mcp.sqlite"),
+                "MCP_DB_PATH": str(tmp_path / "data" / "kmcp.sqlite"),
                 "MCP_DB_ENABLED": "false",
             },
             clear=True,
@@ -110,15 +110,15 @@ class TestConfigStringAndPathDefaults:
     def test_server_name_version_defaults_and_overrides(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             c = Config()
-            assert c.server_name == "kali-mcp"
+            assert c.server_name == "kmcp"
             assert c.server_version == "1.0.0"
         with patch.dict(
             os.environ,
-            {"MCP_SERVER_NAME": "kali-mcp-v2", "MCP_SERVER_VERSION": "2.0.0"},
+            {"MCP_SERVER_NAME": "kmcp-v2", "MCP_SERVER_VERSION": "2.0.0"},
             clear=True,
         ):
             c = Config()
-            assert c.server_name == "kali-mcp-v2"
+            assert c.server_name == "kmcp-v2"
             assert c.server_version == "2.0.0"
 
 
