@@ -1,4 +1,4 @@
-"""Comprehensive unit tests for ``src/kali_mcp/tools/agent_interface.py``.
+"""Comprehensive unit tests for ``src/kmcp/tools/agent_interface.py``.
 
 Covers every registered tool's input schema, validation (happy + error paths),
 execution (happy + error paths with all external calls mocked), the
@@ -18,8 +18,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from kali_mcp.models import ExecutionResult, utc_now_iso
-from kali_mcp.tools.agent_interface import (
+from kmcp.models import ExecutionResult, utc_now_iso
+from kmcp.tools.agent_interface import (
     AGENT_MODE_TOOLS,
     EXPERT_MODE_TOOLS,
     TOOL_LAYERS,
@@ -177,7 +177,7 @@ def patch_db(monkeypatch):
     """Patch ``dbm.get_db`` to return the supplied FakeDB (or None)."""
 
     def install(db):
-        monkeypatch.setattr("kali_mcp.tools.agent_interface.dbm.get_db", lambda: db)
+        monkeypatch.setattr("kmcp.tools.agent_interface.dbm.get_db", lambda: db)
         return db
 
     return install
@@ -189,13 +189,13 @@ def patch_vault(monkeypatch):
 
     def install(query=None, read=None, write=None, can_access=None):
         if query is not None:
-            monkeypatch.setattr("kali_mcp.tools.agent_interface.vault_query", query)
+            monkeypatch.setattr("kmcp.tools.agent_interface.vault_query", query)
         if read is not None:
-            monkeypatch.setattr("kali_mcp.tools.agent_interface.vault_read", read)
+            monkeypatch.setattr("kmcp.tools.agent_interface.vault_read", read)
         if write is not None:
-            monkeypatch.setattr("kali_mcp.tools.agent_interface.vault_write", write)
+            monkeypatch.setattr("kmcp.tools.agent_interface.vault_write", write)
         if can_access is not None:
-            monkeypatch.setattr("kali_mcp.tools.agent_interface.can_access", can_access)
+            monkeypatch.setattr("kmcp.tools.agent_interface.can_access", can_access)
 
     return install
 
@@ -206,11 +206,11 @@ def patch_context(monkeypatch):
 
     def install(aid="assessment_abcdef123456", jid="job_abcdef123456"):
         monkeypatch.setattr(
-            "kali_mcp.tools.agent_interface.get_assessment_context",
+            "kmcp.tools.agent_interface.get_assessment_context",
             lambda: (aid, jid),
         )
         monkeypatch.setattr(
-            "kali_mcp.identifiers.get_assessment_context",
+            "kmcp.identifiers.get_assessment_context",
             lambda: (aid, jid),
         )
         return aid, jid
@@ -226,7 +226,7 @@ def patch_playbook(monkeypatch):
         if res is None:
             res = _exec_result({"step_results": {}})
         monkeypatch.setattr(
-            "kali_mcp.tools.agent_interface.run_playbook_async",
+            "kmcp.tools.agent_interface.run_playbook_async",
             AsyncMock(return_value=res),
         )
         return res
@@ -240,10 +240,10 @@ def patch_registry(monkeypatch):
 
     def install(get_tool=None, list_all=None):
         if get_tool is not None:
-            monkeypatch.setattr("kali_mcp.registry.registry.get", lambda name: get_tool)
+            monkeypatch.setattr("kmcp.registry.registry.get", lambda name: get_tool)
         if list_all is not None:
             monkeypatch.setattr(
-                "kali_mcp.registry.registry.list_all",
+                "kmcp.registry.registry.list_all",
                 lambda: list_all,
             )
 
@@ -257,11 +257,11 @@ def patch_engine(monkeypatch):
     def install(active_jobs=None, kill_result=True):
         if active_jobs is not None:
             monkeypatch.setattr(
-                "kali_mcp.tools.agent_interface.engine.get_active_jobs",
+                "kmcp.tools.agent_interface.engine.get_active_jobs",
                 lambda: active_jobs,
             )
         monkeypatch.setattr(
-            "kali_mcp.tools.agent_interface.engine.kill_job",
+            "kmcp.tools.agent_interface.engine.kill_job",
             AsyncMock(return_value=kill_result),
         )
 
@@ -1079,7 +1079,7 @@ class TestJobControlExecute:
     @pytest.mark.asyncio
     async def test_vault_query_exception(self, monkeypatch, patch_engine):
         monkeypatch.setattr(
-            "kali_mcp.tools.agent_interface.vault_query",
+            "kmcp.tools.agent_interface.vault_query",
             lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db down")),
         )
         patch_engine(active_jobs=[])
@@ -1786,7 +1786,7 @@ class TestAssessmentDiffExecute:
             },
         )()
         monkeypatch.setattr(
-            "kali_mcp.tools.agent_interface.AssessmentDiffer",
+            "kmcp.tools.agent_interface.AssessmentDiffer",
             lambda db_manager=None: fake_diff,
         )
         tool = AssessmentDiffTool()
@@ -1812,7 +1812,7 @@ class TestCoverageSummaryExecute:
             },
         )()
         monkeypatch.setattr(
-            "kali_mcp.tools.agent_interface.CoverageTracker",
+            "kmcp.tools.agent_interface.CoverageTracker",
             lambda: fake_tracker,
         )
         tool = CoverageSummaryTool()
@@ -1844,7 +1844,7 @@ class TestCoverageSummaryExecute:
             },
         )()
         monkeypatch.setattr(
-            "kali_mcp.tools.agent_interface.CoverageTracker",
+            "kmcp.tools.agent_interface.CoverageTracker",
             lambda: fake_tracker,
         )
         tool = CoverageSummaryTool()
@@ -1875,7 +1875,7 @@ class TestCoverageSummaryExecute:
             },
         )()
         monkeypatch.setattr(
-            "kali_mcp.tools.agent_interface.CoverageTracker",
+            "kmcp.tools.agent_interface.CoverageTracker",
             lambda: fake_tracker,
         )
         tool = CoverageSummaryTool()
