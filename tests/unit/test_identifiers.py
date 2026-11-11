@@ -1,10 +1,10 @@
-"""Unit tests for the assessment/job identifier module (kali_mcp/identifiers.py)."""
+"""Unit tests for the assessment/job identifier module (kmcp/identifiers.py)."""
 
 from __future__ import annotations
 
 import re
 
-from kali_mcp import identifiers
+from kmcp import identifiers
 
 
 class TestGenerateAssessmentId:
