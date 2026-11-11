@@ -1,13 +1,13 @@
-"""Unit tests for kali_mcp/monitor — Monitor, session registry, SSE client, TUI."""
+"""Unit tests for kmcp/monitor — Monitor, session registry, SSE client, TUI."""
 
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-from kali_mcp.monitor import Monitor
-from kali_mcp.monitor.sessions import SessionRegistry
-from kali_mcp.monitor.sse_client import SseClient
-from kali_mcp.monitor.tui import _health_panel, _jobs_panel, _sessions_panel, build_layout
+from kmcp.monitor import Monitor
+from kmcp.monitor.sessions import SessionRegistry
+from kmcp.monitor.sse_client import SseClient
+from kmcp.monitor.tui import _health_panel, _jobs_panel, _sessions_panel, build_layout
 
 
 class TestMonitorSnapshot:
