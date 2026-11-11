@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.db.manager import DBManager
-from kali_mcp.studio import playbook_service
+from kmcp.db.manager import DBManager
+from kmcp.studio import playbook_service
 
 
 @pytest.fixture
@@ -202,7 +202,7 @@ class TestExportImport:
         playbook_service.publish_version(db, "pb1", "1.0.0", definition=VALID_DEFINITION)
         package = playbook_service.export_playbook(db, "pb1")
         assert package is not None
-        assert package["format"] == "kali-mcp-playbook-package"
+        assert package["format"] == "kmcp-playbook-package"
         assert package["playbook"]["playbook_id"] == "pb1"
         assert package["playbook"]["name"] == "PB1"
         assert len(package["versions"]) == 1
@@ -231,7 +231,7 @@ class TestExportImport:
         assert result["ok"] is False
 
     def test_import_hash_mismatch(self, db):
-        package = {"format": "kali-mcp-playbook-package", "playbook": {}, "versions": []}
+        package = {"format": "kmcp-playbook-package", "playbook": {}, "versions": []}
         package["hash"] = "badhash"
         result = playbook_service.import_playbook(db, package)
         assert result["ok"] is False
