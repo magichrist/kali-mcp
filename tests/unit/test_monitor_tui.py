@@ -1,8 +1,8 @@
-"""Unit tests for the monitor TUI layout builders (kali_mcp/monitor/tui.py)."""
+"""Unit tests for the monitor TUI layout builders (kmcp/monitor/tui.py)."""
 
 from __future__ import annotations
 
-from kali_mcp.monitor.tui import _health_panel, _jobs_panel, _sessions_panel, build_layout
+from kmcp.monitor.tui import _health_panel, _jobs_panel, _sessions_panel, build_layout
 
 
 class TestTuiLayout:
