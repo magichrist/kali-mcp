@@ -607,17 +607,6 @@ async function pagePlaybookEditor(id) {
     toast("Redo");
   });
 
-  /* sidebar minimize toggle */
-  const sidebarToggle = $("#sidebarToggle");
-  if (sidebarToggle) {
-    const sidebarHidden = localStorage.getItem("kmcp_sidebar_minimized") === "1";
-    if (sidebarHidden) $("#app")?.classList.add("sidebar-minimized");
-    sidebarToggle.addEventListener("click", () => {
-      const isMinimized = $("#app").classList.toggle("sidebar-minimized");
-      localStorage.setItem("kmcp_sidebar_minimized", isMinimized ? "1" : "0");
-    });
-  }
-
 
 
   $("#pbValidate").addEventListener("click", validateDefinition);
@@ -3058,6 +3047,18 @@ function bootShell() {
   if (wsBtn) wsBtn.addEventListener("click", () => toast("Single workspace — the running server is this workspace."));
   $("#tokenSave").addEventListener("click", saveTokenAndRetry);
   $("#tokenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") saveTokenAndRetry(); });
+
+  /* sidebar minimize toggle — works on every page */
+  const sidebarToggle = $("#sidebarToggle");
+  if (sidebarToggle) {
+    const sidebarHidden = localStorage.getItem("kmcp_sidebar_minimized") === "1";
+    if (sidebarHidden) $("#app")?.classList.add("sidebar-minimized");
+    sidebarToggle.addEventListener("click", () => {
+      const isMinimized = $("#app").classList.toggle("sidebar-minimized");
+      localStorage.setItem("kmcp_sidebar_minimized", isMinimized ? "1" : "0");
+    });
+  }
+
   window.addEventListener("hashchange", route);
 
   /* ── global tooltip bubble (position: fixed so it never gets clipped) ── */
