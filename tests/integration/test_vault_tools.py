@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from kali_mcp.tools.vault_tool import (
+from kmcp.tools.vault_tool import (
     VaultDeleteTool,
     VaultListTool,
     VaultQueryTool,
@@ -18,7 +18,7 @@ from kali_mcp.tools.vault_tool import (
 
 @pytest.fixture()
 def vault_env(tmp_path, monkeypatch):
-    from kali_mcp.utils import vault as v
+    from kmcp.utils import vault as v
 
     monkeypatch.setattr(v, "VAULT_ROOT", tmp_path / "vault")
     v.ensure_vault_dirs()
@@ -205,10 +205,10 @@ async def test_write_rejects_oversized_rows(vault_env, monkeypatch):
     """vault_write surfaces the size ceiling as a structured error."""
     import dataclasses
 
-    from kali_mcp.config import config as real_config
+    from kmcp.config import config as real_config
 
     small = dataclasses.replace(real_config, vault_max_row_bytes=1024)
-    monkeypatch.setattr("kali_mcp.utils.vault.config", small)
+    monkeypatch.setattr("kmcp.utils.vault.config", small)
 
     write = VaultWriteTool()
     resp = await write.execute({"category": "big", "name": "too_big", "content": "x" * 4096})
