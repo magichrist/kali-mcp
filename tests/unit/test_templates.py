@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.playbooks.registry import (
+from kmcp.playbooks.registry import (
     TemplateNotFound,
     _templates,
     get_template,
@@ -106,7 +106,7 @@ def test_render_explicit_override_wins_over_default():
 
 
 def test_render_produces_workflow_definition():
-    from kali_mcp.workflow.yaml_loader import PlaybookDefinition
+    from kmcp.workflow.yaml_loader import PlaybookDefinition
 
     pb = render_template("quick_web_scan", {"target": "render.test"})
     assert isinstance(pb, PlaybookDefinition)
