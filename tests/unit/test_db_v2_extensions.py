@@ -1,4 +1,4 @@
-"""Unit tests for v2 DB extensions in src/kali_mcp/db/manager.py.
+"""Unit tests for v2 DB extensions in src/kmcp/db/manager.py.
 
 Covers upsert_asset, add_service, add_technology, add_asset_relationship,
 add_evidence_artifact, add_finding_correlation, get_asset_graph, query_findings,
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.db.manager import DBManager
+from kmcp.db.manager import DBManager
 
 
 @pytest.fixture()
