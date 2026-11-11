@@ -12,11 +12,11 @@ import json
 
 import pytest
 
-from kali_mcp.workflow import modules_runtime as mr
-from kali_mcp.workflow.dsl import compile_dsl, deserialize, parse, roundtrip
-from kali_mcp.workflow.dsl.compiler import CompileError
-from kali_mcp.workflow.dsl.compiler import compile as dsl_compile
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition
+from kmcp.workflow import modules_runtime as mr
+from kmcp.workflow.dsl import compile_dsl, deserialize, parse, roundtrip
+from kmcp.workflow.dsl.compiler import CompileError
+from kmcp.workflow.dsl.compiler import compile as dsl_compile
+from kmcp.workflow.yaml_loader import PlaybookDefinition
 
 VALID_DSL = """id: custom.domain_recon
 name: "Custom Domain Reconnaissance"
@@ -155,7 +155,7 @@ class TestDomainReconExample:
         assert defn.name == "Custom Domain Reconnaissance"
 
     def test_example_validates(self):
-        from kali_mcp.workflow.validator import is_valid, validate_playbook
+        from kmcp.workflow.validator import is_valid, validate_playbook
 
         defn = compile_dsl(VALID_DSL)
         module_catalog = [
@@ -178,7 +178,7 @@ class TestDomainReconExample:
     @pytest.mark.asyncio
     async def test_example_dry_runs_via_engine(self):
         """Compiled DSL playbook runs through PlaybookEngine with mocked modules."""
-        from kali_mcp.workflow.dag_executor import PlaybookEngine
+        from kmcp.workflow.dag_executor import PlaybookEngine
 
         defn = compile_dsl(VALID_DSL)
 
@@ -233,7 +233,7 @@ class TestRoundtripAlias:
 
 def test_injection_rejected_import():
     """Ensure CompileError is importable from the dsl package."""
-    from kali_mcp.workflow.dsl import CompileError, compile_dsl, parse
+    from kmcp.workflow.dsl import CompileError, compile_dsl, parse
 
     dsl = 'id: pb name: "t" steps { s: tool nmap depends_on [] inputs { x: "$(reboot)" } }'
     with pytest.raises(CompileError):
