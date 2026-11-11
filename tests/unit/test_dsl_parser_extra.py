@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow.dsl.parser import DSLParseError, parse
+from kmcp.workflow.dsl.parser import DSLParseError, parse
 
 
 def _wrap(section: str) -> str:
