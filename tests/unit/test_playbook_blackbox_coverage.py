@@ -1,4 +1,4 @@
-"""Coverage-focused unit tests for ``src/kali_mcp/tools/playbook_blackbox.py``.
+"""Coverage-focused unit tests for ``src/kmcp/tools/playbook_blackbox.py``.
 
 Covers:
   - tool schema (input_schema), validate, execute and safe_execute
@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from kali_mcp.tools.playbook_blackbox import (
+from kmcp.tools.playbook_blackbox import (
     JOB_REGISTRY,
     PlaybookCatalogTool,
     PlaybookResultTool,
@@ -147,14 +147,14 @@ class TestPlaybookRunTool:
     def test_validate_unknown_playbook(self):
         tool = PlaybookRunTool()
         with (
-            patch("kali_mcp.playbooks.registry.get_playbook", side_effect=KeyError("nope")),
+            patch("kmcp.playbooks.registry.get_playbook", side_effect=KeyError("nope")),
             pytest.raises(ValueError, match="unknown playbook"),
         ):
             tool.validate({"playbook": "pb", "target": "t"})
 
     def test_validate_known_playbook(self):
         tool = PlaybookRunTool()
-        with patch("kali_mcp.playbooks.registry.get_playbook", return_value={"id": "pb"}):
+        with patch("kmcp.playbooks.registry.get_playbook", return_value={"id": "pb"}):
             tool.validate({"playbook": "pb", "target": "t"})  # does not raise
 
     async def test_execute_background_accepted(self):
@@ -171,10 +171,10 @@ class TestPlaybookRunTool:
         }
         with (
             patch(
-                "kali_mcp.playbooks.registry.get_playbook",
+                "kmcp.playbooks.registry.get_playbook",
                 return_value={"execution": {"timeout": 600}},
             ),
-            patch("kali_mcp.playbooks.engine.PlaybookEngine", return_value=_engine(assessment)),
+            patch("kmcp.playbooks.engine.PlaybookEngine", return_value=_engine(assessment)),
         ):
             result = await tool.execute({"playbook": "pb", "target": "t", "background": True})
             # let the scheduled background task run while the engine is mocked
@@ -208,10 +208,10 @@ class TestPlaybookRunTool:
         }
         with (
             patch(
-                "kali_mcp.playbooks.registry.get_playbook",
+                "kmcp.playbooks.registry.get_playbook",
                 return_value={"execution": {"timeout": 10}},
             ),
-            patch("kali_mcp.playbooks.engine.PlaybookEngine", return_value=_engine(assessment)),
+            patch("kmcp.playbooks.engine.PlaybookEngine", return_value=_engine(assessment)),
         ):
             result = await tool.execute({"playbook": "pb", "target": "t", "detail": "full"})
 
@@ -232,10 +232,10 @@ class TestPlaybookRunTool:
         # empty assessment: execution not a dict, missing summary/ids/etc.
         with (
             patch(
-                "kali_mcp.playbooks.registry.get_playbook",
+                "kmcp.playbooks.registry.get_playbook",
                 return_value={"execution": {"timeout": 10}},
             ),
-            patch("kali_mcp.playbooks.engine.PlaybookEngine", return_value=_engine({})),
+            patch("kmcp.playbooks.engine.PlaybookEngine", return_value=_engine({})),
         ):
             result = await tool.execute({"playbook": "pb", "target": "t"})
 
@@ -251,8 +251,8 @@ class TestPlaybookRunTool:
     async def test_execute_unknown_playbook_raises(self):
         tool = PlaybookRunTool()
         with (
-            patch("kali_mcp.playbooks.registry.get_playbook", side_effect=KeyError("nope")),
-            patch("kali_mcp.playbooks.engine.PlaybookEngine", return_value=_engine({})),
+            patch("kmcp.playbooks.registry.get_playbook", side_effect=KeyError("nope")),
+            patch("kmcp.playbooks.engine.PlaybookEngine", return_value=_engine({})),
         ):
             with pytest.raises(KeyError):
                 await tool.execute({"playbook": "nope", "target": "t"})
@@ -262,10 +262,10 @@ class TestPlaybookRunTool:
         tool._skip_central_persist = True
         with (
             patch(
-                "kali_mcp.playbooks.registry.get_playbook",
+                "kmcp.playbooks.registry.get_playbook",
                 return_value={"execution": {"timeout": 10}},
             ),
-            patch("kali_mcp.playbooks.engine.PlaybookEngine", return_value=_engine({})),
+            patch("kmcp.playbooks.engine.PlaybookEngine", return_value=_engine({})),
         ):
             result = await tool.safe_execute({"playbook": "pb", "target": "t"})
         assert result["isError"] is False
@@ -274,8 +274,8 @@ class TestPlaybookRunTool:
         tool = PlaybookRunTool()
         tool._skip_central_persist = True
         with (
-            patch("kali_mcp.playbooks.registry.get_playbook", side_effect=KeyError("x")),
-            patch("kali_mcp.playbooks.engine.PlaybookEngine", return_value=_engine({})),
+            patch("kmcp.playbooks.registry.get_playbook", side_effect=KeyError("x")),
+            patch("kmcp.playbooks.engine.PlaybookEngine", return_value=_engine({})),
         ):
             result = await tool.safe_execute({"playbook": "x", "target": "t"})
         assert result["isError"] is True
@@ -294,7 +294,7 @@ class TestRunBackground:
         async def coro():
             JOB_REGISTRY[job_id]["status"] = "completed"
 
-        from kali_mcp.tools.playbook_blackbox import _run_background
+        from kmcp.tools.playbook_blackbox import _run_background
 
         await _run_background(job_id, coro)
         assert JOB_REGISTRY[job_id]["status"] == "completed"
@@ -306,14 +306,14 @@ class TestRunBackground:
         async def coro():
             raise RuntimeError("bg boom")
 
-        from kali_mcp.tools.playbook_blackbox import _run_background
+        from kmcp.tools.playbook_blackbox import _run_background
 
         await _run_background(job_id, coro)
         assert JOB_REGISTRY[job_id]["status"] == "failed"
         assert "bg boom" in JOB_REGISTRY[job_id]["error"]
 
     async def test_exception_missing_registry_no_crash(self):
-        from kali_mcp.tools.playbook_blackbox import _run_background
+        from kmcp.tools.playbook_blackbox import _run_background
 
         async def coro():
             raise RuntimeError("bg boom")
@@ -346,7 +346,7 @@ class TestPlaybookCatalogTool:
                 "execution": {"timeout": 60},
             }
         ]
-        with patch("kali_mcp.playbooks.registry.list_playbooks", return_value=playbooks):
+        with patch("kmcp.playbooks.registry.list_playbooks", return_value=playbooks):
             result = await tool.execute({"detail": "compact"})
         assert result["isError"] is False
         payload = _tool_payload(result)
@@ -358,7 +358,7 @@ class TestPlaybookCatalogTool:
     async def test_execute_full_keeps_full_dicts(self):
         tool = PlaybookCatalogTool()
         playbooks = [{"id": "pb1", "name": "PB1", "description": "d1", "inputs": {}, "outputs": {}}]
-        with patch("kali_mcp.playbooks.registry.list_playbooks", return_value=playbooks):
+        with patch("kmcp.playbooks.registry.list_playbooks", return_value=playbooks):
             result = await tool.execute({"detail": "full"})
         payload = _tool_payload(result)
         assert payload["playbooks"] == playbooks
@@ -443,7 +443,7 @@ class TestPlaybookResultTool:
         tool = PlaybookResultTool()
         key = "job_unknown"
         data = {"assessment_id": "a", "playbook_id": "pb", "target": "t"}
-        with patch("kali_mcp.utils.vault.vault_read", return_value=json.dumps(data)):
+        with patch("kmcp.utils.vault.vault_read", return_value=json.dumps(data)):
             result = await tool.execute({"job_id": key})
         assert result["isError"] is False
         payload = _tool_payload(result)
@@ -455,7 +455,7 @@ class TestPlaybookResultTool:
         tool = PlaybookResultTool()
         key = "job_unknown"
         data = {"assessment_id": "a", "playbook_id": "pb", "target": "t"}
-        with patch("kali_mcp.utils.vault.vault_read", return_value=data):  # not str
+        with patch("kmcp.utils.vault.vault_read", return_value=data):  # not str
             result = await tool.execute({"job_id": key})
         assert result["isError"] is False
         payload = _tool_payload(result)
@@ -467,8 +467,8 @@ class TestPlaybookResultTool:
         notfound = json.dumps({"error": "not found"})
         rows = [{"category": "playbook_results", "name": "job_cand"}]
         with (
-            patch("kali_mcp.utils.vault.vault_read", return_value=notfound),
-            patch("kali_mcp.utils.vault.vault_query", return_value={"rows": rows}),
+            patch("kmcp.utils.vault.vault_read", return_value=notfound),
+            patch("kmcp.utils.vault.vault_query", return_value={"rows": rows}),
         ):
             result = await tool.execute({"job_id": key})
         payload = _tool_payload(result)
@@ -480,9 +480,9 @@ class TestPlaybookResultTool:
         key = "job_unknown"
         notfound = json.dumps({"error": "not found"})
         with (
-            patch("kali_mcp.utils.vault.vault_read", return_value=notfound),
+            patch("kmcp.utils.vault.vault_read", return_value=notfound),
             patch(
-                "kali_mcp.utils.vault.vault_query",
+                "kmcp.utils.vault.vault_query",
                 return_value={"results": [{"category": "c", "name": "n"}]},
             ),
         ):
@@ -496,8 +496,8 @@ class TestPlaybookResultTool:
         key = "job_unknown"
         notfound = json.dumps({"error": "not found"})
         with (
-            patch("kali_mcp.utils.vault.vault_read", return_value=notfound),
-            patch("kali_mcp.utils.vault.vault_query", return_value={"rows": []}),
+            patch("kmcp.utils.vault.vault_read", return_value=notfound),
+            patch("kmcp.utils.vault.vault_query", return_value={"rows": []}),
         ):
             result = await tool.execute({"job_id": key})
         assert result["isError"] is True
@@ -509,8 +509,8 @@ class TestPlaybookResultTool:
         key = "job_unknown"
         # raw_text = "" is falsy -> skips direct hit -> vault query -> not found
         with (
-            patch("kali_mcp.utils.vault.vault_read", return_value=""),
-            patch("kali_mcp.utils.vault.vault_query", return_value={"rows": []}),
+            patch("kmcp.utils.vault.vault_read", return_value=""),
+            patch("kmcp.utils.vault.vault_query", return_value={"rows": []}),
         ):
             result = await tool.execute({"job_id": key})
         assert result["isError"] is True
@@ -520,7 +520,7 @@ class TestPlaybookResultTool:
     async def test_execute_vault_exception_not_found(self):
         tool = PlaybookResultTool()
         key = "job_unknown"
-        with patch("kali_mcp.utils.vault.vault_read", side_effect=OSError("vault down")):
+        with patch("kmcp.utils.vault.vault_read", side_effect=OSError("vault down")):
             result = await tool.execute({"job_id": key})
         assert result["isError"] is True
         payload = json.loads(result["content"][0]["text"])
