@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from kali_mcp.workflow.step_types import (
+from kmcp.workflow.step_types import (
     step_assessment_report,
     step_custom,
     step_finding_correlation,
