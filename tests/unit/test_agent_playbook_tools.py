@@ -21,11 +21,11 @@ import json
 
 import pytest
 
-from kali_mcp.agent_context import agent_context
-from kali_mcp.db import manager as db_manager_mod
-from kali_mcp.db.manager import DBManager
-from kali_mcp.tools.playbook_blackbox import JOB_REGISTRY, PlaybookRunTool
-from kali_mcp.workflow import modules_runtime as mr
+from kmcp.agent_context import agent_context
+from kmcp.db import manager as db_manager_mod
+from kmcp.db.manager import DBManager
+from kmcp.tools.playbook_blackbox import JOB_REGISTRY, PlaybookRunTool
+from kmcp.workflow import modules_runtime as mr
 
 
 def _run(coro):
@@ -224,7 +224,7 @@ class TestPlaybookRunStudio:
 
 class TestPlaybookCatalogProfile:
     def test_profile_catalog_lists_assigned_published_only(self, patch_db):
-        from kali_mcp.tools.playbook_blackbox import PlaybookCatalogTool
+        from kmcp.tools.playbook_blackbox import PlaybookCatalogTool
 
         _seed_published(patch_db)
         _seed_published(
@@ -246,8 +246,8 @@ class TestPlaybookCatalogProfile:
         assert resp["profile_id"] == "p1"
 
     def test_no_profile_context_serves_legacy_registry(self, patch_db):
-        from kali_mcp.playbooks import registry as pb_registry
-        from kali_mcp.tools.playbook_blackbox import PlaybookCatalogTool
+        from kmcp.playbooks import registry as pb_registry
+        from kmcp.tools.playbook_blackbox import PlaybookCatalogTool
 
         _seed_published(patch_db)  # studio playbook exists but no profile context
         resp = _payload_text(_run(PlaybookCatalogTool().execute({})))
@@ -259,7 +259,7 @@ class TestPlaybookCatalogProfile:
 
 class TestPlaybookResultStudio:
     def test_serves_durable_execution_by_job_id(self, patch_db):
-        from kali_mcp.tools.playbook_blackbox import PlaybookResultTool
+        from kmcp.tools.playbook_blackbox import PlaybookResultTool
 
         _seed_published(patch_db)
         execution_id = "wexec_test_0001"
@@ -293,7 +293,7 @@ class TestPlaybookResultStudio:
         assert resp["steps"][0]["step_id"] == "s1"
 
     def test_running_execution_signals_poll(self, patch_db):
-        from kali_mcp.tools.playbook_blackbox import PlaybookResultTool
+        from kmcp.tools.playbook_blackbox import PlaybookResultTool
 
         _seed_published(patch_db)
         patch_db.create_workflow_execution(
@@ -309,7 +309,7 @@ class TestPlaybookResultStudio:
         assert any("again" in a for a in resp["next_actions"])
 
     def test_falls_through_to_legacy_when_no_db_row(self, patch_db):
-        from kali_mcp.tools.playbook_blackbox import PlaybookResultTool
+        from kmcp.tools.playbook_blackbox import PlaybookResultTool
 
         JOB_REGISTRY.clear()
         JOB_REGISTRY["job_legacy"] = {
@@ -328,7 +328,7 @@ class TestPlaybookResultStudio:
 
 class TestToolCatalogProfileFiltering:
     def _catalog(self):
-        from kali_mcp.tools.agent_interface import ToolCatalogTool
+        from kmcp.tools.agent_interface import ToolCatalogTool
 
         return ToolCatalogTool()
 
@@ -353,7 +353,7 @@ class TestToolCatalogProfileFiltering:
         assert tools == []
 
     def test_no_profile_context_full_default_catalog(self, patch_db):
-        from kali_mcp.tools.agent_interface import AGENT_MODE_TOOLS
+        from kmcp.tools.agent_interface import AGENT_MODE_TOOLS
 
         resp = _payload_text(_run(self._catalog().execute({"mode": "agent"})))
         tools = resp["tools"] if "tools" in resp else resp.get("catalog", [])
