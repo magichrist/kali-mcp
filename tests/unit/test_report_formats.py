@@ -12,8 +12,8 @@ import uuid
 
 import pytest
 
-from kali_mcp.tools.agent_interface import ReportGenerateTool
-from kali_mcp.utils.vault import vault_write
+from kmcp.tools.agent_interface import ReportGenerateTool
+from kmcp.utils.vault import vault_write
 
 FINDINGS = [
     {
