@@ -1,4 +1,4 @@
-"""Unit tests for execution scope enforcement (kali_mcp/execution.py).
+"""Unit tests for execution scope enforcement (kmcp/execution.py).
 
 Covers the scope enforcement hook that rejects out-of-scope targets before
 execution, plus target/assessment_id/job_id params passthrough.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 
-from kali_mcp.execution import ExecutionEngine
+from kmcp.execution import ExecutionEngine
 
 _SCOPE_ENV_VARS = (
     "MCP_SCOPE_ALLOWED_TARGETS",
