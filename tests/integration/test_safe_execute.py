@@ -11,7 +11,7 @@ def parse_response(result: dict) -> dict:
 
 async def test_nonzero_exit_is_not_mcp_error():
     """A command failing must still be a well-formed tool response."""
-    from kali_mcp.tools.generic_command import GenericCommandTool
+    from kmcp.tools.generic_command import GenericCommandTool
 
     result = await GenericCommandTool().safe_execute({"command": "exit 42"})
     data = parse_response(result)
@@ -21,7 +21,7 @@ async def test_nonzero_exit_is_not_mcp_error():
 
 
 async def test_stdout_preserved_on_failure():
-    from kali_mcp.tools.generic_command import GenericCommandTool
+    from kmcp.tools.generic_command import GenericCommandTool
 
     result = await GenericCommandTool().safe_execute({"command": "echo partial && exit 1"})
     data = parse_response(result)
@@ -30,7 +30,7 @@ async def test_stdout_preserved_on_failure():
 
 
 async def test_command_not_found():
-    from kali_mcp.tools.generic_command import GenericCommandTool
+    from kmcp.tools.generic_command import GenericCommandTool
 
     result = await GenericCommandTool().safe_execute({"command": "totally_fake_command_xyz"})
     assert parse_response(result)["success"] is False
