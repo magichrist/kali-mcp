@@ -1,4 +1,4 @@
-"""Unit tests for the execution-isolation guard (src/kali_mcp/isolation.py).
+"""Unit tests for the execution-isolation guard (src/kmcp/isolation.py).
 
 These tests run in-process and exercise the best-effort per-step resource
 caps: wall-clock timeout enforcement (every platform) and rlimit-based
@@ -11,7 +11,7 @@ import platform
 
 import pytest
 
-from kali_mcp.isolation import StepLimits, isolation_available, spawn_isolated
+from kmcp.isolation import StepLimits, isolation_available, spawn_isolated
 
 
 def test_isolation_available_flag_is_bool():
