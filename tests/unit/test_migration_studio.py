@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from kali_mcp.db.manager import DBManager
+from kmcp.db.manager import DBManager
 
 
 def _seed_v1_v2(db_path: Path) -> None:
