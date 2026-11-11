@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow.dsl.grammar import (
+from kmcp.workflow.dsl.grammar import (
     FIELD_REF,
     STRING,
     Token,
