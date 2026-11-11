@@ -32,7 +32,7 @@ def server_url():
         "KALI_MCP_INSECURE": "1",
     }
     proc = subprocess.Popen(
-        [sys.executable, str(REPO_ROOT / "src" / "kali_mcp" / "server.py")],
+        [sys.executable, str(REPO_ROOT / "src" / "kmcp" / "server.py")],
         cwd=REPO_ROOT,
         env=env,
         stdout=subprocess.DEVNULL,
