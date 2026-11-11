@@ -1,10 +1,10 @@
-"""Unit tests for the monitor snapshot builder (kali_mcp/monitor/__init__.py)."""
+"""Unit tests for the monitor snapshot builder (kmcp/monitor/__init__.py)."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from kali_mcp.monitor import Monitor
+from kmcp.monitor import Monitor
 
 
 class TestBuildSnapshot:
