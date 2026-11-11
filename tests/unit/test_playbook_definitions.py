@@ -12,8 +12,8 @@ import os
 import pytest
 import yaml
 
-from kali_mcp.playbooks import registry as pb_registry
-from kali_mcp.playbooks.engine import PlaybookEngine
+from kmcp.playbooks import registry as pb_registry
+from kmcp.playbooks.engine import PlaybookEngine
 
 DEFINITIONS_DIR = os.path.join(os.path.dirname(pb_registry.__file__), "definitions")
 
