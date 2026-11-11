@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.db.manager import DBManager
-from kali_mcp.studio import approvals, redaction
+from kmcp.db.manager import DBManager
+from kmcp.studio import approvals, redaction
 
 
 @pytest.fixture
