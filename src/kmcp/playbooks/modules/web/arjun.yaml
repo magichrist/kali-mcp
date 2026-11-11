@@ -1,0 +1,25 @@
+id: arjun
+name: "Arjun"
+description: "Hidden request parameter discovery via arjun"
+tool: arjun
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target URL or endpoint"
+  method:
+    type: string
+    description: "HTTP method"
+    default: "GET"
+  wordlist:
+    type: string
+    description: "Wordlist path"
+    default: ""
+  extra_args:
+    type: string
+    description: "Extra arjun arguments"
+    default: ""
+outputs:
+  - parameters
+  - endpoints_tested
