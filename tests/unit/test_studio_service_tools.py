@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.db.manager import DBManager
-from kali_mcp.studio.service_tools import (
+from kmcp.db.manager import DBManager
+from kmcp.studio.service_tools import (
     PROVIDER_EXTERNAL_MCP,
     PROVIDER_NATIVE,
     enable_tool,
@@ -165,7 +165,7 @@ class TestVisibility:
 
 class TestSyncRegistryToDb:
     def test_sync_registry_to_db(self, db, monkeypatch):
-        import kali_mcp.studio.service_tools as st
+        import kmcp.studio.service_tools as st
 
         # Monkeypatch the global registry to return our dummy tools
         dummy_tools = [DummyRegistryTool("dummy_scan", "A dummy scan tool", 120)]
