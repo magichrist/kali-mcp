@@ -2396,7 +2396,7 @@ async function newPlaybook() {
     createBtn.disabled = true;
     createBtn.textContent = "Creating…";
     try {
-      await api("/playbooks", { method: "POST", body: JSON.stringify(payload) });
+      await api("/playbooks/create", { method: "POST", body: JSON.stringify(payload) });
     } catch (err) {
       createBtn.disabled = false;
       createBtn.textContent = "Create playbook";
