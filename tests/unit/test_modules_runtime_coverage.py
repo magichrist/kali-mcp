@@ -12,8 +12,8 @@ import types
 
 import pytest
 
-from kali_mcp.workflow import modules_runtime as mr
-from kali_mcp.workflow.modules_runtime import (
+from kmcp.workflow import modules_runtime as mr
+from kmcp.workflow.modules_runtime import (
     ModuleContext,
     ModuleError,
     execute,
@@ -90,7 +90,7 @@ class TestCheckRequiredEdge:
 
 class TestLoadBuiltinModules:
     def test_pkg_path_none_returns_empty(self, monkeypatch):
-        import kali_mcp.playbooks.modules as modules_pkg
+        import kmcp.playbooks.modules as modules_pkg
 
         orig_path = modules_pkg.__path__
         modules_pkg.__path__ = None  # type: ignore[assignment]
@@ -113,7 +113,7 @@ class TestLoadBuiltinModules:
         assert result == []
 
     def test_module_without_register_is_skipped(self, monkeypatch):
-        fake_mod = types.ModuleType("kali_mcp.playbooks.modules.noreg")
+        fake_mod = types.ModuleType("kmcp.playbooks.modules.noreg")
         # Deliberately no `register` attribute -> the `continue` branch.
         monkeypatch.setattr(mr.importlib, "import_module", lambda name: fake_mod)
         mr.clear()
