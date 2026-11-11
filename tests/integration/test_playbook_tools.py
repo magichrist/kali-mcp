@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from kali_mcp.tools.playbook_engine import RUN_STATUS, PlaybookEngine
+from kmcp.tools.playbook_engine import RUN_STATUS, PlaybookEngine
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +76,7 @@ async def test_resume_skips_completed_steps():
 
 
 async def test_playbook_status_tool():
-    from kali_mcp.tools.playbook_tools import PlaybookStatusTool
+    from kmcp.tools.playbook_tools import PlaybookStatusTool
 
     await PlaybookEngine().run(_two_step_playbook())
     result = await PlaybookStatusTool().safe_execute({"name": "resume-test"})
@@ -90,7 +90,7 @@ async def test_playbook_status_tool():
 
 
 async def test_playbook_list_tool():
-    from kali_mcp.tools.playbook_tools import PlaybookListTool
+    from kmcp.tools.playbook_tools import PlaybookListTool
 
     result = await PlaybookListTool().safe_execute({})
     assert result["isError"] is False
@@ -104,7 +104,7 @@ async def test_playbook_list_tool():
 
 
 async def test_playbook_engine_tool_validates():
-    from kali_mcp.tools.playbook_engine_tool import PlaybookEngineTool
+    from kmcp.tools.playbook_engine_tool import PlaybookEngineTool
 
     t = PlaybookEngineTool()
     result = await t.safe_execute({"playbook": {"name": "x", "steps": []}})
