@@ -57,7 +57,7 @@ class TestPrompts:
 
         fake = FakeMCP()
         register_prompts(fake)
-        assert len(fake.prompts) == 6
+        assert len(fake.prompts) == 7
 
 
 # ── Notifications ──────────────────────────────────────────────────────────────
