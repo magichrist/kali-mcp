@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from kali_mcp.tools import ALL_TOOLS
+from kmcp.tools import ALL_TOOLS
 
 TOOL_MAP = {t.name: t for t in ALL_TOOLS}
 
@@ -159,19 +159,19 @@ def test_parser_tools_execute_contract(tool_name, tmp_path, monkeypatch):
     """Full execute() → parsed findings/creds persisted, stdout wrapped in contract."""
     import dataclasses
 
-    from kali_mcp.config import config as real_config
-    from kali_mcp.utils import vault as v
+    from kmcp.config import config as real_config
+    from kmcp.utils import vault as v
 
     new_cfg = dataclasses.replace(real_config, db_path=tmp_path / "db.sqlite")
-    monkeypatch.setattr("kali_mcp.db.manager.config", new_cfg)
-    monkeypatch.setattr("kali_mcp.db.manager._db_singleton", None)
+    monkeypatch.setattr("kmcp.db.manager.config", new_cfg)
+    monkeypatch.setattr("kmcp.db.manager._db_singleton", None)
     monkeypatch.setattr(v, "VAULT_ROOT", tmp_path / "vault")
     v.ensure_vault_dirs()
 
     args, stdout, payload_key, expected_count = PARSER_CASES[tool_name]
     tool = TOOL_MAP[tool_name]
 
-    from kali_mcp import execution
+    from kmcp import execution
 
     async def fake_execute(*a, **kw):
         return _FakeResult(stdout)
