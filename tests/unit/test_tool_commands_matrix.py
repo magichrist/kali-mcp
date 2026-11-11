@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.tools import ALL_TOOLS
+from kmcp.tools import ALL_TOOLS
 
 TOOL_MAP = {t.name: t for t in ALL_TOOLS}
 
