@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from kali_mcp.tools.playbook_webapp import PlaybookWebappTool
+from kmcp.tools.playbook_webapp import PlaybookWebappTool
 
 
 class _FakeResult:
@@ -156,10 +156,10 @@ class TestExecute:
         fake_result = _FakeResult()
         with (
             patch(
-                "kali_mcp.workflow.load_playbook", return_value={"name": "playbook_webapp"}
+                "kmcp.workflow.load_playbook", return_value={"name": "playbook_webapp"}
             ) as mock_load,
             patch(
-                "kali_mcp.workflow.run_playbook_async",
+                "kmcp.workflow.run_playbook_async",
                 new=AsyncMock(return_value=fake_result),
             ) as mock_run,
         ):
@@ -174,9 +174,9 @@ class TestExecute:
         tool = PlaybookWebappTool()
         fake_result = _FakeResult()
         with (
-            patch("kali_mcp.workflow.load_playbook", return_value={"name": "pb"}),
+            patch("kmcp.workflow.load_playbook", return_value={"name": "pb"}),
             patch(
-                "kali_mcp.workflow.run_playbook_async",
+                "kmcp.workflow.run_playbook_async",
                 new=AsyncMock(return_value=fake_result),
             ) as mock_run,
         ):
