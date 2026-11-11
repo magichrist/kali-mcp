@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from kali_mcp.server import (
+from kmcp.server import (
     HealthMonitor,
     TokenAuthMiddleware,
     _get_memory_mb,
@@ -75,12 +75,12 @@ class TestHealthMonitor:
         assert "memory_mb" in status
 
     def test_get_stuck_executions_empty(self) -> None:
-        from kali_mcp.execution import engine
+        from kmcp.execution import engine
 
         assert engine.get_stuck_executions() == []
 
     def test_force_cleanup(self) -> None:
-        from kali_mcp.execution import engine
+        from kmcp.execution import engine
 
         count = engine.force_cleanup()
         assert isinstance(count, int)
@@ -100,12 +100,12 @@ class TestLifespan:
     async def test_lifespan_startup_and_shutdown(self) -> None:
         fake_app = MagicMock()
         with (
-            patch("kali_mcp.server.ensure_vault_dirs"),
-            patch("kali_mcp.server.db_manager.get_db", return_value=MagicMock()),
+            patch("kmcp.server.ensure_vault_dirs"),
+            patch("kmcp.server.db_manager.get_db", return_value=MagicMock()),
             patch("shutil.which", side_effect=lambda b: b == "nmap"),
             patch.object(health, "start") as mock_start,
             patch.object(health, "stop") as mock_stop,
-            patch("kali_mcp.server.engine") as mock_engine,
+            patch("kmcp.server.engine") as mock_engine,
         ):
             mock_engine.force_cleanup = MagicMock()
             async with lifespan(fake_app):
@@ -118,14 +118,14 @@ class TestLifespan:
         fake_app = MagicMock()
         with (
             patch(
-                "kali_mcp.server.ensure_vault_dirs",
+                "kmcp.server.ensure_vault_dirs",
                 side_effect=RuntimeError("boom"),
             ),
-            patch("kali_mcp.server.db_manager.get_db", return_value=None),
+            patch("kmcp.server.db_manager.get_db", return_value=None),
             patch("shutil.which", return_value=None),
             patch.object(health, "start"),
             patch.object(health, "stop"),
-            patch("kali_mcp.server.engine") as mock_engine,
+            patch("kmcp.server.engine") as mock_engine,
         ):
             mock_engine.force_cleanup = MagicMock()
             # Should not raise despite vault/init failures
@@ -262,11 +262,11 @@ class TestMainEntry:
     """Tests for the server main() function."""
 
     def test_main_invokes_uvicorn(self) -> None:
-        from kali_mcp.config import Config
+        from kmcp.config import Config
 
         Config.__new__(Config)
         # minimal: set insecure True via env won't work; patch server.config instead
-        import kali_mcp.server as srv
+        import kmcp.server as srv
 
         orig = srv.config
         srv.config = Config.__wrapped__ if hasattr(Config, "__wrapped__") else orig
@@ -285,7 +285,7 @@ class TestMainEntry:
 
         srv.config = _C()
         try:
-            with patch("uvicorn.run") as mock_uvicorn_run, patch("kali_mcp.server.signal"):
+            with patch("uvicorn.run") as mock_uvicorn_run, patch("kmcp.server.signal"):
                 main()
                 mock_uvicorn_run.assert_called_once()
         finally:
