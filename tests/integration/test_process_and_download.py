@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from kali_mcp.utils.process import kill_process_tree
+from kmcp.utils.process import kill_process_tree
 
 
 class TestKillProcessTree:
@@ -59,19 +59,19 @@ class TestKillProcessTree:
 
 class TestFileDownload:
     async def test_missing_path_rejected(self):
-        from kali_mcp.tools.file_download import FileDownloadTool
+        from kmcp.tools.file_download import FileDownloadTool
 
         result = await FileDownloadTool().safe_execute({})
         assert result["isError"] is True
 
     async def test_nonexistent_file_rejected(self):
-        from kali_mcp.tools.file_download import FileDownloadTool
+        from kmcp.tools.file_download import FileDownloadTool
 
         result = await FileDownloadTool().safe_execute({"server_path": "/no/such/file"})
         assert result["isError"] is True
 
     async def test_existing_file_yields_link(self, tmp_path):
-        from kali_mcp.tools.file_download import FileDownloadTool
+        from kmcp.tools.file_download import FileDownloadTool
 
         f = tmp_path / "report.txt"
         f.write_text("findings here")
@@ -81,7 +81,7 @@ class TestFileDownload:
         assert "curl" in text or "download" in text.lower()
 
     async def test_schema_has_required_fields(self):
-        from kali_mcp.tools.file_download import FileDownloadTool
+        from kmcp.tools.file_download import FileDownloadTool
 
         schema = FileDownloadTool().input_schema()
         assert schema["required"] == ["server_path"]
