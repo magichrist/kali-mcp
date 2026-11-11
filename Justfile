@@ -5,21 +5,21 @@ set dotenv-load
 default:
     @just --list
 
-# Install dependencies (editable install of the kali_mcp package + deps)
+# Install dependencies (editable install of the kmcp package + deps)
 install:
     pip install -e .
 
 # Bootstrap .env from .env.example (fills MCP_API_TOKEN with a secure random value)
 init:
-    python -m kali_mcp init
+    python -m kmcp init
 
 # Start the server (foreground)
 start:
-    python -m kali_mcp
+    python -m kmcp
 
 # Start in debug mode
 debug:
-    MCP_DEBUG=true python -m kali_mcp
+    MCP_DEBUG=true python -m kmcp
 
 # Run the full pytest suite (unit + integration)
 test:
@@ -89,13 +89,13 @@ purge scope="all":
     fi
     case "{{scope}}" in
       db)
-        rm -fv data/kali-mcp.sqlite data/kali-mcp.sqlite-wal data/kali-mcp.sqlite-shm
+        rm -fv data/kmcp.sqlite data/kmcp.sqlite-wal data/kmcp.sqlite-shm
         ;;
       vault)
         rm -rf artifacts/vault
         ;;
       all)
-        rm -fv data/kali-mcp.sqlite data/kali-mcp.sqlite-wal data/kali-mcp.sqlite-shm
+        rm -fv data/kmcp.sqlite data/kmcp.sqlite-wal data/kmcp.sqlite-shm
         rm -rf artifacts/vault
         ;;
       *)
@@ -108,15 +108,15 @@ purge scope="all":
 
 # Show all registered tools
 tools:
-    python -c "from kali_mcp.tools import ALL_TOOLS; [print(f'  {t.name:20s} {t.description[:60]}') for t in ALL_TOOLS]"
+    python -c "from kmcp.tools import ALL_TOOLS; [print(f'  {t.name:20s} {t.description[:60]}') for t in ALL_TOOLS]"
 
 # Deploy to the Kali VM and restart the server (requires ssh key auth)
-deploy host="kali-linux.shared" dest="~/kali-mcp":
+deploy host="kali-linux.shared" dest="~/kmcp":
     rsync -av --exclude '.venv' --exclude '__pycache__' --exclude '.git' \
         --exclude 'logs' --exclude 'artifacts' --exclude 'data' \
         ./ {{host}}:{{dest}}/
     ssh {{host}} "pkill -f '[k]ali_mcp' || true; cd {{dest}} && \
-        nohup python -m kali_mcp > logs/stdout.log 2>&1 & sleep 2; \
+        nohup python -m kmcp > logs/stdout.log 2>&1 & sleep 2; \
         curl -sf --max-time 5 http://127.0.0.1:8399/sse -o /dev/null \
         && echo 'server restarted OK' || echo 'server did not come up — check logs/stdout.log'"
 
