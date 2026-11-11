@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 
-from kali_mcp.eval import (
+from kmcp.eval import (
     LAB_TARGETS,
     EvalSuite,
     GroundTruthFinding,
@@ -38,7 +38,7 @@ def test_assessment_result_compute_metrics():
     """Metrics are computed correctly from calls and findings."""
     from datetime import datetime, timezone
 
-    from kali_mcp.eval.harness import AssessmentResult, CallRecord
+    from kmcp.eval.harness import AssessmentResult, CallRecord
 
     now = datetime.now(timezone.utc).isoformat() + "Z"
 
@@ -99,7 +99,7 @@ def test_eval_suite_write_results(tmp_path):
 
     from datetime import datetime, timezone
 
-    from kali_mcp.eval.harness import AssessmentResult, CallRecord
+    from kmcp.eval.harness import AssessmentResult, CallRecord
 
     now = datetime.now(timezone.utc).isoformat() + "Z"
 
@@ -174,7 +174,7 @@ def test_success_criteria():
 
     from datetime import datetime, timezone
 
-    from kali_mcp.eval.harness import AssessmentResult, CallRecord
+    from kmcp.eval.harness import AssessmentResult, CallRecord
 
     now = datetime.now(timezone.utc).isoformat() + "Z"
 
