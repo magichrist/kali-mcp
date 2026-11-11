@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow.dsl.compiler import CompileError
-from kali_mcp.workflow.dsl.compiler import compile as dsl_compile
-from kali_mcp.workflow.dsl.parser import DSLParseError, parse
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition
+from kmcp.workflow.dsl.compiler import CompileError
+from kmcp.workflow.dsl.compiler import compile as dsl_compile
+from kmcp.workflow.dsl.parser import DSLParseError, parse
+from kmcp.workflow.yaml_loader import PlaybookDefinition
 
 VALID_DSL = """id: custom.domain_recon
 name: "Custom Domain Reconnaissance"
@@ -268,7 +268,7 @@ class TestCompilerEdgeCases:
 
 
 def test_compile_dsl_convenience():
-    from kali_mcp.workflow.dsl import compile_dsl
+    from kmcp.workflow.dsl import compile_dsl
 
     defn = compile_dsl(VALID_DSL)
     assert isinstance(defn, PlaybookDefinition)
