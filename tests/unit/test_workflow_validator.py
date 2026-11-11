@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow.validator import (
+from kmcp.workflow.validator import (
     _find_unsafe_token,
     format_findings,
     is_valid,
     validate_playbook,
 )
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
+from kmcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
 
 FAKE_TOOLS = ["nmap", "dnsx", "httpx"]
 
@@ -134,7 +134,7 @@ class TestToolResolution:
         # When NO catalog can be resolved at all, tool resolution downgrades to
         # a warning (in this env the lazy resolver succeeds, so simulate the
         # failure path explicitly).
-        import kali_mcp.workflow.validator as mod
+        import kmcp.workflow.validator as mod
 
         steps = [StepDefinition(id="probe", tool="something_exotic")]
         defn = _defn(steps=steps)
