@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.studio.mcp_client import (
+from kmcp.studio.mcp_client import (
     DEFAULT_TIMEOUT,
     ExternalMCPClient,
     MCPClientError,
