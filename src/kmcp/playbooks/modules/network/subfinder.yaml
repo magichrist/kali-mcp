@@ -1,0 +1,16 @@
+id: subfinder
+name: "Subfinder"
+description: "Passive subdomain discovery via subfinder"
+tool: subfinder
+timeout: 300
+inputs:
+  domain:
+    type: string
+    required: true
+    description: "Target domain"
+  extra_args:
+    type: string
+    description: "Extra subfinder arguments"
+    default: ""
+outputs:
+  - subdomains
