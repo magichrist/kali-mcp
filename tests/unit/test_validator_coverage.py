@@ -1,4 +1,4 @@
-"""Coverage-focused tests for the workflow validator (``kali_mcp.workflow.validator``).
+"""Coverage-focused tests for the workflow validator (``kmcp.workflow.validator``).
 
 Covers every public entry point and every validate_*/error branch:
 playbook definitions, step definitions, module references, DAG structure,
@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.workflow.validator import (
+from kmcp.workflow.validator import (
     _default_matches_type,
     _finalise,
     _find_cycle,
@@ -29,7 +29,7 @@ from kali_mcp.workflow.validator import (
     is_valid,
     validate_playbook,
 )
-from kali_mcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
+from kmcp.workflow.yaml_loader import PlaybookDefinition, StepDefinition
 
 FAKE_TOOLS = ["nmap", "dnsx", "httpx"]
 
@@ -305,7 +305,7 @@ class TestSteps:
     def test_on_failure_invalid_constructor_rejects(self) -> None:
         # The constructor enforces on_failure, so this defensive validator
         # branch is unreachable via the public API; confirm the constructor.
-        from kali_mcp.workflow.yaml_loader import PlaybookError
+        from kmcp.workflow.yaml_loader import PlaybookError
 
         with pytest.raises(PlaybookError):
             StepDefinition(id="probe", tool="dnsx", on_failure="weird")  # type: ignore[arg-type]
@@ -346,7 +346,7 @@ class TestSteps:
 
     def test_unknown_step_type_error(self) -> None:
         # Defensive: constructor rejects unknown types, but call the checker directly.
-        from kali_mcp.workflow.validator import _validate_step_type
+        from kmcp.workflow.validator import _validate_step_type
 
         step = StepDefinition(id="x", tool="t", type="tool")
         findings: list = []
@@ -421,7 +421,7 @@ class TestGraph:
         assert _find_cycle(["a", "b"], dependents) == []
 
     def test_build_predecessors_and_ancestors(self) -> None:
-        from kali_mcp.workflow.validator import (
+        from kmcp.workflow.validator import (
             _build_predecessors,
             _collect_ancestors,
         )
@@ -543,7 +543,7 @@ class TestReferences:
         assert not is_valid(findings)
 
     def test_parse_reference_and_bare(self) -> None:
-        from kali_mcp.workflow.validator import (
+        from kmcp.workflow.validator import (
             _parse_bare_step_reference,
             _parse_reference,
         )
@@ -577,7 +577,7 @@ class TestReferences:
         )
 
     def test_output_schemas_from_raw_and_builtin(self) -> None:
-        from kali_mcp.workflow.validator import _build_output_schemas, _index_raw_steps
+        from kmcp.workflow.validator import _build_output_schemas, _index_raw_steps
 
         raw_index = _index_raw_steps(
             {"steps": [{"id": "s", "tool": "scope_check", "outputs": {"ok": "boolean"}}]}
@@ -592,14 +592,14 @@ class TestReferences:
         assert schemas2["b"].fields.get("report") == "object"
 
     def test_schema_from_raw_output_schema_mapping(self) -> None:
-        from kali_mcp.workflow.validator import _schema_from_raw
+        from kmcp.workflow.validator import _schema_from_raw
 
         raw = {"output_schema": {"properties": {"port": {"type": "integer"}}}}
         schema = _schema_from_raw(raw)
         assert schema.fields.get("port") == "integer"
 
     def test_declared_type(self) -> None:
-        from kali_mcp.workflow.validator import _declared_type
+        from kmcp.workflow.validator import _declared_type
 
         assert _declared_type("string") == "string"
         assert _declared_type({"type": "array"}) == "array"
@@ -722,14 +722,14 @@ class TestToolResolution:
         assert is_valid(findings)
 
     def test_catalog_unavailable_is_warning(self) -> None:
-        import kali_mcp.workflow.validator as mod
+        import kmcp.workflow.validator as mod
 
         with patch.object(mod, "_resolve_tool_catalog", lambda: (None, "no catalog resolved")):
             findings = validate_playbook(_defn(), tool_catalog=None)
         assert any(f.get("field") == "tool_catalog" for f in findings)
 
     def test_catalog_unavailable_for_publish_is_error(self) -> None:
-        import kali_mcp.workflow.validator as mod
+        import kmcp.workflow.validator as mod
 
         with patch.object(mod, "_resolve_tool_catalog", lambda: (None, "no catalog resolved")):
             findings = validate_playbook(_defn(), tool_catalog=None, for_publish=True)
