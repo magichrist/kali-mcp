@@ -238,6 +238,17 @@ async def delete_playbook(request: Request) -> JSONResponse:
     return JSONResponse({"status": "deleted"})
 
 
+async def seed_playbooks_api(request: Request) -> JSONResponse:
+    """Seed built-in YAML playbooks into the DB."""
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+    from kali_mcp.studio import playbook_service
+
+    count = playbook_service.seed_builtin_playbooks(db)
+    return JSONResponse({"seeded": count})
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Execution routes
 # ══════════════════════════════════════════════════════════════════════════════
@@ -809,6 +820,7 @@ def mount_studio_routes(app) -> None:
     app.add_route("/api/playbooks/{id}/versions", list_versions, methods=["GET"])
     app.add_route("/api/playbooks/{id}/rollback", rollback_playbook, methods=["POST"])
     app.add_route("/api/playbooks/{id}/export", export_playbook, methods=["GET"])
+    app.add_route("/api/playbooks/seed", seed_playbooks_api, methods=["POST"])
 
     # Server info
     app.add_route("/api/server", server_info, methods=["GET"])
