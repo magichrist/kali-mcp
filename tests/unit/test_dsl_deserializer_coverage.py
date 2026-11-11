@@ -7,8 +7,8 @@ existing round-trip tests do not fully exercise.
 
 from __future__ import annotations
 
-from kali_mcp.workflow.dsl.deserializer import deserialize
-from kali_mcp.workflow.yaml_loader import (
+from kmcp.workflow.dsl.deserializer import deserialize
+from kmcp.workflow.yaml_loader import (
     PlaybookDefinition,
     StepDefinition,
 )
