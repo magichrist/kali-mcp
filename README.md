@@ -160,6 +160,7 @@ kmcp execution cancel ID
 - `playbook_webapp` — katana → arjun+ffuf → nuclei → sqlmap+commix
 - `playbook_ad` — enum4linux → bloodhound → netexec+crackmapexec
 - `playbook_engine` — run a custom playbook definition
+- `playbook_create` → `playbook_validate` → `playbook_publish` — agent-facing authoring tools that save reusable playbooks into the Studio catalog (drafts stay invisible until published; publishing runs strict validation). The DSL is documented in the `kali://playbook/dsl` resource and the `playbook_authoring` prompt.
 
 **`parallel_execute`** — fan out to multiple tools concurrently, then aggregate and deduplicate open ports, vulnerabilities, and credentials.
 
@@ -174,7 +175,7 @@ kmcp execution cancel ID
 
 **Live monitor TUI** — `kmcp monitor` launches a pastel cyber dashboard showing connected users, running jobs, and server health with SSE push updates. Kill stuck jobs or force cleanup from the dashboard. Press `q` to quit; the screen clears on exit.
 
-**MCP resources & prompts** — `kali://config`, `kali://tools`, `kali://health`, `kali://vault/index`, plus guided workflow prompts (recon, webapp, AD, OSINT, quick scan, report).
+**MCP resources & prompts** — `kali://config`, `kali://tools`, `kali://health`, `kali://vault/index`, `kali://playbook/dsl`, plus guided workflow prompts (recon, webapp, AD, OSINT, quick scan, report, playbook authoring).
 
 ## $\textsf{\color{#89b4fa}{⟡}}$ How it works
 
