@@ -1,4 +1,4 @@
-"""Extended unit tests for the Kali MCP CLI (kali_mcp/cli.py).
+"""Extended unit tests for the Kali MCP CLI (kmcp/cli.py).
 
 Covers cmd_start, cmd_monitor, cmd_purge scopes/confirm behavior,
 build_parser edge cases, and main() default/unknown-command handling.
@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.cli import build_parser, cmd_monitor, cmd_purge, cmd_start, main
+from kmcp.cli import build_parser, cmd_monitor, cmd_purge, cmd_start, main
 
 
 class TestParserExtended:
@@ -59,8 +59,8 @@ class TestParserExtended:
 class TestCmdStart:
     def test_cmd_start_sets_env_from_args_and_calls_server_main(self) -> None:
         with (
-            patch("kali_mcp.cli._load_env"),
-            patch("kali_mcp.server.main") as mock_server_main,
+            patch("kmcp.cli._load_env"),
+            patch("kmcp.server.main") as mock_server_main,
             patch.dict(os.environ, {}, clear=True),
         ):
             args = SimpleNamespace(host="127.0.0.1", port="9999")
@@ -71,8 +71,8 @@ class TestCmdStart:
 
     def test_cmd_start_keeps_existing_env_when_args_none(self) -> None:
         with (
-            patch("kali_mcp.cli._load_env"),
-            patch("kali_mcp.server.main") as mock_server_main,
+            patch("kmcp.cli._load_env"),
+            patch("kmcp.server.main") as mock_server_main,
             patch.dict(os.environ, {"MCP_HOST": "env-host", "MCP_PORT": "env-port"}, clear=True),
         ):
             args = SimpleNamespace(host=None, port=None)
@@ -85,8 +85,8 @@ class TestCmdStart:
 class TestCmdMonitor:
     def test_cmd_monitor_passes_url_to_monitor_main(self) -> None:
         with (
-            patch("kali_mcp.cli._load_env"),
-            patch("kali_mcp.monitor.tui.main") as mock_monitor_main,
+            patch("kmcp.cli._load_env"),
+            patch("kmcp.monitor.tui.main") as mock_monitor_main,
             patch.dict(os.environ, {}, clear=True),
         ):
             args = SimpleNamespace(url="http://127.0.0.1:9000")
@@ -95,8 +95,8 @@ class TestCmdMonitor:
 
     def test_cmd_monitor_defaults_url_when_none(self) -> None:
         with (
-            patch("kali_mcp.cli._load_env"),
-            patch("kali_mcp.monitor.tui.main") as mock_monitor_main,
+            patch("kmcp.cli._load_env"),
+            patch("kmcp.monitor.tui.main") as mock_monitor_main,
             patch.dict(os.environ, {}, clear=True),
         ):
             args = SimpleNamespace(url=None)
@@ -109,7 +109,7 @@ class TestCmdPurgeExtended:
         return SimpleNamespace(scope=scope, confirm=confirm)
 
     def test_invalid_scope_returns_one(self) -> None:
-        import kali_mcp.cli as cli_mod
+        import kmcp.cli as cli_mod
 
         orig_root = cli_mod.REPO_ROOT
         cli_mod.REPO_ROOT = Path("/tmp/nonexistent_kmcp")
@@ -120,9 +120,9 @@ class TestCmdPurgeExtended:
             cli_mod.REPO_ROOT = orig_root
 
     def test_purge_db_scope_removes_only_db_files(self, tmp_path) -> None:
-        import kali_mcp.cli as cli_mod
+        import kmcp.cli as cli_mod
 
-        db_file = tmp_path / "data" / "kali-mcp.sqlite"
+        db_file = tmp_path / "data" / "kmcp.sqlite"
         db_file.parent.mkdir(parents=True)
         db_file.write_text("fake-db")
         vault_dir = tmp_path / "artifacts" / "vault"
@@ -140,9 +140,9 @@ class TestCmdPurgeExtended:
             cli_mod.REPO_ROOT = orig_root
 
     def test_purge_vault_scope_removes_only_vault(self, tmp_path) -> None:
-        import kali_mcp.cli as cli_mod
+        import kmcp.cli as cli_mod
 
-        db_file = tmp_path / "data" / "kali-mcp.sqlite"
+        db_file = tmp_path / "data" / "kmcp.sqlite"
         db_file.parent.mkdir(parents=True)
         db_file.write_text("fake-db")
         vault_dir = tmp_path / "artifacts" / "vault"
@@ -160,9 +160,9 @@ class TestCmdPurgeExtended:
             cli_mod.REPO_ROOT = orig_root
 
     def test_purge_all_scope_removes_both(self, tmp_path) -> None:
-        import kali_mcp.cli as cli_mod
+        import kmcp.cli as cli_mod
 
-        db_file = tmp_path / "data" / "kali-mcp.sqlite"
+        db_file = tmp_path / "data" / "kmcp.sqlite"
         db_file.parent.mkdir(parents=True)
         db_file.write_text("fake-db")
         vault_dir = tmp_path / "artifacts" / "vault"
@@ -180,13 +180,13 @@ class TestCmdPurgeExtended:
             cli_mod.REPO_ROOT = orig_root
 
     def test_purge_aborts_without_confirm(self) -> None:
-        import kali_mcp.cli as cli_mod
+        import kmcp.cli as cli_mod
 
         orig_root = cli_mod.REPO_ROOT
         cli_mod.REPO_ROOT = Path("/tmp/nonexistent_kmcp2")
         try:
             args = self._make_args(scope="all", confirm=False)
-            with patch("kali_mcp.cli._confirm", return_value=False):
+            with patch("kmcp.cli._confirm", return_value=False):
                 assert cmd_purge(args) == 1
         finally:
             cli_mod.REPO_ROOT = orig_root
@@ -205,7 +205,7 @@ class TestMainExtended:
         assert "execution" in output
 
     def test_main_explicit_start(self) -> None:
-        with patch("kali_mcp.cli.cmd_start", return_value=0) as mock_start:
+        with patch("kmcp.cli.cmd_start", return_value=0) as mock_start:
             assert main(["start"]) == 0
             mock_start.assert_called_once()
 
