@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from kali_mcp.prompts import (
+from kmcp.prompts import (
     _ad,
     _osint,
     _quick_scan,
@@ -54,7 +54,7 @@ class TestPromptFactories:
         assert "Executive summary" in msgs[1]["content"]["text"]
 
     def test_playbook_authoring_embeds_dsl_guide(self) -> None:
-        from kali_mcp.prompts import _playbook_authoring
+        from kmcp.prompts import _playbook_authoring
 
         msgs = _playbook_authoring("write a recon playbook")
         assert "write a recon playbook" in msgs[0]["content"]["text"]
