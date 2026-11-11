@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow import modules_runtime as mr
-from kali_mcp.workflow.modules_runtime import ModuleContext
+from kmcp.workflow import modules_runtime as mr
+from kmcp.workflow.modules_runtime import ModuleContext
 
 CTX = ModuleContext(assessment_id="assess_1", job_id="job_1", playbook_name="pb_test")
 
