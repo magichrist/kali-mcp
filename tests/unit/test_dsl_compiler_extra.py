@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow.dsl.compiler import CompileError
-from kali_mcp.workflow.dsl.compiler import compile as dsl_compile
-from kali_mcp.workflow.dsl.parser import (
+from kmcp.workflow.dsl.compiler import CompileError
+from kmcp.workflow.dsl.compiler import compile as dsl_compile
+from kmcp.workflow.dsl.parser import (
     Execution,
     FieldRef,
     InputMapping,
