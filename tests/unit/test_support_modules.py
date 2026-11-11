@@ -8,7 +8,7 @@ import logging
 import pytest
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
-from kali_mcp.prompts import _ad, _osint, _quick_scan, _recon, _report, _webapp
+from kmcp.prompts import _ad, _osint, _quick_scan, _recon, _report, _webapp
 
 
 class TestPrompts:
@@ -53,7 +53,7 @@ class TestPrompts:
 
                 return deco
 
-        from kali_mcp.prompts import register_prompts
+        from kmcp.prompts import register_prompts
 
         fake = FakeMCP()
         register_prompts(fake)
@@ -67,7 +67,7 @@ class TestNotificationsNoopSafety:
     """All notification helpers must be safe no-ops with None/broken contexts."""
 
     def test_none_ctx(self):
-        from kali_mcp.notifications import (
+        from kmcp.notifications import (
             emit_log,
             notify_prompts_changed,
             notify_resource_updated,
@@ -82,7 +82,7 @@ class TestNotificationsNoopSafety:
         emit_log(None, "info", "hello")
 
     def test_broken_ctx(self):
-        from kali_mcp.notifications import notify_tools_changed
+        from kmcp.notifications import notify_tools_changed
 
         class Weird:
             @property
@@ -92,12 +92,12 @@ class TestNotificationsNoopSafety:
         notify_tools_changed(Weird())  # must not raise
 
     def test_ctx_without_session(self):
-        from kali_mcp.notifications import notify_tools_changed
+        from kmcp.notifications import notify_tools_changed
 
         notify_tools_changed(object())  # no .session attribute
 
     def test_session_missing_methods(self):
-        from kali_mcp.notifications import notify_tools_changed
+        from kmcp.notifications import notify_tools_changed
 
         class EmptySession:
             pass
@@ -113,10 +113,10 @@ class TestNotificationsNoopSafety:
 
 class TestLogging:
     def test_json_formatter_shape(self):
-        from kali_mcp.logging_utils import JSONFormatter
+        from kmcp.logging_utils import JSONFormatter
 
         record = logging.LogRecord(
-            name="kali_mcp.test",
+            name="kmcp.test",
             level=logging.INFO,
             pathname=__file__,
             lineno=1,
@@ -127,11 +127,11 @@ class TestLogging:
         entry = json.loads(JSONFormatter().format(record))
         assert entry["message"] == "hello world"
         assert entry["level"] == "INFO"
-        assert entry["logger"] == "kali_mcp.test"
+        assert entry["logger"] == "kmcp.test"
         assert "timestamp" in entry
 
     def test_log_execution_never_raises(self):
-        from kali_mcp.logging_utils import log_execution
+        from kmcp.logging_utils import log_execution
 
         class Exploding:
             tool = property(lambda self: (_ for _ in ()).throw(RuntimeError("x")))
@@ -139,8 +139,8 @@ class TestLogging:
         log_execution(Exploding())  # must not raise
 
     def test_log_execution_writes(self, tmp_path, monkeypatch):
-        from kali_mcp.logging_utils import log_execution
-        from kali_mcp.models import ExecutionResult, utc_now_iso
+        from kmcp.logging_utils import log_execution
+        from kmcp.models import ExecutionResult, utc_now_iso
 
         result = ExecutionResult(
             tool="t",
@@ -162,7 +162,7 @@ class TestLogging:
 
 class TestModelsEdge:
     def test_utc_now_iso_parseable(self):
-        from kali_mcp.models import utc_now_iso
+        from kmcp.models import utc_now_iso
 
         ts = utc_now_iso()
         from datetime import datetime
@@ -171,7 +171,7 @@ class TestModelsEdge:
         assert parsed.tzinfo is not None
 
     def test_execution_result_unicode_roundtrip(self):
-        from kali_mcp.models import ExecutionResult, utc_now_iso
+        from kmcp.models import ExecutionResult, utc_now_iso
 
         r = ExecutionResult(
             tool="t",
@@ -193,7 +193,7 @@ class TestModelsEdge:
 
 class TestRegistryEdge:
     def _tool(self, name):
-        from kali_mcp.tools.base import BaseTool
+        from kmcp.tools.base import BaseTool
 
         class T(BaseTool):
             @property
@@ -219,7 +219,7 @@ class TestRegistryEdge:
         return T()
 
     def test_many_registrations(self):
-        from kali_mcp.registry import ToolRegistry
+        from kmcp.registry import ToolRegistry
 
         reg = ToolRegistry()
         for i in range(50):
@@ -228,7 +228,7 @@ class TestRegistryEdge:
         assert len(reg.tool_names()) == 50
 
     def test_names_include_last_overwrite_only_once(self):
-        from kali_mcp.registry import ToolRegistry
+        from kmcp.registry import ToolRegistry
 
         reg = ToolRegistry()
         reg.register(self._tool("dup"))
@@ -236,6 +236,6 @@ class TestRegistryEdge:
         assert reg.tool_names().count("dup") == 1
 
     def test_get_with_empty_string(self):
-        from kali_mcp.registry import ToolRegistry
+        from kmcp.registry import ToolRegistry
 
         assert ToolRegistry().get("") is None
