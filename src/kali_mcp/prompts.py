@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 
+from kali_mcp.playbook_dsl import PLAYBOOK_DSL_GUIDE
+
 logger = logging.getLogger("kali_mcp.prompts")
 
 
@@ -136,6 +138,24 @@ def _report(engagement: str, findings: str = "") -> list[dict]:
     return msgs
 
 
+def _playbook_authoring(goal: str = "author a new reusable assessment playbook") -> list[dict]:
+    msgs = [
+        _user(
+            f"I want to {goal}. Walk me through the draft → validate → publish "
+            "lifecycle and give me the exact DSL definition."
+        ),
+        _assistant(
+            "Here is the playbook authoring workflow and the full DSL reference.\n"
+            "I will: (1) create the draft with playbook_create, (2) write the "
+            "definition below, (3) validate with playbook_validate "
+            "(for_publish: true), fixing every error finding, (4) publish with "
+            "playbook_publish, (5) run it with playbook_run.\n\n"
+            f"{PLAYBOOK_DSL_GUIDE}"
+        ),
+    ]
+    return msgs
+
+
 def register_prompts(mcp) -> None:
     """Register all workflow prompt templates on the FastMCP server."""
 
@@ -181,4 +201,11 @@ def register_prompts(mcp) -> None:
     def report_template(engagement: str, findings: str = "") -> list[dict]:
         return _report(engagement, findings)
 
-    logger.info("Registered %d prompt templates", 6)
+    @mcp.prompt(
+        name="playbook_authoring",
+        description="Guide for authoring DAG playbooks (DSL reference incl.) — create, validate, publish, run",
+    )
+    def playbook_authoring(goal: str = "author a new reusable assessment playbook") -> list[dict]:
+        return _playbook_authoring(goal)
+
+    logger.info("Registered %d prompt templates", 7)
