@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.utils import vault
+from kmcp.utils import vault
 
 
 @pytest.fixture(autouse=True)
@@ -220,19 +220,19 @@ class TestVaultRowSizeLimit:
     def test_row_too_large_raises(self, tmp_path, monkeypatch):
         from dataclasses import replace
 
-        from kali_mcp import config as cfg
+        from kmcp import config as cfg
 
         small_cfg = replace(cfg.config, vault_max_row_bytes=100)
-        with patch("kali_mcp.utils.vault.config", small_cfg), pytest.raises(ValueError):
+        with patch("kmcp.utils.vault.config", small_cfg), pytest.raises(ValueError):
             vault.vault_write("runs/big", "big", {"data": "x" * 1000})
 
     def test_zero_max_row_means_unlimited(self, tmp_path, monkeypatch):
         from dataclasses import replace
 
-        from kali_mcp import config as cfg
+        from kmcp import config as cfg
 
         unlimited_cfg = replace(cfg.config, vault_max_row_bytes=0)
-        with patch("kali_mcp.utils.vault.config", unlimited_cfg):
+        with patch("kmcp.utils.vault.config", unlimited_cfg):
             vault.vault_write("runs/huge", "huge", {"data": "y" * 5000})
             assert json.loads(vault.vault_read("runs/huge", "huge"))["data"] == "y" * 5000
 
