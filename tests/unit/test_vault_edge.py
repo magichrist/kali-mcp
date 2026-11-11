@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from kali_mcp.utils import vault
+from kmcp.utils import vault
 
 
 @pytest.fixture(autouse=True)
