@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kali-MCP · Playbook Studio</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app" id="app">
+  <div id="sidebar" data-partial="partials/sidebar.html"></div>
+  <main class="main">
+    <div id="topbar" data-partial="partials/topbar.html"></div>
+    <section class="content" id="content"><p class="empty" style="padding:22px">Loading studio…</p></section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<div class="modal-backdrop" id="tokenModal">
+  <div class="modal">
+    <h3>API token required</h3>
+    <p>This server is protected by an API token. Paste it once — it is stored only in your browser and sent as a bearer header.</p>
+    <input id="tokenInput" placeholder="MCP_API_TOKEN value" />
+    <div class="modal-actions">
+      <button class="btn primary" id="tokenSave">Save &amp; retry</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
