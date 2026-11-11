@@ -1,6 +1,6 @@
 """Tests for per-request agent-profile context (Phase 6 enforcement).
 
-Covers ``kali_mcp.agent_context``: header resolution, token-bound profile
+Covers ``kmcp.agent_context``: header resolution, token-bound profile
 resolution, deny-by-default permission checks, forbidden payloads, and the
 ContextVar lifecycle used by server.py.
 """
@@ -11,14 +11,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from kali_mcp.agent_context import (
+from kmcp.agent_context import (
     HEADER_PROFILE,
     agent_context,
     forbidden_playbook_payload,
     forbidden_tool_payload,
 )
-from kali_mcp.db import manager as db_manager
-from kali_mcp.db.manager import DBManager
+from kmcp.db import manager as db_manager
+from kmcp.db.manager import DBManager
 
 
 @pytest.fixture()
@@ -76,7 +76,7 @@ class TestResolveProfileFromHeaders:
 
 def _bind_config_profile(profile_id: str):
     """Bind ``config.agent_profile_id`` despite the frozen dataclass; returns undo."""
-    from kali_mcp.config import config
+    from kmcp.config import config
 
     previous = getattr(config, "agent_profile_id", "")
     object.__setattr__(config, "agent_profile_id", profile_id)
