@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow.dsl.parser import (
+from kmcp.workflow.dsl.parser import (
     DSLParseError,
     Execution,
     FieldRef,
