@@ -1,0 +1,18 @@
+id: resolve
+name: "Host Resolution"
+description: "Resolve discovered hosts/domains to live services (HTTP probing via httpx)"
+tool: httpx
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Host, domain, or URL to resolve"
+  timeout:
+    type: integer
+    description: "Per-target timeout in seconds"
+    default: 30
+outputs:
+  - resolved_hosts
+  - http_services
+  - http_services_count
