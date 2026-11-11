@@ -1,4 +1,4 @@
-"""Additional unit tests for the scope enforcement module (kali_mcp/scope.py).
+"""Additional unit tests for the scope enforcement module (kmcp/scope.py).
 
 Covers exact match, excluded targets, expiration fail-closed, and edge cases
 complementing tests/unit/test_scope.py.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.scope import Scope, check_scope, is_operation_allowed, is_target_allowed
+from kmcp.scope import Scope, check_scope, is_operation_allowed, is_target_allowed
 
 
 class TestExactMatch:
