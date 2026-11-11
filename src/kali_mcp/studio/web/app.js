@@ -139,9 +139,20 @@ function headActionsHtml(buttons) {
 
 function kpis(items) {
   return `<div class="kpi-grid">${items.map((k) => `
-    <div class="kpi"><div class="kpi-label">${esc(k.label)}</div>
-      <div class="kpi-value">${esc(k.value)}</div>
-      <div class="kpi-sub">${esc(k.sub || "")}</div></div>`).join("")}</div>`;
+    <span class="kpi-badge">
+      <span class="kpi-badge-label">${esc(k.label)}</span>
+      <span class="kpi-badge-value">${esc(k.value)}</span>
+      ${k.sub || ""}
+    </span>`).join("")}</div>`;
+}
+
+/* render a {key: count} map as compact badge chips for KPI sub-lines */
+function kpiBadges(obj) {
+  if (!obj || typeof obj !== "object") return "";
+  const entries = Object.entries(obj).filter(([, v]) => v != null && v !== 0);
+  if (!entries.length) return "";
+  const chips = entries.map(([k, v]) => `<span class="kpi-chip">${esc(k)}: ${esc(String(v))}</span>`).join("");
+  return `<span class="kpi-sub-badges">${chips}</span>`;
 }
 
 function table(headers, rows, emptyText = "Nothing here yet.") {
@@ -206,6 +217,13 @@ function renderDsl() {
   }
 }
 
+/* compact human-readable timestamp: "2026-11-10T16:47:07" -> "2026-11-10 16:47" */
+function fmtTs(v) {
+  if (!v) return "—";
+  const m = String(v).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  return m ? `${m[1]} ${m[2]}` : String(v).slice(0, 16);
+}
+
 const BADGE = (s) => {
   const map = {
     completed: "run-state", running: "run-state run-run", pending: "run-state",
@@ -232,11 +250,11 @@ async function pageOverview() {
     <div class="subtitle">Everything below is read live from the database.</div>`;
   $("#pageBody").innerHTML = `
     ${kpis([
-      { label: "Playbooks", value: o.playbooks?.total ?? 0, sub: Object.entries(o.playbooks?.by_status || {}).map(([k, v]) => `${k}: ${v}`).join(" · ") },
-      { label: "Executions", value: o.executions?.total ?? 0, sub: runState },
-      { label: "Tools", value: o.tools?.total ?? 0, sub: Object.entries(o.tools?.by_visibility || {}).map(([k, v]) => `${k}: ${v}`).join(" · ") },
-      { label: "Findings", value: o.findings?.total ?? 0, sub: Object.entries(fnd).map(([k, v]) => `${k}: ${v}`).join(" · ") },
-      { label: "MCP connections", value: o.connections?.total ?? 0, sub: `healthy: ${o.connections?.healthy ?? 0}` },
+      { label: "Playbooks", value: o.playbooks?.total ?? 0, sub: kpiBadges(o.playbooks?.by_status) },
+      { label: "Executions", value: o.executions?.total ?? 0, sub: kpiBadges(execState) || "no runs yet" },
+      { label: "Tools", value: o.tools?.total ?? 0, sub: kpiBadges(o.tools?.by_visibility) },
+      { label: "Findings", value: o.findings?.total ?? 0, sub: kpiBadges(fnd) },
+      { label: "MCP connections", value: o.connections?.total ?? 0, sub: kpiBadges({ healthy: o.connections?.healthy ?? 0 }) },
       { label: "Agent profiles", value: o.agents?.total ?? 0, sub: "" },
     ])}
     <div class="two-col">
@@ -322,6 +340,7 @@ function renderPlaybookGrid() {
         <span class="dim">v ${esc(p.current_version_id || "—")}</span>
         <span class="dim">${esc((p.created_at || "").slice(0, 10))}</span>
       </div>
+      <button class="pb-card-delete" title="Delete playbook" data-pid="${esc(p.playbook_id)}">✕</button>
     </a>`).join("");
 }
 
@@ -334,6 +353,7 @@ async function pagePlaybooks() {
   $("#pageHeadActions").innerHTML = headActionsHtml([
     { id: "pbImportBtn", label: "↙ Import" },
     { id: "pbNewBtn", label: "＋ New playbook", cls: "primary" },
+    { id: "pbSeedBtn", label: "⟳ Seed" },
   ]);
   $("#pageBody").innerHTML = `
     <div class="filterbar lib-filter">
@@ -349,6 +369,15 @@ async function pagePlaybooks() {
     <div class="lib-grid" id="pbGrid"><p class="empty">Loading…</p></div>`;
   $("#pbNewBtn").addEventListener("click", newPlaybook);
   $("#pbImportBtn").addEventListener("click", importPlaybook);
+  $("#pbSeedBtn").addEventListener("click", seedPlaybooks);
+  // delegated delete on playbook cards (grid innerHTML is replaced on each render)
+  $("#pbGrid").addEventListener("click", async (e) => {
+    const btn = e.target.closest(".pb-card-delete");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    await deletePlaybookById(btn.dataset.pid);
+  });
   ["input", "change"].forEach((ev) => {
     $("#pbSearch").addEventListener(ev, renderPlaybookGrid);
     $("#pbStatusFilter").addEventListener(ev, renderPlaybookGrid);
@@ -2384,6 +2413,17 @@ async function newPlaybook() {
   nameEl.focus();
 }
 
+async function deletePlaybookById(id) {
+  if (!confirm(`Delete playbook ${id}? This cannot be undone.`)) return;
+  try {
+    await api(`/playbooks/${encodeURIComponent(id)}`, { method: "DELETE" });
+    toast("Playbook deleted");
+    await refreshPlaybooks();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
 async function deletePlaybook() {
   if (!selectedId) return toast("Select a playbook first", true);
   if (!confirm(`Delete playbook ${selectedId}? This cannot be undone.`)) return;
@@ -2438,6 +2478,17 @@ async function importPlaybook() {
     } catch (err) { toast(err.message, true); }
   };
   file.click();
+}
+
+async function seedPlaybooks() {
+  try {
+    const r = await api("/playbooks/seed", { method: "POST" });
+    const count = r?.seeded ?? 0;
+    toast(`Seeded ${count} playbook${count !== 1 ? "s" : ""}`);
+    await refreshPlaybooks();
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 /* ── route: executions ─────────────────────────────────────────────── */
@@ -2864,7 +2915,7 @@ async function refreshFindings() {
   if (!el) return;
   el.innerHTML = `${table(["Test", "Severity", "Tool", "Status", "Created"],
     (d.findings || []).map((f) => ({
-      cells: [esc(f.test_name || f.checkname || f.name || "—"), BADGE(f.severity), esc(f.tool), esc(f.status || f.validation_status || "—"), esc((f.created_at || "").slice(0, 19))],
+      cells: [esc(f.test_name || f.checkname || f.name || "—"), BADGE(f.severity), esc(f.tool), esc(f.status || f.validation_status || "—"), fmtTs(f.created_at)],
     })), "No findings match these filters.")}`;
   // move the matching count to the page-top right corner (minimal number badge)
   const headRight = $(".head-right");
