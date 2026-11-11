@@ -1,8 +1,8 @@
-"""Unit tests for the monitor session registry (kali_mcp/monitor/sessions.py)."""
+"""Unit tests for the monitor session registry (kmcp/monitor/sessions.py)."""
 
 from __future__ import annotations
 
-from kali_mcp.monitor.sessions import SessionRegistry, session_registry
+from kmcp.monitor.sessions import SessionRegistry, session_registry
 
 
 class TestSessionRegistry:
