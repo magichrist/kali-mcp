@@ -1,0 +1,22 @@
+id: crackmapexec
+name: "CrackMapExec"
+description: "Authenticated network enumeration via CrackMapExec"
+tool: crackmapexec
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target host or network"
+  protocol:
+    type: string
+    required: true
+    description: "Protocol (smb, ldap, ...)"
+    default: "smb"
+  extra_args:
+    type: string
+    description: "Extra crackmapexec arguments"
+    default: ""
+outputs:
+  - hosts
+  - credentials
