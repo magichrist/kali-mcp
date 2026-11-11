@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from kali_mcp.notifications import (
+from kmcp.notifications import (
     emit_log,
     notify_prompts_changed,
     notify_resource_updated,
