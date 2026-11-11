@@ -2,7 +2,7 @@
 
 from shlex import quote as _shlex_quote
 
-from kali_mcp.security import quote_argument, sanitize_command_parts
+from kmcp.security import quote_argument, sanitize_command_parts
 
 
 def test_sanitize_command_parts():
