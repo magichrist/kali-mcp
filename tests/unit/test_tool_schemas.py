@@ -12,7 +12,7 @@ import pytest
 
 from kali_mcp.tools import ALL_TOOLS
 
-EXPECTED_TOOL_COUNT = 72
+EXPECTED_TOOL_COUNT = 75
 
 VALID_ARGS = {
     "generic_command": {"command": "echo hello"},
@@ -155,6 +155,13 @@ VALID_ARGS = {
     "playbook_run": {"playbook": "api_recon", "target": "example.com"},
     "playbook_catalog": {},
     "playbook_result": {"job_id": "job_test123"},
+    "playbook_create": {"playbook_id": "quick_http_probe", "name": "Quick HTTP Probe"},
+    "playbook_validate": {"playbook_id": "quick_http_probe", "definition": {"name": "quick_http_probe"}},
+    "playbook_publish": {
+        "playbook_id": "quick_http_probe",
+        "version": "1.0",
+        "definition": {"name": "quick_http_probe"},
+    },
     "template_list": {},
     "template_run": {
         "template_id": "quick_web_scan",
@@ -229,6 +236,9 @@ INVALID_ARGS = {
     "report_generate": {"format": "xml"},
     "playbook_run": {"playbook": "no_such_playbook", "target": "example.com"},
     "playbook_result": {},
+    "playbook_create": {"playbook_id": ""},
+    "playbook_validate": {"playbook_id": "x", "definition": None},
+    "playbook_publish": {"playbook_id": "x", "version": "", "definition": {}},
     "template_run": {"template_id": "no_such_template"},
     "playbook_catalog": None,
     "template_list": None,
