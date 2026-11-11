@@ -1,0 +1,73 @@
+id: linux_assessment
+name: Linux Host Security Assessment
+description: Linux host security assessment — enumerate the host, check privileges, scan for misconfigurations, correlate findings, and report.
+version: "2.0.0"
+inputs:
+  target:
+    type: string
+    required: true
+    description: Target host/IP or 'localhost' for local assessment
+  options:
+    type: object
+    description: Optional assessment options
+    properties:
+      ssh_key:
+        type: string
+        description: SSH private key for remote enumeration
+      sudo_password:
+        type: string
+        description: Sudo password for privileged commands
+execution:
+  max_parallel: 2
+  timeout: 600
+  resume: true
+steps:
+  - id: validate
+    type: scope_check
+    depends_on: []
+    checkpoint: true
+    description: Validate target against active assessment scope
+  - id: host_enumeration
+    module: host_enumeration
+    depends_on: [validate]
+    inputs:
+      target: "{{target}}"
+      ssh_key: "{{options.ssh_key}}"
+      sudo_password: "{{options.sudo_password}}"
+    checkpoint: true
+    description: Enumerate OS, packages, users, and services
+  - id: privilege_check
+    module: privilege_check
+    depends_on: [validate]
+    inputs:
+      target: "{{target}}"
+      ssh_key: "{{options.ssh_key}}"
+      sudo_password: "{{options.sudo_password}}"
+    parallel: true
+    checkpoint: true
+    description: Check sudo access, SUID binaries, and capabilities
+  - id: misconfiguration_scan
+    module: misconfiguration_scan
+    depends_on: [host_enumeration, privilege_check]
+    inputs:
+      target: "{{target}}"
+      ssh_key: "{{options.ssh_key}}"
+      sudo_password: "{{options.sudo_password}}"
+    checkpoint: true
+    description: Scan file permissions, SSH config, and firewall
+  - id: correlate
+    type: finding_correlation
+    depends_on: [privilege_check, misconfiguration_scan]
+    checkpoint: true
+    description: Deduplicate and correlate findings across modules
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    description: Generate the assessment report
+outputs:
+  - assessment_id
+  - findings
+  - assets
+  - artifacts
+  - next_actions
+  - recommended_next_playbooks
