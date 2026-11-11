@@ -1,4 +1,4 @@
-"""Shared pytest configuration for kali-mcp tests.
+"""Shared pytest configuration for kmcp tests.
 
 Registers all tools into the global registry, mirroring server.py's startup
 wiring, so integration tests can resolve tools via the registry.
@@ -6,8 +6,8 @@ wiring, so integration tests can resolve tools via the registry.
 
 from __future__ import annotations
 
-from kali_mcp.registry import registry
-from kali_mcp.tools import ALL_TOOLS
+from kmcp.registry import registry
+from kmcp.tools import ALL_TOOLS
 
 
 def _register_all_tools() -> None:
