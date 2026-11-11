@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from kali_mcp.utils.process import kill_process_tree
+from kmcp.utils.process import kill_process_tree
 
 
 class TestKillProcessTree:
@@ -24,9 +24,9 @@ class TestKillProcessTree:
         proc.returncode = None
         proc.pid = 1234
         with (
-            patch("kali_mcp.utils.process.os.getpgid", return_value=1234),
-            patch("kali_mcp.utils.process.os.killpg") as mock_killpg,
-            patch("kali_mcp.utils.process.asyncio.wait_for", return_value=None),
+            patch("kmcp.utils.process.os.getpgid", return_value=1234),
+            patch("kmcp.utils.process.os.killpg") as mock_killpg,
+            patch("kmcp.utils.process.asyncio.wait_for", return_value=None),
         ):
             await kill_process_tree(proc)
             mock_killpg.assert_called_once_with(1234, __import__("signal").SIGKILL)
@@ -37,8 +37,8 @@ class TestKillProcessTree:
         proc.returncode = None
         proc.pid = 1234
         with (
-            patch("kali_mcp.utils.process.os.getpgid", side_effect=PermissionError),
-            patch("kali_mcp.utils.process.asyncio.wait_for", return_value=None),
+            patch("kmcp.utils.process.os.getpgid", side_effect=PermissionError),
+            patch("kmcp.utils.process.asyncio.wait_for", return_value=None),
         ):
             await kill_process_tree(proc)
             proc.kill.assert_called_once()
@@ -49,9 +49,9 @@ class TestKillProcessTree:
         proc.returncode = None
         proc.pid = 1234
         with (
-            patch("kali_mcp.utils.process.os.getpgid", return_value=1234),
-            patch("kali_mcp.utils.process.os.killpg"),
-            patch("kali_mcp.utils.process.asyncio.wait_for", side_effect=TimeoutError),
+            patch("kmcp.utils.process.os.getpgid", return_value=1234),
+            patch("kmcp.utils.process.os.killpg"),
+            patch("kmcp.utils.process.asyncio.wait_for", side_effect=TimeoutError),
         ):
             # Should not raise
             await kill_process_tree(proc)
@@ -61,5 +61,5 @@ class TestKillProcessTree:
         proc = MagicMock()
         proc.returncode = None
         proc.pid = 1234
-        with patch("kali_mcp.utils.process.os.getpgid", side_effect=RuntimeError("boom")):
+        with patch("kmcp.utils.process.os.getpgid", side_effect=RuntimeError("boom")):
             await kill_process_tree(proc)
