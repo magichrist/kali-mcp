@@ -55,7 +55,7 @@ jobs:
 
       # Trusted Publishing: authenticates via OIDC against the Trusted
       # Publisher configured on pypi.org for this repository
-      # (owner magichrist, repo kali-mcp, workflow release.yml).
+      # (owner magichrist, repo kmcp, workflow release.yml).
       # Do NOT add a username/password here — the action would fall back
       # to token auth and fail.
       - name: Publish to PyPI
