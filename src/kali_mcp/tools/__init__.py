@@ -51,6 +51,11 @@ from kali_mcp.tools.nmap import NmapTool
 from kali_mcp.tools.nuclei import NucleiTool
 from kali_mcp.tools.parallel_execute import ParallelExecuteTool, ParallelStatusTool
 from kali_mcp.tools.playbook_ad import PlaybookAdTool
+from kali_mcp.tools.playbook_authoring import (
+    PlaybookCreateTool,
+    PlaybookPublishTool,
+    PlaybookValidateTool,
+)
 from kali_mcp.tools.playbook_blackbox import (
     PlaybookCatalogTool,
     PlaybookResultTool,
@@ -155,6 +160,9 @@ ALL_TOOLS = [
     PlaybookRunTool(),
     PlaybookCatalogTool(),
     PlaybookResultTool(),
+    PlaybookCreateTool(),
+    PlaybookValidateTool(),
+    PlaybookPublishTool(),
     TemplateListTool(),
     TemplateRunTool(),
 ]
