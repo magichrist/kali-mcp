@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from kali_mcp.tools.parallel_execute import ParallelExecuteTool, ParallelStatusTool
+from kmcp.tools.parallel_execute import ParallelExecuteTool, ParallelStatusTool
 
 
 async def test_parallel_execution_with_aggregation():
