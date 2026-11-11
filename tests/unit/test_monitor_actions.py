@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-from kali_mcp.monitor import Monitor
+from kmcp.monitor import Monitor
 
 
 class TestMonitorActions:
