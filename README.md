@@ -1,9 +1,9 @@
-<h1 align="center">✦ kali-mcp ✦</h1>
+<h1 align="center">✦ kmcp ✦</h1>
 
 <p align="center"><em>A warm, expressive MCP server that puts 56 Kali Linux pentesting tools at your AI agent's fingertips — soft voltage around sharp security tooling.</em></p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/magichrist/kali-mcp?color=c58af2" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/magichrist/kmcp?color=c58af2" alt="License"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10+-89b4fa" alt="Python 3.10+"></a>
   <a href="https://pypi.org/project/kmcp/"><img src="https://img.shields.io/badge/pypi-kmcp-a6d189" alt="kmcp on PyPI"></a>
 </p>
@@ -202,7 +202,7 @@ Configuration is loaded from environment variables via `.env`. All values have s
 |---|---|---|
 | `MCP_HOST` | `0.0.0.0` | Listen address |
 | `MCP_PORT` | `8399` | Listen port |
-| `MCP_SERVER_NAME` | `kali-mcp` | Server name advertised to MCP clients |
+| `MCP_SERVER_NAME` | `kmcp` | Server name advertised to MCP clients |
 | `MCP_SERVER_VERSION` | `1.0.0` | Server version |
 | `MCP_API_TOKEN` | *(empty)* | Bearer token; when set, all HTTP routes require `Authorization: Bearer <token>`. **Required** — the server exits at startup if empty unless `KALI_MCP_INSECURE=1` |
 | `KALI_MCP_INSECURE` | `false` | Run without authentication (dev only; overrides the token requirement) |
@@ -217,7 +217,7 @@ Configuration is loaded from environment variables via `.env`. All values have s
 | `MCP_ENCODING` | `utf-8` | Default text encoding |
 | `MCP_RATE_LIMIT` | `0` | Rate limit per minute (0 = unlimited) |
 | `MCP_VAULT_MAX_ROW_BYTES` | `26214400` | Max vault row size (25 MB; 0 = unlimited) |
-| `MCP_DB_PATH` | `data/kali-mcp.sqlite` | SQLite database path |
+| `MCP_DB_PATH` | `data/kmcp.sqlite` | SQLite database path |
 | `MCP_DB_ENABLED` | `true` | Write executions to SQLite |
 | `MCP_AGENT_PROFILE_ID` | *(empty)* | Bind every MCP request to this agent profile (deny-by-default permissions; unknown id fails closed) |
 | `STUDIO_ENABLED` | `true` | Serve the Playbook Studio web UI and REST API |
@@ -265,7 +265,7 @@ MCP Client (AI agent)
   subprocesses    (kmcp monitor)
 ```
 
-**Package layout (`src/kali_mcp/`):**
+**Package layout (`src/kmcp/`):**
 
 - `server.py` — MCP server, tool dispatch, health monitor, REST routes
 - `execution.py` — hardened execution engine (timeout, watchdog, semaphore)
