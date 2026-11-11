@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
+from kmcp.models import ExecutionResult, ToolError, utc_now_iso
 
 
 def _result(**overrides) -> ExecutionResult:
