@@ -1,14 +1,14 @@
-"""Unit tests for the package entry point (kali_mcp/__main__.py)."""
+"""Unit tests for the package entry point (kmcp/__main__.py)."""
 
 from __future__ import annotations
 
 import contextlib
 
-from kali_mcp.cli import main as cli_main
+from kmcp.cli import main as cli_main
 
 
 def test_main_no_arguments_prints_help() -> None:
-    """``python -m kali_mcp`` with no args prints help instead of starting the server."""
+    """``python -m kmcp`` with no args prints help instead of starting the server."""
     from io import StringIO
 
     buf = StringIO()
@@ -23,17 +23,17 @@ def test_main_no_arguments_prints_help() -> None:
 
 def test_main_guard_invokes_main() -> None:
     """The __main__ guard calls main() when the module is run as __main__."""
-    from kali_mcp.server import main as real_main
+    from kmcp.server import main as real_main
 
     assert callable(real_main)
     # __main__.py re-exports main; verify it points to a callable
-    from kali_mcp import __main__ as main_mod
+    from kmcp import __main__ as main_mod
 
     assert callable(main_mod.main)
 
 
 def test_module_has_main_attribute() -> None:
-    from kali_mcp import __main__ as main_mod
+    from kmcp import __main__ as main_mod
 
     assert hasattr(main_mod, "main")
     assert callable(main_mod.main)
