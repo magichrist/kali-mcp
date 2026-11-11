@@ -1,8 +1,8 @@
-"""Unit tests for the playbook/module registry (src/kali_mcp/playbooks/registry.py)."""
+"""Unit tests for the playbook/module registry (src/kmcp/playbooks/registry.py)."""
 
 from __future__ import annotations
 
-from kali_mcp.playbooks.registry import (
+from kmcp.playbooks.registry import (
     ModuleNotFound,
     PlaybookNotFound,
     _modules,
