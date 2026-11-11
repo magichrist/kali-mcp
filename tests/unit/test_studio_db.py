@@ -1,4 +1,4 @@
-"""Unit tests for Playbook Studio schema extensions in src/kali_mcp/db/manager.py.
+"""Unit tests for Playbook Studio schema extensions in src/kmcp/db/manager.py.
 
 Covers: idempotent creation of the Studio tables defined in
 docs/visual/02_DATA_MODEL.md §3, preservation of existing v1+v2 tables and
@@ -14,7 +14,7 @@ import json
 
 import pytest
 
-from kali_mcp.db.manager import DBManager
+from kmcp.db.manager import DBManager
 
 STUDIO_TABLES = [
     "tool_definitions",
