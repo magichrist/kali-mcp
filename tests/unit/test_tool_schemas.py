@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.tools import ALL_TOOLS
+from kmcp.tools import ALL_TOOLS
 
 EXPECTED_TOOL_COUNT = 75
 
