@@ -1,0 +1,16 @@
+id: param_discovery
+name: "API Parameter Discovery"
+description: "Discover hidden request parameters via arjun"
+tool: arjun
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target URL or endpoint to probe for parameters"
+  endpoints:
+    type: array
+    description: "Discovered API endpoints to test (from api_discovery)"
+outputs:
+  - parameters
+  - endpoints_tested
