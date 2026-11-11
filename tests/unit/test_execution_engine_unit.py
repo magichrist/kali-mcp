@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from kali_mcp.execution import engine
+from kmcp.execution import engine
 
 
 async def test_execute_success():
