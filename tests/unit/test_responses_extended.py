@@ -1,11 +1,11 @@
-"""Extended unit tests for response builders (kali_mcp/responses.py)."""
+"""Extended unit tests for response builders (kmcp/responses.py)."""
 
 from __future__ import annotations
 
 import json
 
-from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
-from kali_mcp.responses import (
+from kmcp.models import ExecutionResult, ToolError, utc_now_iso
+from kmcp.responses import (
     error_response,
     error_response_from_exception,
     success_response,
