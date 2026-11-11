@@ -1,4 +1,4 @@
-"""Unit tests for the Kali MCP CLI (kali_mcp/cli.py)."""
+"""Unit tests for the Kali MCP CLI (kmcp/cli.py)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from kali_mcp.cli import build_parser, cmd_purge, main
+from kmcp.cli import build_parser, cmd_purge, main
 
 
 class TestParser:
@@ -70,12 +70,12 @@ class TestParser:
 
 class TestMain:
     def test_start_calls_server_main(self) -> None:
-        with patch("kali_mcp.cli.cmd_start", return_value=0) as mock_start:
+        with patch("kmcp.cli.cmd_start", return_value=0) as mock_start:
             assert main(["start"]) == 0
             mock_start.assert_called_once()
 
     def test_monitor_calls_monitor_main(self) -> None:
-        with patch("kali_mcp.cli.cmd_monitor", return_value=0) as mock_monitor:
+        with patch("kmcp.cli.cmd_monitor", return_value=0) as mock_monitor:
             assert main(["monitor", "http://x:1"]) == 0
             mock_monitor.assert_called_once()
 
@@ -83,14 +83,14 @@ class TestMain:
 class TestPurge:
     def test_purge_aborts_without_confirm(self) -> None:
         args = SimpleNamespace(scope="db", confirm=False)
-        with patch("kali_mcp.cli._confirm", return_value=False):
+        with patch("kmcp.cli._confirm", return_value=False):
             assert cmd_purge(args) == 1
 
     def test_purge_proceeds_with_confirm(self, tmp_path) -> None:
-        import kali_mcp.cli as cli_mod
+        import kmcp.cli as cli_mod
 
         # Create fake db + vault files under tmp_path
-        db_file = tmp_path / "data" / "kali-mcp.sqlite"
+        db_file = tmp_path / "data" / "kmcp.sqlite"
         db_file.parent.mkdir(parents=True)
         db_file.write_text("fake")
         vault_dir = tmp_path / "artifacts" / "vault"
@@ -108,7 +108,7 @@ class TestPurge:
             cli_mod.REPO_ROOT = orig_root
 
     def test_purge_nothing_to_remove(self) -> None:
-        import kali_mcp.cli as cli_mod
+        import kmcp.cli as cli_mod
 
         orig_root = cli_mod.REPO_ROOT
         cli_mod.REPO_ROOT = Path("/tmp/nonexistent_kmcp_test")
