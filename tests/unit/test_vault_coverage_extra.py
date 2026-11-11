@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from kali_mcp.utils import vault
+from kmcp.utils import vault
 
 
 class FakeMirror:
@@ -257,7 +257,7 @@ class TestIndexAndMirrorFailure:
 class TestLegacyMigration:
     def test_migrate_legacy_vault_entries_table(self, tmp_path, monkeypatch):
         """A pre-contract vault_entries table is migrated into entries."""
-        import kali_mcp.utils.vault as v
+        import kmcp.utils.vault as v
 
         db_path = tmp_path / "legacy" / "vault.sqlite"
         db_path.parent.mkdir(parents=True, exist_ok=True)
