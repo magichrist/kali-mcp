@@ -1,0 +1,25 @@
+id: ffuf
+name: "FFUF"
+description: "Directory and content brute-forcing via ffuf"
+tool: ffuf
+timeout: 300
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target URL"
+  wordlist:
+    type: string
+    required: true
+    description: "Wordlist path"
+  filter:
+    type: string
+    description: "Filter expression"
+    default: ""
+  extra_args:
+    type: string
+    description: "Extra ffuf arguments"
+    default: ""
+outputs:
+  - directories
+  - endpoints
