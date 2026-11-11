@@ -1,4 +1,4 @@
-"""Coverage-focused unit tests for ``src/kali_mcp/tools/template_tools.py``.
+"""Coverage-focused unit tests for ``src/kmcp/tools/template_tools.py``.
 
 Covers:
   - template_list and template_run tool schema, validate, execute
@@ -15,15 +15,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from kali_mcp.playbooks.registry import TemplateNotFound
-from kali_mcp.tools.template_tools import (
+from kmcp.playbooks.registry import TemplateNotFound
+from kmcp.tools.template_tools import (
     JOB_REGISTRY,
     TemplateListTool,
     TemplateRunTool,
     _new_id,
     _success_tool_result,
 )
-from kali_mcp.workflow.yaml_loader import PlaybookError
+from kmcp.workflow.yaml_loader import PlaybookError
 
 
 @pytest.fixture(autouse=True)
@@ -91,7 +91,7 @@ class TestTemplateListTool:
                 },
             }
         ]
-        with patch("kali_mcp.playbooks.registry.list_templates", return_value=templates):
+        with patch("kmcp.playbooks.registry.list_templates", return_value=templates):
             result = await tool.execute({"detail": "compact"})
         assert result["isError"] is False
         payload = _tool_payload(result)
@@ -109,7 +109,7 @@ class TestTemplateListTool:
     async def test_execute_full_keeps_full_dicts(self):
         tool = TemplateListTool()
         templates = [{"id": "t1", "name": "T1", "description": "d1", "parameters": {}}]
-        with patch("kali_mcp.playbooks.registry.list_templates", return_value=templates):
+        with patch("kmcp.playbooks.registry.list_templates", return_value=templates):
             result = await tool.execute({"detail": "full"})
         payload = _tool_payload(result)
         assert payload["templates"] == templates
@@ -147,21 +147,21 @@ class TestTemplateRunTool:
     def test_validate_unknown_template(self):
         tool = TemplateRunTool()
         with (
-            patch("kali_mcp.playbooks.registry.get_template", side_effect=KeyError("nope")),
+            patch("kmcp.playbooks.registry.get_template", side_effect=KeyError("nope")),
             pytest.raises(ValueError, match="unknown template"),
         ):
             tool.validate({"template_id": "nope", "params": {}})
 
     def test_validate_known_template(self):
         tool = TemplateRunTool()
-        with patch("kali_mcp.playbooks.registry.get_template", return_value={"id": "t"}):
+        with patch("kmcp.playbooks.registry.get_template", return_value={"id": "t"}):
             tool.validate({"template_id": "t", "params": {}})
 
     async def test_execute_render_template_not_found_propagates(self):
         tool = TemplateRunTool()
         with (
             patch(
-                "kali_mcp.playbooks.registry.render_template",
+                "kmcp.playbooks.registry.render_template",
                 side_effect=TemplateNotFound("missing"),
             ),
             pytest.raises(TemplateNotFound),
@@ -172,7 +172,7 @@ class TestTemplateRunTool:
         tool = TemplateRunTool()
         with (
             patch(
-                "kali_mcp.playbooks.registry.render_template",
+                "kmcp.playbooks.registry.render_template",
                 side_effect=PlaybookError("bad playbook"),
             ),
             pytest.raises(ValueError, match="template produced an invalid playbook"),
@@ -192,9 +192,9 @@ class TestTemplateRunTool:
             }
         )
         with (
-            patch("kali_mcp.playbooks.registry.render_template", return_value=definition),
+            patch("kmcp.playbooks.registry.render_template", return_value=definition),
             patch(
-                "kali_mcp.workflow.dag_executor.run_playbook_async",
+                "kmcp.workflow.dag_executor.run_playbook_async",
                 return_value=_FakeResult(True, stdout),
             ),
         ):
@@ -211,9 +211,9 @@ class TestTemplateRunTool:
         tool = TemplateRunTool()
         definition = MagicMock()
         with (
-            patch("kali_mcp.playbooks.registry.render_template", return_value=definition),
+            patch("kmcp.playbooks.registry.render_template", return_value=definition),
             patch(
-                "kali_mcp.workflow.dag_executor.run_playbook_async",
+                "kmcp.workflow.dag_executor.run_playbook_async",
                 side_effect=RuntimeError("engine boom"),
             ),
             pytest.raises(RuntimeError, match="engine boom"),
@@ -231,9 +231,9 @@ class TestTemplateRunTool:
         definition = MagicMock()
         stdout = json.dumps({"steps": [], "step_results": {}})
         with (
-            patch("kali_mcp.playbooks.registry.render_template", return_value=definition),
+            patch("kmcp.playbooks.registry.render_template", return_value=definition),
             patch(
-                "kali_mcp.workflow.dag_executor.run_playbook_async",
+                "kmcp.workflow.dag_executor.run_playbook_async",
                 return_value=_FakeResult(True, stdout),
             ),
         ):
@@ -244,7 +244,7 @@ class TestTemplateRunTool:
         tool = TemplateRunTool()
         tool._skip_central_persist = True
         with patch(
-            "kali_mcp.playbooks.registry.render_template",
+            "kmcp.playbooks.registry.render_template",
             side_effect=ValueError("render boom"),
         ):
             result = await tool.safe_execute({"template_id": "t", "params": {}})
