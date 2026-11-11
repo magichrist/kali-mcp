@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.intelligence import AssessmentDiffer, DiffResult
+from kmcp.intelligence import AssessmentDiffer, DiffResult
 
 
 class MockDB:
