@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from kali_mcp.server import TokenAuthMiddleware
+from kmcp.server import TokenAuthMiddleware
 
 
 def _scope(path: str, method: str = "GET") -> dict[str, Any]:
