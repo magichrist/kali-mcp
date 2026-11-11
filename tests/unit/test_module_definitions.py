@@ -12,7 +12,7 @@ import pytest
 import yaml
 
 MODULES_DIR = (
-    Path(__file__).resolve().parent.parent.parent / "src" / "kali_mcp" / "playbooks" / "modules"
+    Path(__file__).resolve().parent.parent.parent / "src" / "kmcp" / "playbooks" / "modules"
 )
 
 
@@ -53,7 +53,7 @@ def test_required_fields(module):
 
 
 def test_modules_registered_in_registry():
-    from kali_mcp.playbooks import registry as pb_registry
+    from kmcp.playbooks import registry as pb_registry
 
     for module in ALL_MODULES:
         mod = pb_registry.get_module(module["id"])
@@ -89,7 +89,7 @@ def test_outputs_are_declared(module):
 
 def test_module_tools_are_registered_tools():
     """Every module tool must be an actual registered native tool."""
-    from kali_mcp.tools import ALL_TOOLS
+    from kmcp.tools import ALL_TOOLS
 
     tool_names = {t.name for t in ALL_TOOLS}
     for module in ALL_MODULES:
