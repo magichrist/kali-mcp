@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from kali_mcp.cli import build_parser, cmd_studio, main
+from kmcp.cli import build_parser, cmd_studio, main
 
 
 def _args(**overrides) -> SimpleNamespace:
@@ -42,7 +42,7 @@ class TestStudioPortSelection:
 
         reached = {}
         monkeypatch.setattr(
-            "kali_mcp.cli._server_reachable",
+            "kmcp.cli._server_reachable",
             lambda url, timeout=1.5: reached.setdefault(url, True) or True,
         )
         _stub_browser(monkeypatch)
@@ -56,7 +56,7 @@ class TestStudioPortSelection:
     def test_no_browser_on_existing_server_no_child(self, monkeypatch) -> None:
         monkeypatch.setenv("MCP_PORT", "8399")
         monkeypatch.delenv("STUDIO_PORT", raising=False)
-        monkeypatch.setattr("kali_mcp.cli._server_reachable", lambda url, timeout=1.5: True)
+        monkeypatch.setattr("kmcp.cli._server_reachable", lambda url, timeout=1.5: True)
         _stub_browser(monkeypatch)
 
         assert cmd_studio(_args()) == 0
@@ -72,7 +72,7 @@ class TestStudioPortSelection:
             reached[url] = True
             return True
 
-        monkeypatch.setattr("kali_mcp.cli._server_reachable", fake_reachable)
+        monkeypatch.setattr("kmcp.cli._server_reachable", fake_reachable)
         _stub_browser(monkeypatch)
 
         assert cmd_studio(_args()) == 0
@@ -84,7 +84,7 @@ class TestStudioPortSelection:
 
         reached = {}
         monkeypatch.setattr(
-            "kali_mcp.cli._server_reachable",
+            "kmcp.cli._server_reachable",
             lambda url, timeout=1.5: reached.setdefault(url, True) or True,
         )
         _stub_browser(monkeypatch)
@@ -100,11 +100,11 @@ class TestWildcardHostResolution:
         monkeypatch.delenv("STUDIO_PORT", raising=False)
         monkeypatch.delenv("MCP_PORT", raising=False)
         monkeypatch.setenv("KALI_MCP_INSECURE", "1")  # silence protection note
-        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "127.0.0.1")
+        monkeypatch.setattr("kmcp.cli._primary_lan_ip", lambda: "127.0.0.1")
 
         reached = {}
         monkeypatch.setattr(
-            "kali_mcp.cli._server_reachable",
+            "kmcp.cli._server_reachable",
             lambda url, timeout=1.5: reached.setdefault(url, True) or True,
         )
         _stub_browser(monkeypatch)
@@ -113,24 +113,24 @@ class TestWildcardHostResolution:
         assert "http://127.0.0.1:8399/studio" in reached
 
     def test_primary_lan_ip_returned_is_used_in_url(self, monkeypatch) -> None:
-        from kali_mcp.cli import _browser_url_for_host
+        from kmcp.cli import _browser_url_for_host
 
-        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "127.0.0.1")
+        monkeypatch.setattr("kmcp.cli._primary_lan_ip", lambda: "127.0.0.1")
         url = _browser_url_for_host("0.0.0.0", 8399)
         assert url == "http://127.0.0.1:8399/studio"
 
     def test_wildcard_bind_falls_back_to_localhost_offline(self, monkeypatch) -> None:
-        from kali_mcp.cli import _browser_url_for_host
+        from kmcp.cli import _browser_url_for_host
 
-        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "")
+        monkeypatch.setattr("kmcp.cli._primary_lan_ip", lambda: "")
         assert _browser_url_for_host("0.0.0.0", 8399) == "http://127.0.0.1:8399/studio"
         assert _browser_url_for_host("::", 8399) == "http://127.0.0.1:8399/studio"
 
     def test_explicit_host_is_never_remapped(self, monkeypatch) -> None:
-        from kali_mcp.cli import _browser_url_for_host
+        from kmcp.cli import _browser_url_for_host
 
         monkeypatch.setattr(
-            "kali_mcp.cli._primary_lan_ip",
+            "kmcp.cli._primary_lan_ip",
             lambda: (_ for _ in ()).throw(AssertionError("must not be called")),
         )
         assert _browser_url_for_host("127.0.0.1", 8399) == "http://127.0.0.1:8399/studio"
@@ -139,22 +139,22 @@ class TestWildcardHostResolution:
         )
 
     def test_port_env_still_applies_with_wildcard(self, monkeypatch) -> None:
-        from kali_mcp.cli import _browser_url_for_host
+        from kmcp.cli import _browser_url_for_host
 
-        monkeypatch.setattr("kali_mcp.cli._primary_lan_ip", lambda: "127.0.0.1")
+        monkeypatch.setattr("kmcp.cli._primary_lan_ip", lambda: "127.0.0.1")
         assert _browser_url_for_host("0.0.0.0", 8340) == "http://127.0.0.1:8340/studio"
 
 
 class TestIsLanIp:
     def test_accepts_private_lan_addresses(self) -> None:
-        from kali_mcp.cli import _is_lan_ip
+        from kmcp.cli import _is_lan_ip
 
         assert _is_lan_ip("192.168.2.4")
         assert _is_lan_ip("10.0.0.8")
         assert _is_lan_ip("172.16.5.9")
 
     def test_rejects_ghost_and_special_addresses(self) -> None:
-        from kali_mcp.cli import _is_lan_ip
+        from kmcp.cli import _is_lan_ip
 
         # Reserved 240.0.0.0/4 — reported by UDP-route detection on machines
         # with virtual/VPN tunnel interfaces; unroutable locally.
@@ -173,7 +173,7 @@ class TestBrowserOpenBehaviour:
         monkeypatch.setenv("MCP_PORT", "8399")
         monkeypatch.delenv("STUDIO_PORT", raising=False)
         monkeypatch.setenv("KALI_MCP_INSECURE", "1")
-        monkeypatch.setattr("kali_mcp.cli._server_reachable", lambda url, timeout=1.5: True)
+        monkeypatch.setattr("kmcp.cli._server_reachable", lambda url, timeout=1.5: True)
 
         def boom(url, *a, **k):
             raise RuntimeError("no browser on this host")
@@ -187,7 +187,7 @@ class TestBrowserOpenBehaviour:
         monkeypatch.setenv("MCP_PORT", "8399")
         monkeypatch.delenv("STUDIO_PORT", raising=False)
         monkeypatch.setenv("KALI_MCP_INSECURE", "1")
-        monkeypatch.setattr("kali_mcp.cli._server_reachable", lambda url, timeout=1.5: True)
+        monkeypatch.setattr("kmcp.cli._server_reachable", lambda url, timeout=1.5: True)
 
         opened: list[str] = []
         monkeypatch.setattr("webbrowser.open", lambda url, *a, **k: opened.append(url) or True)
