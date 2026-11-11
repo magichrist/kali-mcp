@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from kali_mcp.studio import service_mcp_connections as smc
-from kali_mcp.studio.mcp_client import MCPClientError
-from kali_mcp.studio.service_mcp_connections import (
+from kmcp.studio import service_mcp_connections as smc
+from kmcp.studio.mcp_client import MCPClientError
+from kmcp.studio.service_mcp_connections import (
     add_connection,
     discover_and_import,
 )
@@ -96,7 +96,7 @@ class TestDiscoverAndImport:
             },
         ]
         with patch(
-            "kali_mcp.studio.service_mcp_connections.import_external_mcp_tools",
+            "kmcp.studio.service_mcp_connections.import_external_mcp_tools",
             new=AsyncMock(return_value=imported),
         ) as mock_import:
             result = await discover_and_import(db, "conn_1", client, visibility="internal")
@@ -107,7 +107,7 @@ class TestDiscoverAndImport:
         db = object()
         client = AsyncMock()
         with patch(
-            "kali_mcp.studio.service_mcp_connections.import_external_mcp_tools",
+            "kmcp.studio.service_mcp_connections.import_external_mcp_tools",
             new=AsyncMock(return_value=[]),
         ) as mock_import:
             await discover_and_import(db, "conn_1", client)
@@ -118,7 +118,7 @@ class TestDiscoverAndImport:
         client = AsyncMock()
         with (
             patch(
-                "kali_mcp.studio.service_mcp_connections.import_external_mcp_tools",
+                "kmcp.studio.service_mcp_connections.import_external_mcp_tools",
                 new=AsyncMock(side_effect=MCPClientError("boom")),
             ),
             pytest.raises(MCPClientError, match="boom"),
