@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow.yaml_loader import (
+from kmcp.workflow.yaml_loader import (
     PlaybookDefinition,
     PlaybookError,
     StepDefinition,
@@ -173,7 +173,7 @@ class TestLoadModule:
             tmp_path,
             {"network/nmap.yaml": "id: nmap\ntool: nmap\ntimeout: 600\n"},
         )
-        monkeypatch.setattr("kali_mcp.workflow.yaml_loader.MODULES_DIR", modules_dir)
+        monkeypatch.setattr("kmcp.workflow.yaml_loader.MODULES_DIR", modules_dir)
         data = load_module("nmap")
         assert isinstance(data, dict)
         assert data["id"] == "nmap"
@@ -183,22 +183,22 @@ class TestLoadModule:
         modules_dir = self._make_modules_dir(
             tmp_path, {"web/katana.yml": "id: katana\ntool: katana\n"}
         )
-        monkeypatch.setattr("kali_mcp.workflow.yaml_loader.MODULES_DIR", modules_dir)
+        monkeypatch.setattr("kmcp.workflow.yaml_loader.MODULES_DIR", modules_dir)
         data = load_module("katana")
         assert data["id"] == "katana"
 
     def test_load_module_missing_returns_none(self, tmp_path, monkeypatch):
         modules_dir = self._make_modules_dir(tmp_path, {"network/nmap.yaml": "id: nmap\n"})
-        monkeypatch.setattr("kali_mcp.workflow.yaml_loader.MODULES_DIR", modules_dir)
+        monkeypatch.setattr("kmcp.workflow.yaml_loader.MODULES_DIR", modules_dir)
         assert load_module("does-not-exist") is None
 
     def test_load_module_empty_id_returns_none(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("kali_mcp.workflow.yaml_loader.MODULES_DIR", tmp_path / "modules")
+        monkeypatch.setattr("kmcp.workflow.yaml_loader.MODULES_DIR", tmp_path / "modules")
         assert load_module("") is None
 
     def test_load_module_non_dict_yaml_returns_none(self, tmp_path, monkeypatch):
         modules_dir = self._make_modules_dir(tmp_path, {"network/nmap.yaml": "- a\n- b\n"})
-        monkeypatch.setattr("kali_mcp.workflow.yaml_loader.MODULES_DIR", modules_dir)
+        monkeypatch.setattr("kmcp.workflow.yaml_loader.MODULES_DIR", modules_dir)
         assert load_module("nmap") is None
 
     def test_module_uses_real_modules_dir_by_default(self):
