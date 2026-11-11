@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.intelligence import AssetRelationshipBuilder
+from kmcp.intelligence import AssetRelationshipBuilder
 
 
 @pytest.fixture()
