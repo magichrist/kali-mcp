@@ -1,4 +1,4 @@
-"""Coverage-focused tests for ``kali_mcp.tools.searchsploit`` (SearchsploitTool).
+"""Coverage-focused tests for ``kmcp.tools.searchsploit`` (SearchsploitTool).
 
 Covers schema, validate, build_command (title/exact/json/exclude/cve/edb_id/query/
 extra_args branches), execute success and both error paths, using mocking to avoid
@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from kali_mcp.models import ExecutionResult
-from kali_mcp.tools.searchsploit import SearchsploitTool
+from kmcp.models import ExecutionResult
+from kmcp.tools.searchsploit import SearchsploitTool
 
 COMMAND = "searchsploit apache"
 
@@ -144,7 +144,7 @@ class TestExecute:
     async def test_execute_success(self) -> None:
         tool = SearchsploitTool()
         with patch(
-            "kali_mcp.tools.searchsploit.engine.execute", new=AsyncMock(return_value=_result())
+            "kmcp.tools.searchsploit.engine.execute", new=AsyncMock(return_value=_result())
         ) as m:
             result = await tool.execute({"query": "apache"})
             assert result["isError"] is False
@@ -157,7 +157,7 @@ class TestExecute:
     async def test_execute_uses_provided_timeout(self) -> None:
         tool = SearchsploitTool()
         with patch(
-            "kali_mcp.tools.searchsploit.engine.execute", new=AsyncMock(return_value=_result())
+            "kmcp.tools.searchsploit.engine.execute", new=AsyncMock(return_value=_result())
         ) as m:
             await tool.execute({"query": "apache", "timeout": 120})
             assert m.await_args.kwargs["timeout"] == 120
