@@ -13,11 +13,11 @@ from typing import Any
 
 import pytest
 
-from kali_mcp.models import ExecutionResult
-from kali_mcp.workflow.dag_executor import PlaybookEngine
-from kali_mcp.workflow.scope_gate import ScopeViolationError
-from kali_mcp.workflow.validator import validate_playbook
-from kali_mcp.workflow.yaml_loader import (
+from kmcp.models import ExecutionResult
+from kmcp.workflow.dag_executor import PlaybookEngine
+from kmcp.workflow.scope_gate import ScopeViolationError
+from kmcp.workflow.validator import validate_playbook
+from kmcp.workflow.yaml_loader import (
     PlaybookDefinition,
     PlaybookError,
     StepDefinition,
@@ -115,7 +115,7 @@ def test_shell_placeholder_from_playbook_input(monkeypatch: pytest.MonkeyPatch) 
         return _fake_result("nmap done: 1 IP up")
 
     monkeypatch.setattr(
-        "kali_mcp.execution.engine.execute",
+        "kmcp.execution.engine.execute",
         fake_execute,
     )
     res = _run(eng._run_shell_step(step, {}))
@@ -139,7 +139,7 @@ def test_shell_placeholder_from_upstream_output(monkeypatch: pytest.MonkeyPatch)
         assert str(cmd) == "nmap 192.168.1.7"
         return _fake_result("ok")
 
-    monkeypatch.setattr("kali_mcp.execution.engine.execute", fake_execute)
+    monkeypatch.setattr("kmcp.execution.engine.execute", fake_execute)
     res = _run(eng._run_shell_step(step, {}))
     assert res["command"] == "nmap 192.168.1.7"
 
@@ -167,7 +167,7 @@ def test_shell_command_not_executed_when_unresolved(monkeypatch: pytest.MonkeyPa
         called["n"] += 1
         return _fake_result("")
 
-    monkeypatch.setattr("kali_mcp.execution.engine.execute", fake_execute)
+    monkeypatch.setattr("kmcp.execution.engine.execute", fake_execute)
     res = _run(eng._run_shell_step(step, {}))
     assert called["n"] == 0
     assert "unresolved" in res["error"]
@@ -187,7 +187,7 @@ def test_shell_filter_named_groups_become_outputs(monkeypatch: pytest.MonkeyPatc
     async def fake_execute(cmd: Any, **kwargs: Any) -> ExecutionResult:
         return _fake_result(stdout)
 
-    monkeypatch.setattr("kali_mcp.execution.engine.execute", fake_execute)
+    monkeypatch.setattr("kmcp.execution.engine.execute", fake_execute)
     res = _run(eng._run_shell_step(step, {}))
     assert res["ip"] == ["192.168.1.10", "192.168.1.11"]
     assert res["match_count"] == 2
@@ -211,7 +211,7 @@ def test_shell_filter_first_only(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_execute(cmd: Any, **kwargs: Any) -> ExecutionResult:
         return _fake_result("Nmap scan report for 1.1.1.1\nNmap scan report for 2.2.2.2")
 
-    monkeypatch.setattr("kali_mcp.execution.engine.execute", fake_execute)
+    monkeypatch.setattr("kmcp.execution.engine.execute", fake_execute)
     res = _run(eng._run_shell_step(step, {}))
     assert res["host"] == "1.1.1.1"
 
@@ -234,7 +234,7 @@ def test_shell_filter_first_only_no_matches_is_clean(monkeypatch: pytest.MonkeyP
     async def fake_execute(cmd: Any, **kwargs: Any) -> ExecutionResult:
         return _fake_result("probing 127.0.0.1 127.0.0.2 and demo.example.com\n")
 
-    monkeypatch.setattr("kali_mcp.execution.engine.execute", fake_execute)
+    monkeypatch.setattr("kmcp.execution.engine.execute", fake_execute)
     res = _run(eng._run_shell_step(step, {}))
     assert res.get("match_count") == 0
     assert res["who"] == [] and res["dom"] == []
@@ -253,7 +253,7 @@ def test_shell_filter_unnamed_capture_groups(monkeypatch: pytest.MonkeyPatch) ->
     async def fake_execute(cmd: Any, **kwargs: Any) -> ExecutionResult:
         return _fake_result("hi")
 
-    monkeypatch.setattr("kali_mcp.execution.engine.execute", fake_execute)
+    monkeypatch.setattr("kmcp.execution.engine.execute", fake_execute)
     res = _run(eng._run_shell_step(step, {}))
     assert res["match_1"] == "h"
     assert res["match_2"] == "i"
@@ -269,7 +269,7 @@ def test_shell_scope_violation_raised(monkeypatch: pytest.MonkeyPatch) -> None:
         command="nmap {ip}",
         inputs={"ip": "127.0.0.1"},
     )
-    from kali_mcp.workflow import dag_executor as de
+    from kmcp.workflow import dag_executor as de
 
     def vainless_scope(args: dict, **kw: Any) -> None:
         raise ScopeViolationError("blocked")
@@ -295,7 +295,7 @@ def test_shell_refs_from_args_and_timeout(monkeypatch: pytest.MonkeyPatch) -> No
         seen.update(kwargs, cmd=str(cmd))
         return _fake_result("done")
 
-    monkeypatch.setattr("kali_mcp.execution.engine.execute", fake_execute)
+    monkeypatch.setattr("kmcp.execution.engine.execute", fake_execute)
     res = _run(eng._run_shell_step(step, {}))
     assert seen["timeout"] == 7
     assert res["exit_code"] == 0
