@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from kali_mcp.cli import cmd_init, main
+from kmcp.cli import cmd_init, main
 
 EXAMPLE = """\
 # Server
@@ -32,7 +32,7 @@ def _init(tmp_path: Path, existing_env: str | None = None, force: bool = False):
     from unittest.mock import patch
 
     args = types.SimpleNamespace(force=force)
-    with patch("kali_mcp.cli.REPO_ROOT", tmp_path):
+    with patch("kmcp.cli.REPO_ROOT", tmp_path):
         rc = cmd_init(args)
     return rc, env_path
 
@@ -56,7 +56,7 @@ class TestInitFresh:
         from unittest.mock import patch
 
         args = types.SimpleNamespace(force=False)
-        with patch("kali_mcp.cli.REPO_ROOT", tmp_path):
+        with patch("kmcp.cli.REPO_ROOT", tmp_path):
             rc = cmd_init(args)
         assert rc == 1
 
@@ -93,12 +93,12 @@ class TestInitBackfill:
 
 class TestParser:
     def test_init_parser(self) -> None:
-        parser = main and __import__("kali_mcp.cli", fromlist=["build_parser"]).build_parser()
+        parser = main and __import__("kmcp.cli", fromlist=["build_parser"]).build_parser()
         args = parser.parse_args(["init"])
         assert args.force is False
 
     def test_init_force_flag(self) -> None:
-        from kali_mcp.cli import build_parser
+        from kmcp.cli import build_parser
 
         args = build_parser().parse_args(["init", "--force"])
         assert args.force is True
