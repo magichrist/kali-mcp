@@ -132,6 +132,22 @@ COMMAND_MATRIX = {
     ),
     "playbook_catalog": ({}, "playbook_catalog"),
     "playbook_result": ({"job_id": "job_x"}, "playbook_result"),
+    "playbook_create": (
+        {"playbook_id": "quick_http_probe", "name": "Quick HTTP Probe"},
+        "playbook_create",
+    ),
+    "playbook_validate": (
+        {"playbook_id": "quick_http_probe", "definition": {"name": "quick_http_probe"}},
+        "playbook_validate",
+    ),
+    "playbook_publish": (
+        {
+            "playbook_id": "quick_http_probe",
+            "version": "1.0",
+            "definition": {"name": "quick_http_probe"},
+        },
+        "playbook_publish",
+    ),
     "template_list": ({}, "template_list"),
     "template_run": (
         {"template_id": "quick_web_scan", "params": {"target": "example.com"}},
