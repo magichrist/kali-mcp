@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.intelligence import Finding, FindingCorrelator
+from kmcp.intelligence import Finding, FindingCorrelator
 
 
 @pytest.fixture()
