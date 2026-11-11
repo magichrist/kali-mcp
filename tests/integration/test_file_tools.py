@@ -11,7 +11,7 @@ def parse_response(result: dict) -> dict:
 
 class TestFileRead:
     async def test_reads_existing_file(self):
-        from kali_mcp.tools.file_read import FileReadTool
+        from kmcp.tools.file_read import FileReadTool
 
         result = await FileReadTool().safe_execute({"path": "/etc/hosts"})
         data = parse_response(result)
@@ -19,18 +19,18 @@ class TestFileRead:
         assert len(data.get("stdout", "")) > 0
 
     async def test_missing_file_is_error(self):
-        from kali_mcp.tools.file_read import FileReadTool
+        from kmcp.tools.file_read import FileReadTool
 
         result = await FileReadTool().safe_execute({"path": "/nonexistent/file"})
         assert result["isError"] is True
 
     async def test_missing_path_is_error(self):
-        from kali_mcp.tools.file_read import FileReadTool
+        from kmcp.tools.file_read import FileReadTool
 
         assert (await FileReadTool().safe_execute({}))["isError"] is True
 
     async def test_max_bytes_truncates(self):
-        from kali_mcp.tools.file_read import FileReadTool
+        from kmcp.tools.file_read import FileReadTool
 
         result = await FileReadTool().safe_execute({"path": "/etc/hosts", "max_bytes": 5})
         data = parse_response(result)
@@ -40,7 +40,7 @@ class TestFileRead:
 
 class TestFileWrite:
     async def test_write_and_verify_content(self, tmp_path):
-        from kali_mcp.tools.file_write import FileWriteTool
+        from kmcp.tools.file_write import FileWriteTool
 
         path = str(tmp_path / "test_write.txt")
         result = await FileWriteTool().safe_execute({"path": path, "content": "hello world"})
@@ -48,13 +48,13 @@ class TestFileWrite:
         assert (tmp_path / "test_write.txt").read_text() == "hello world"
 
     async def test_missing_path_is_error(self, tmp_path):
-        from kali_mcp.tools.file_write import FileWriteTool
+        from kmcp.tools.file_write import FileWriteTool
 
         result = await FileWriteTool().safe_execute({"content": "x"})
         assert result["isError"] is True
 
     async def test_missing_content_is_error(self, tmp_path):
-        from kali_mcp.tools.file_write import FileWriteTool
+        from kmcp.tools.file_write import FileWriteTool
 
         path = str(tmp_path / "f.txt")
         assert (await FileWriteTool().safe_execute({"path": path}))["isError"] is True
