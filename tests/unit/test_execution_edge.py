@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-from kali_mcp.execution import ExecutionEngine, reset_progress_cb, set_progress_cb
-from kali_mcp.models import ExecutionResult
+from kmcp.execution import ExecutionEngine, reset_progress_cb, set_progress_cb
+from kmcp.models import ExecutionResult
 
 
 class TestExecutionEngineEdgeCases:
@@ -119,6 +119,6 @@ class TestExecutionEngineEdgeCases:
 
 class TestProgressCallbackContextVar:
     def test_progress_ctx_default_none(self) -> None:
-        from kali_mcp.execution import _progress_ctx
+        from kmcp.execution import _progress_ctx
 
         assert _progress_ctx.get() is None
