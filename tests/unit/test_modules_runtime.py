@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from kali_mcp.workflow import modules_runtime as mr
-from kali_mcp.workflow.modules_runtime import (
+from kmcp.workflow import modules_runtime as mr
+from kmcp.workflow.modules_runtime import (
     ModuleContext,
     ModuleError,
     execute,
@@ -138,7 +138,7 @@ class TestBuiltinLoading:
 
 def test_no_circular_import():
     """Engine and runtime import cleanly in any order."""
-    from kali_mcp.workflow import dag_executor as de
-    from kali_mcp.workflow.modules_runtime import register as _r  # noqa: F401
+    from kmcp.workflow import dag_executor as de
+    from kmcp.workflow.modules_runtime import register as _r  # noqa: F401
 
     assert hasattr(de, "MAX_ITERATIONS")
