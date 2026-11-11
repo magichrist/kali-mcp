@@ -1,10 +1,10 @@
-"""Extended unit tests for core data models (kali_mcp/models.py)."""
+"""Extended unit tests for core data models (kmcp/models.py)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from kali_mcp.models import ExecutionResult, ToolError, utc_now_iso
+from kmcp.models import ExecutionResult, ToolError, utc_now_iso
 
 
 def _make_result(**overrides):
