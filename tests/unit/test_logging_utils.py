@@ -9,15 +9,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from kali_mcp.logging_utils import JSONFormatter, log_execution, setup_logging
-from kali_mcp.models import ExecutionResult
+from kmcp.logging_utils import JSONFormatter, log_execution, setup_logging
+from kmcp.models import ExecutionResult
 
 
 @pytest.fixture(autouse=True)
-def _clean_kali_mcp_loggers():
-    """Ensure the kali_mcp logger has no leftover handlers between tests."""
+def _clean_kmcp_loggers():
+    """Ensure the kmcp logger has no leftover handlers between tests."""
     yield
-    for name in ("kali_mcp", "kali_mcp.executions"):
+    for name in ("kmcp", "kmcp.executions"):
         logger = logging.getLogger(name)
         logger.handlers.clear()
 
@@ -26,7 +26,7 @@ class TestJSONFormatter:
     def test_format_contains_expected_keys(self) -> None:
         fmt = JSONFormatter()
         record = logging.LogRecord(
-            name="kali_mcp.test",
+            name="kmcp.test",
             level=logging.INFO,
             pathname="",
             lineno=0,
@@ -37,13 +37,13 @@ class TestJSONFormatter:
         payload = json.loads(fmt.format(record))
         assert payload["timestamp"]
         assert payload["level"] == "INFO"
-        assert payload["logger"] == "kali_mcp.test"
+        assert payload["logger"] == "kmcp.test"
         assert payload["message"] == "hello world"
 
     def test_format_includes_extra_data(self) -> None:
         fmt = JSONFormatter()
         record = logging.LogRecord(
-            name="kali_mcp.test",
+            name="kmcp.test",
             level=logging.DEBUG,
             pathname="",
             lineno=0,
@@ -58,7 +58,7 @@ class TestJSONFormatter:
 
 class TestSetupLogging:
     def test_setup_logging_is_idempotent(self) -> None:
-        root = logging.getLogger("kali_mcp")
+        root = logging.getLogger("kmcp")
         root.handlers.clear()
         setup_logging()
         count_after_first = len(root.handlers)
@@ -68,16 +68,16 @@ class TestSetupLogging:
         assert count_after_first > 0
 
     def test_setup_logging_creates_handlers(self) -> None:
-        root = logging.getLogger("kali_mcp")
+        root = logging.getLogger("kmcp")
         root.handlers.clear()
-        with patch("kali_mcp.logging_utils.config") as mock_config:
+        with patch("kmcp.logging_utils.config") as mock_config:
             mock_config.debug = False
             mock_config.log_dir = Path("/tmp/test_logs")
             # Configure the mock handler so the logging module can compare levels
             mock_handler_instance = MagicMock()
             mock_handler_instance.level = logging.INFO
             mock_handler = MagicMock(return_value=mock_handler_instance)
-            with patch("kali_mcp.logging_utils.RotatingFileHandler", mock_handler):
+            with patch("kmcp.logging_utils.RotatingFileHandler", mock_handler):
                 setup_logging()
                 assert mock_handler.called
 
