@@ -262,7 +262,7 @@ async function pageOverview() {
         <div class="panel-head"><span>Recent executions</span></div>
         <div style="padding:8px">${table(["Execution", "Playbook", "Status", "Completed"],
           (o.recent_executions || []).map((e) => ({
-            cells: [esc(e.execution_id), esc(e.playbook_id || "—"), BADGE(e.status), esc((e.completed_at || "").slice(0, 19))],
+            cells: [esc(e.execution_id), esc(e.playbook_id || "—"), BADGE(e.status), fmtTs(e.completed_at)],
             menu: `<a href="#/executions/${esc(e.execution_id)}">view</a>`,
           })), "No executions yet.")}
         </div>
@@ -391,6 +391,8 @@ async function pagePlaybooks() {
 }
 
 async function pagePlaybookEditor(id) {
+  // Prevent duplicate document-level click listeners from accumulating
+  document.removeEventListener("click", pbCloseMenuOnOutside);
   selectedId = id;
   graphDef = null; graphSel = null; graphPos = {};
   historyStack = []; futureStack = [];
@@ -2461,7 +2463,7 @@ async function importPlaybook() {
   file.onchange = async () => {
     try {
       const pkg = JSON.parse(await file.files[0].text());
-      await api("/playbooks/import", { method: "POST", body: JSON.stringify({ package: pkg }) });
+      await api("/playbooks", { method: "POST", body: JSON.stringify({ package: pkg }) });
       toast("Imported");
       await refreshPlaybooks();
     } catch (err) { toast(err.message, true); }
@@ -2497,7 +2499,7 @@ async function refreshExecutions(status) {
         esc(e.playbook_id || "—"),
         `${esc(e.trigger || "—")}${Number(e.debug) ? " <span class=\"chip ck\">debug</span>" : ""}`,
         BADGE(e.status),
-        esc((e.completed_at || "").slice(0, 19) || "—"),
+        fmtTs(e.completed_at),
       ],
       menu: `<a href="#/executions/${esc(e.execution_id)}">detail</a>`,
     })), "No executions match this filter.");
@@ -2589,7 +2591,7 @@ async function pageExecutionDetail(id) {
     ["steps","artifacts","completed"].forEach((k) => { const old = headRight.querySelector(".exec-kpi-"+k); if (old) old.remove(); });
     const stepsCount = (e.steps || []).length;
     const artifactsCount = (e.artifacts || []).length;
-    const completedAt = (e.completed_at || "").slice(0, 19) || "—";
+    const completedAt = fmtTs(e.completed_at);
     [["exec-kpi-steps", stepsCount + " steps"], ["exec-kpi-artifacts", artifactsCount + " artifacts"], ["exec-kpi-completed", completedAt]].forEach(([cls, label]) => {
       const badge = document.createElement("span");
       badge.className = "exec-kpi-badge " + cls;
@@ -2845,7 +2847,7 @@ async function pageAgentDetail(id) {
       <div style="padding:8px">${table(["Tool", "Granted", "Granted at"],
         (d.permissions || []).filter((p) => p.profile_id === id).map((p) => ({
           cells: [esc(p.tool_id), p.granted ? "<span class='run-state ok'>granted</span>" : "<span class='run-state failed'>denied</span>",
-            esc((p.granted_at || "").slice(0, 19))],
+            fmtTs(p.granted_at)],
           menu: `<button class="btn mini danger" data-tool="${esc(p.tool_id)}" data-toolact="revoke">Revoke</button>`,
         })), "No tool grants yet. Grant one to allow this agent to call a tool.")}</div>
     </div>
@@ -2855,7 +2857,7 @@ async function pageAgentDetail(id) {
       <div style="padding:8px">${table(["Playbook", "Granted", "Granted at"],
         (d.assignments || []).filter((x) => x.profile_id === id).map((x) => ({
           cells: [esc(x.playbook_id), x.granted ? "<span class='run-state ok'>assigned</span>" : "<span class='run-state failed'>blocked</span>",
-            esc((x.granted_at || "").slice(0, 19))],
+            fmtTs(x.granted_at)],
           menu: `<button class="btn mini danger" data-pb="${esc(x.playbook_id)}" data-pbact="unassign">Unassign</button>`,
         })), "No playbook assignments yet.")}</div>
     </div>`;
