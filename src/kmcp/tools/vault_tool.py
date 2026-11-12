@@ -90,9 +90,9 @@ class VaultWriteTool(BaseTool):
                     "vuln:VULN-001, task:2, ssh_creds_stage2",
                 },
                 "content": {
-                    "type": ["object", "array", "string"],
+                    "type": "string",
                     "description": "The row's content: plain key=value fields "
-                    "(verbatim text), a JSON object, or a JSON array.",
+                    "(verbatim text), or a JSON string (object/array).",
                 },
                 "target": {
                     "type": "string",
@@ -104,9 +104,10 @@ class VaultWriteTool(BaseTool):
                     "description": "Optional producing tool name.",
                 },
                 "tags": {
-                    "type": "string",
+                    "type": ["string", "array"],
                     "description": "Space/comma-separated tags for search, "
-                    "e.g. 'agent:recon phase:2 severity:critical superseded'",
+                    "e.g. 'agent:recon phase:2 severity:critical superseded'. "
+                    "Pass an array of strings and it will be joined with commas.",
                 },
             },
             "required": ["category", "name", "content"],
@@ -125,13 +126,16 @@ class VaultWriteTool(BaseTool):
 
         try:
             content = _parse_content(arguments.get("content"))
+            tags = arguments.get("tags", "")
+            if isinstance(tags, list):
+                tags = ",".join(str(t) for t in tags)
             path = vault_write(
                 arguments["category"],
                 arguments["name"],
                 content,
                 target=arguments.get("target", ""),
                 tool=arguments.get("tool", self.name),
-                tags=arguments.get("tags", ""),
+                tags=tags,
             )
         except ValueError as e:
             return _error(self.name, "Validation error", str(e))
