@@ -37,7 +37,11 @@ class DirbTool(BaseTool, NormalizedToolMixin):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "Target URL"},
-                "wordlist": {"type": "string", "description": "Path to wordlist"},
+                "wordlist": {
+                    "type": "string",
+                    "description": "Path to wordlist",
+                    "default": "/usr/share/wordlists/dirb/common.txt",
+                },
                 "recursive": {
                     "type": "boolean",
                     "description": "Recursive scan (-r)",
@@ -49,14 +53,15 @@ class DirbTool(BaseTool, NormalizedToolMixin):
                     "default": 600,
                 },
             },
-            "required": ["target", "wordlist"],
+            "required": ["target"],
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "target", "wordlist")
+        validate_required(arguments, "target")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        cmd = ["dirb", arguments["target"], arguments["wordlist"]]
+        wordlist = arguments.get("wordlist") or "/usr/share/wordlists/dirb/common.txt"
+        cmd = ["dirb", arguments["target"], wordlist]
         if arguments.get("recursive"):
             cmd.append("-r")
         return cmd
