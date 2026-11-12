@@ -323,10 +323,6 @@ async def run(url: str, token: str | None = None) -> None:
         status_msg = f"Connection error: {conn_err} · q: quit · r: retry"
     layout = build_layout(snapshot, status_msg, panel, index)
 
-    # Old-style kill-by-id mode (single k then type ID)
-    waiting_for_kill_id = False
-    kill_id_buffer = ""
-
     try:
         with Live(layout, refresh_per_second=4, screen=False) as live:
             while True:
@@ -435,65 +431,6 @@ async def run(url: str, token: str | None = None) -> None:
                         escape_buf = ""
                         continue
 
-                # ── Old-style kill-by-id mode ──────────────────────────
-                if waiting_for_kill_id:
-                    # Enter → submit the request id
-                    if key in ("\r", "\n"):
-                        req_id = kill_id_buffer.strip()
-                        if req_id:
-                            try:
-                                res = await _http_post(
-                                    f"{url}/monitor/action",
-                                    {"action": "kill_job", "request_id": req_id},
-                                )
-                                status_msg = (
-                                    f"kill_job {req_id}: "
-                                    f"{'killed' if res.get('killed') else 'not found'}"
-                                )
-                            except Exception as exc:  # noqa: BLE001
-                                status_msg = f"kill_job {req_id}: error — {exc}"
-                        else:
-                            status_msg = "kill_job cancelled (no id)"
-                        waiting_for_kill_id = False
-                        kill_id_buffer = ""
-                        layout = build_layout(snapshot, status_msg, panel, index)
-                        live.update(layout, refresh=True)
-                    # Backspace / delete → remove last char
-                    elif key in ("\x7f", "\x08"):
-                        kill_id_buffer = kill_id_buffer[:-1]
-                        layout = build_layout(
-                            snapshot,
-                            f"Enter request id to kill: {kill_id_buffer}_",
-                            panel,
-                            index,
-                        )
-                        live.update(layout, refresh=True)
-                    # Printable char → accumulate
-                    elif len(key) == 1 and key.isprintable():
-                        kill_id_buffer += key
-                        layout = build_layout(
-                            snapshot,
-                            f"Enter request id to kill: {kill_id_buffer}_",
-                            panel,
-                            index,
-                        )
-                        live.update(layout, refresh=True)
-                    # Escape → cancel back to normal mode
-                    elif key == "\x1b":
-                        waiting_for_kill_id = False
-                        kill_id_buffer = ""
-                        layout = build_layout(
-                            snapshot,
-                            status_msg,
-                            panel,
-                            index,
-                        )
-                        live.update(layout, refresh=True)
-                    # 'q' while waiting → quit anyway
-                    elif key == "q":
-                        break
-                    continue
-
                 # ── Normal mode keybindings ────────────────────────────
                 if key == "q":
                     break
@@ -532,16 +469,10 @@ async def run(url: str, token: str | None = None) -> None:
                         layout = build_layout(snapshot, status_msg, panel, index)
                         live.update(layout, refresh=True)
                     else:
-                        # Single k → start old-style ID entry mode
+                        # Single k → prime double-tap; next k within window kills
                         last_k_time = now
-                        waiting_for_kill_id = True
-                        kill_id_buffer = ""
-                        layout = build_layout(
-                            snapshot,
-                            "Enter request id to kill: ",
-                            panel,
-                            index,
-                        )
+                        status_msg = "Press k again to kill selected job"
+                        layout = build_layout(snapshot, status_msg, panel, index)
                         live.update(layout, refresh=True)
 
     except (KeyboardInterrupt, EOFError):
