@@ -66,6 +66,46 @@ def _load_env() -> None:
     load_dotenv(str(REPO_ROOT / ".env"), override=False)
 
 
+# ── embedded .env.example (shipped with the package) ───────────────────────
+# When kmcp is installed via pip, .env.example is not necessarily on disk at
+# REPO_ROOT (REPO_ROOT resolves into the venv/site-packages). Embed the full
+# template here so `kmcp init` works standalone after `pip install kmcp`.
+ENV_EXAMPLE_TEXT = """\
+# Kali MCP Server Configuration
+MCP_HOST=0.0.0.0
+MCP_PORT=8399
+# Dedicated port for the Studio web UI (uncomment to serve /studio separately;
+# 0 or unset = the Studio UI shares the main MCP server port)
+#STUDIO_PORT=8340
+MCP_SERVER_NAME=kmcp
+MCP_SERVER_VERSION=1.0.0
+MCP_DEFAULT_TIMEOUT=300
+MCP_MAX_TIMEOUT=3600
+MCP_MAX_CONCURRENT=10
+MCP_LOG_DIR=logs
+MCP_ARTIFACT_DIR=artifacts
+MCP_ENCODING=utf-8
+MCP_DEBUG=false
+MCP_TRANSPORT=sse
+
+# Authentication (set in production)
+MCP_API_TOKEN=
+
+# CORS (comma-separated origins, default: * = all origins)
+MCP_ALLOWED_ORIGINS=*
+
+# Rate limiting (requests per minute per IP, 0 = unlimited)
+MCP_RATE_LIMIT=0
+
+# Path containment (comma-separated allowed directories, empty = unrestricted)
+MCP_ALLOWED_WRITE_DIRS=
+MCP_ALLOWED_READ_DIRS=
+
+# GitHub token for zizmor (GitHub Actions scanner)
+GH_TOKEN=
+"""
+
+
 # ── helpers ──────────────────────────────────────────────────────────────
 
 
@@ -246,10 +286,16 @@ def cmd_init(args: argparse.Namespace) -> int:
     env_path = REPO_ROOT / ".env"
     example_path = REPO_ROOT / ".env.example"
 
-    if not example_path.exists():
-        print(f"error: {example_path} not found — cannot generate .env", file=sys.stderr)
+    # Prefer the embedded template (works after pip install), fall back to the
+    # on-disk .env.example when running from a source checkout.
+    if example_path.exists():
+        template_text = example_path.read_text()
+    else:
+        template_text = ENV_EXAMPLE_TEXT
+
+    if not template_text:
+        print("error: no .env.example template available — cannot generate .env", file=sys.stderr)
         return 1
-    template_text = example_path.read_text()
 
     if args.force and env_path.exists():
         backup = env_path.with_suffix(".env.bak")

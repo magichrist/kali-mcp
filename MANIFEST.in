@@ -1,1 +1,2 @@
 graft src/kmcp/studio/web
+include .env.example

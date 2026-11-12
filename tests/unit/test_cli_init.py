@@ -51,14 +51,17 @@ class TestInitFresh:
         )["MCP_API_TOKEN"]
         assert len(token) >= 32
 
-    def test_no_example_fails(self, tmp_path) -> None:
+    def test_no_example_uses_embedded_fallback(self, tmp_path) -> None:
         import types
         from unittest.mock import patch
 
         args = types.SimpleNamespace(force=False)
         with patch("kmcp.cli.REPO_ROOT", tmp_path):
             rc = cmd_init(args)
-        assert rc == 1
+        assert rc == 0
+        env_path = tmp_path / ".env"
+        assert env_path.exists()
+        assert "MCP_API_TOKEN=" in env_path.read_text()
 
 
 class TestInitBackfill:
