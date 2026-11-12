@@ -267,9 +267,14 @@ for tool_instance in ALL_TOOLS:
             is_required = name in required
             json_type = prop.get("type", "string")
             if isinstance(json_type, list):
-                # Union type (e.g. ["object", "string"])
+                # Union type (e.g. ["object", "string", "array"])
                 py_types = tuple(TYPE_MAP.get(t, str) for t in json_type)
-                py_type = py_types[0] if len(py_types) == 1 else py_types[0] | py_types[1]
+                if len(py_types) == 1:
+                    py_type = py_types[0]
+                else:
+                    py_type = py_types[0]
+                    for extra in py_types[1:]:
+                        py_type = py_type | extra
             else:
                 py_type = TYPE_MAP.get(json_type, str)
 

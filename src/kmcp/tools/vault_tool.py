@@ -98,9 +98,11 @@ class VaultWriteTool(BaseTool):
                     "vuln:VULN-001, task:2, ssh_creds_stage2",
                 },
                 "content": {
-                    "type": "string",
-                    "description": "The row's content: plain key=value fields "
-                    "(verbatim text), or a JSON string (object/array).",
+                    "type": ["object", "string", "array"],
+                    "description": "The row's content: a JSON object, a JSON "
+                    "array, plain key=value fields (verbatim text), or a "
+                    "JSON string. Objects/arrays are stored structured and "
+                    "round-trip exactly on read.",
                 },
                 "target": {
                     "type": "string",
