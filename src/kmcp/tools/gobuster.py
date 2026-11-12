@@ -37,7 +37,11 @@ class GobusterTool(BaseTool, NormalizedToolMixin):
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": "Target URL or host"},
-                "wordlist": {"type": "string", "description": "Path to wordlist"},
+                "wordlist": {
+                    "type": "string",
+                    "description": "Path to wordlist",
+                    "default": "/usr/share/wordlists/dirb/common.txt",
+                },
                 "mode": {
                     "type": "string",
                     "description": "Mode: dir, dns, vhost (default dir)",
@@ -55,15 +59,16 @@ class GobusterTool(BaseTool, NormalizedToolMixin):
                     "default": 600,
                 },
             },
-            "required": ["target", "wordlist"],
+            "required": ["target"],
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "target", "wordlist")
+        validate_required(arguments, "target")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
         mode = arguments.get("mode", "dir")
-        cmd = ["gobuster", mode, "-u", arguments["target"], "-w", arguments["wordlist"]]
+        wordlist = arguments.get("wordlist") or "/usr/share/wordlists/dirb/common.txt"
+        cmd = ["gobuster", mode, "-u", arguments["target"], "-w", wordlist]
         extensions = arguments.get("extensions")
         if extensions and mode == "dir":
             cmd.extend(["-x", extensions])

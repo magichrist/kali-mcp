@@ -40,7 +40,11 @@ class WfuzzTool(BaseTool, NormalizedToolMixin):
                     "type": "string",
                     "description": "Target URL with FUZZ placeholder (e.g. http://host/FUZZ)",
                 },
-                "wordlist": {"type": "string", "description": "Path to wordlist"},
+                "wordlist": {
+                    "type": "string",
+                    "description": "Path to wordlist",
+                    "default": "/usr/share/wordlists/dirb/common.txt",
+                },
                 "methods": {
                     "type": "string",
                     "description": "HTTP method (-X), default GET",
@@ -55,16 +59,18 @@ class WfuzzTool(BaseTool, NormalizedToolMixin):
                     "default": 600,
                 },
             },
-            "required": ["target", "wordlist"],
+            "required": ["target"],
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "target", "wordlist")
-        if "FUZZ" not in arguments["target"]:
+        validate_required(arguments, "target")
+        target = arguments.get("target", "")
+        if target and "FUZZ" not in target:
             raise ValueError("target URL must contain a FUZZ placeholder")
 
     def build_command(self, arguments: dict[str, Any]) -> list[str]:
-        cmd = ["wfuzz", "-w", arguments["wordlist"], arguments["target"]]
+        wordlist = arguments.get("wordlist") or "/usr/share/wordlists/dirb/common.txt"
+        cmd = ["wfuzz", "-w", wordlist, arguments["target"]]
         methods = arguments.get("methods")
         if methods:
             cmd.extend(["-X", methods])

@@ -35,7 +35,11 @@ class FfufTool(BaseTool):
                     "type": "string",
                     "description": "Target URL with FUZZ keyword (e.g. 'https://target.com/FUZZ')",
                 },
-                "wordlist": {"type": "string", "description": "Path to wordlist file"},
+                "wordlist": {
+                    "type": "string",
+                    "description": "Path to wordlist file",
+                    "default": "/usr/share/wordlists/dirb/common.txt",
+                },
                 "filter": {
                     "type": "string",
                     "description": "Filter flags (e.g. '-fc 404 -fs 0')",
@@ -50,11 +54,11 @@ class FfufTool(BaseTool):
                     "default": 600,
                 },
             },
-            "required": ["target", "wordlist"],
+            "required": ["target"],
         }
 
     def validate(self, arguments: dict[str, Any]) -> None:
-        validate_required(arguments, "target", "wordlist")
+        validate_required(arguments, "target")
         if "timeout" in arguments:
             validate_timeout(arguments["timeout"])
 
@@ -62,7 +66,8 @@ class FfufTool(BaseTool):
         target = arguments["target"]
         if not target.startswith(("http://", "https://")):
             target = f"http://{target}"
-        cmd = ["ffuf", "-u", target, "-w", arguments["wordlist"]]
+        wordlist = arguments.get("wordlist") or "/usr/share/wordlists/dirb/common.txt"
+        cmd = ["ffuf", "-u", target, "-w", wordlist]
         filter_val = arguments.get("filter")
         if filter_val:
             cmd.extend(shlex.split(filter_val))

@@ -178,7 +178,7 @@ INVALID_ARGS = {
     "nmap": {},
     "httpx": {},
     "nuclei": {},
-    "ffuf": {"target": "http://x"},
+    "ffuf": {},
     "katana": {},
     "subfinder": {},
     "amass": {},
@@ -376,11 +376,6 @@ def test_nmap_timeout_above_max_rejected():
 def test_netexec_bad_protocol_rejected():
     with pytest.raises(ValueError):
         _tool_map()["netexec"].validate({"target": "127.0.0.1", "protocol": "badproto"})
-
-
-def test_ffuf_requires_wordlist():
-    with pytest.raises(ValueError):
-        _tool_map()["ffuf"].validate({"target": "http://x"})
 
 
 def test_bloodhound_requires_domain():
