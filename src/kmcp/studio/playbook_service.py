@@ -217,7 +217,7 @@ def test_playbook(
         if step.type == "custom" and step.tool:
             modules_runtime.register(
                 step.tool,
-                lambda ctx, **kw: {"mocked": True, "step": step.id},
+                lambda ctx, step=step, **kw: {"mocked": True, "step": step.id},
             )
 
     # Merge provided inputs into the definition

@@ -22,13 +22,16 @@ def _camel_to_snake(name: str) -> str:
 
 
 def _coerce_value(value: Any, expected_type: str | None = None) -> Any:
-    """Coerce common agent type mistakes to the expected type.
+    """Coerce common agent type mistakes to the *declared schema type*.
 
-    - "true"/"false"/"1"/"0" (str) → bool
-    - "300" (str) → int
-    - "300.5" (str) → float
-    - None → ""
-    - list → comma-joined str (for string-type fields)
+    Coercion respects the field's declared JSON-schema type — legit string
+    values are never silently converted:
+
+    - None            → "" for string fields; dropped (by the caller) otherwise
+    - "300" (str)     → int 300  **only** when the field is integer-typed
+    - "true"/"false"  → bool     **only** when the field is boolean-typed
+    - list → comma-joined str **only** when the field is string-typed
+    - dict → JSON str **only** when the field is string-typed
     - Already-correct types pass through unchanged.
     """
     if value is None:
@@ -42,19 +45,29 @@ def _coerce_value(value: Any, expected_type: str | None = None) -> Any:
         if not stripped:
             return ""
         low = stripped.lower()
-        if low in ("true", "false"):
-            return low == "true"
-        if low in ("1", "0"):
-            return low == "1"
-        # Try int then float
-        try:
-            return int(stripped)
-        except ValueError:
-            pass
-        try:
-            return float(stripped)
-        except ValueError:
-            pass
+        if expected_type == "integer":
+            try:
+                return int(stripped)
+            except ValueError:
+                pass
+            try:
+                as_float = float(stripped)
+            except ValueError:
+                return stripped
+            return int(as_float) if as_float.is_integer() else stripped
+        if expected_type == "number":
+            try:
+                return float(stripped)
+            except ValueError:
+                return stripped
+        if expected_type == "boolean":
+            if low in ("true", "false"):
+                return low == "true"
+            if low in ("1", "0"):
+                return low == "1"
+            return stripped
+        # string-typed (or undeclared) — keep the text verbatim; never
+        # silently convert "true"/"300"/"0" to bool/int and corrupt data.
         return stripped
     if isinstance(value, list):
         # Only convert arrays to comma-separated strings when the schema
@@ -77,9 +90,12 @@ def _normalize_arguments(
     """Normalize raw agent arguments to be forgiving of common mistakes.
 
     1. camelCase keys → snake_case (scanType → scan_type, inputFile → input_file)
-    2. Type coercion: "true" → True, "300" → 300, None → "", arrays → comma-str
+    2. Type coercion *respecting the declared schema type*: "300" → 300 for
+       integer fields, "true" → True for boolean fields; legit strings are
+       never silently converted
     3. Strips whitespace from string values
-    4. Ignores unknown keys (never rejects extra properties)
+    4. Drops null values for non-string fields so schema defaults apply
+    5. Ignores unknown keys (never rejects extra properties)
     """
     if not arguments:
         return {}
@@ -100,6 +116,11 @@ def _normalize_arguments(
                 expected = prop_type[0] if prop_type else None
             else:
                 expected = prop_type
+
+        # null on a non-string field means "use the default" — drop the key
+        # so `arguments.get(field, default)` in the tool picks the default.
+        if value is None and expected not in (None, "string"):
+            continue
 
         normalized[final_key] = _coerce_value(value, expected)
 
