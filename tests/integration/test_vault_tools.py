@@ -26,9 +26,16 @@ def vault_env(tmp_path, monkeypatch):
 
 
 def _stdout(resp: dict) -> dict:
-    """Unwrap the MCP response → ExecutionResult → stdout payload."""
+    """Unwrap the MCP response → stdout payload.
+
+    Handles both single-encoded (stdout is a dict) and legacy
+    double-encoded (stdout is a JSON string) responses.
+    """
     outer = json.loads(resp["content"][0]["text"])
-    return json.loads(outer["stdout"])
+    stdout = outer["stdout"]
+    if isinstance(stdout, str):
+        return json.loads(stdout)
+    return stdout
 
 
 async def test_write_then_read_roundtrip(vault_env):

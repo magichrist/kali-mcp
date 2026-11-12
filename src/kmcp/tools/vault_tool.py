@@ -13,27 +13,35 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from kmcp.models import ExecutionResult, ToolError, utc_now_iso
-from kmcp.responses import error_response, success_response
+from kmcp.models import ToolError, utc_now_iso
+from kmcp.responses import error_response
 from kmcp.tools.base import BaseTool
 from kmcp.validation import validate_required
 
 
 def _make_result(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Build an MCP success response carrying `payload` as its stdout JSON."""
-    result = ExecutionResult(
-        tool=tool_name,
-        command=tool_name,
-        stdout=json.dumps(payload, indent=2),
-        stderr="",
-        exit_code=0,
-        success=True,
-        timed_out=False,
-        duration=0.0,
-        start_time=utc_now_iso(),
-        end_time=utc_now_iso(),
-    )
-    return success_response(result)
+    """Build an MCP success response carrying `payload` as structured stdout.
+
+    Serializes exactly once — the payload dict goes straight into the output
+    ``stdout`` field (not pre-stringified), so agents receive clean structured
+    data without double-escaped JSON.
+    """
+    result_dict = {
+        "tool": tool_name,
+        "command": tool_name,
+        "stdout": payload,
+        "stderr": "",
+        "exit_code": 0,
+        "success": True,
+        "timed_out": False,
+        "duration": 0.0,
+        "start_time": utc_now_iso(),
+        "end_time": utc_now_iso(),
+    }
+    return {
+        "content": [{"type": "text", "text": json.dumps(result_dict, indent=2)}],
+        "isError": False,
+    }
 
 
 def _error(tool_name: str, error: str, details: str = "") -> dict[str, Any]:
