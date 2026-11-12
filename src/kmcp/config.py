@@ -62,8 +62,8 @@ class Config:
     # Debug
     debug: bool = field(default_factory=lambda: _bool_env("MCP_DEBUG", False))
 
-    # Transport: "sse" (default) or "streamable-http"
-    transport: str = field(default_factory=lambda: os.getenv("MCP_TRANSPORT", "sse"))
+    # Transport: "streamable-http" (default) or "sse"
+    transport: str = field(default_factory=lambda: os.getenv("MCP_TRANSPORT", "streamable-http"))
 
     # Auth
     api_token: str = field(default_factory=lambda: os.getenv("MCP_API_TOKEN", ""))

@@ -157,8 +157,30 @@ def _json_or_file(value: str | None) -> dict | None:
 
 
 def cmd_start(args: argparse.Namespace) -> int:
-    """Start the MCP server."""
-    _load_env()
+    """Start the MCP server.
+
+    Loads .env from the current working directory if present. Otherwise
+    generates a self-contained default .env in cwd with preset variables
+    (transport=streamable-http, a generated MCP_API_TOKEN, etc.) and prints
+    the API token to the console.
+    """
+    cwd_env = Path.cwd() / ".env"
+    if cwd_env.exists():
+        load_dotenv(str(cwd_env), override=False)
+        print(f"Loaded .env from {cwd_env}")
+    else:
+        # Generate a self-contained default .env in cwd.
+        template = ENV_EXAMPLE_TEXT.replace("MCP_TRANSPORT=sse", "MCP_TRANSPORT=streamable-http")
+        filled = _fill_template(template)
+        cwd_env.write_text(filled)
+        load_dotenv(str(cwd_env), override=False)
+        # Print the generated API token to the console.
+        for line in filled.splitlines():
+            if line.startswith("MCP_API_TOKEN="):
+                print(f"MCP_API_TOKEN={line.split('=', 1)[1]}")
+                break
+        print(f"Generated {cwd_env} — starting server now.")
+
     os.environ.setdefault("MCP_HOST", args.host or os.getenv("MCP_HOST", "127.0.0.1"))
     os.environ.setdefault("MCP_PORT", args.port or os.getenv("MCP_PORT", "8399"))
 
