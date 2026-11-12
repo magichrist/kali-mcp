@@ -181,8 +181,9 @@ def cmd_start(args: argparse.Namespace) -> int:
                 break
         print(f"Generated {cwd_env} — starting server now.")
 
-    os.environ.setdefault("MCP_HOST", args.host or os.getenv("MCP_HOST", "127.0.0.1"))
-    os.environ.setdefault("MCP_PORT", args.port or os.getenv("MCP_PORT", "8399"))
+    # CLI args override .env values.
+    os.environ["MCP_HOST"] = args.host or os.getenv("MCP_HOST", "127.0.0.1")
+    os.environ["MCP_PORT"] = args.port or os.getenv("MCP_PORT", "8399")
 
     from kmcp.server import main
 

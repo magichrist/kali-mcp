@@ -78,9 +78,9 @@ class TestConfigEnvParsing:
             assert c.artifact_dir == Path("/tmp/custom_artifacts")
             assert c.db_path == Path("/tmp/custom.db")
 
-    def test_transport_defaults_to_sse(self) -> None:
+    def test_transport_defaults_to_streamable_http(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            assert Config().transport == "sse"
+            assert Config().transport == "streamable-http"
 
     def test_api_token_default_empty(self) -> None:
         # clear=True: config.py loads .env on import, so a locally set

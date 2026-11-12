@@ -64,9 +64,9 @@ class TestConfigStringAndPathDefaults:
         with patch.dict(os.environ, {"MCP_HOST": "127.0.0.1"}, clear=True):
             assert Config().host == "127.0.0.1"
 
-    def test_transport_default_sse_and_override(self) -> None:
+    def test_transport_default_streamable_http_and_override(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            assert Config().transport == "sse"
+            assert Config().transport == "streamable-http"
         with patch.dict(os.environ, {"MCP_TRANSPORT": "streamable-http"}, clear=True):
             assert Config().transport == "streamable-http"
 
