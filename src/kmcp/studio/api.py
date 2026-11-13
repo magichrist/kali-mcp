@@ -136,7 +136,14 @@ async def put_definition_publish(request: Request) -> JSONResponse:
     if not isinstance(definition, dict):
         return JSONResponse({"error": "definition is required"}, status_code=422)
 
-    from kmcp.studio import playbook_service
+    from kmcp.studio import approvals, playbook_service
+
+    if not approvals.is_approved(db, approvals.GATE_PUBLISH, playbook_id):
+        return JSONResponse(
+            {"error": approvals.require_approval_for(approvals.GATE_PUBLISH)
+             + " Create an approval request first, then retry."},
+            status_code=403,
+        )
 
     validation = playbook_service.validate_definition(db, playbook_id, definition, for_publish=True)
     if not validation["valid"]:
@@ -154,6 +161,35 @@ async def put_definition_publish(request: Request) -> JSONResponse:
             "playbook_id": playbook_id,
             "version_id": vid,
             "status": "published",
+        }
+    )
+
+
+async def approval_request_api(request: Request) -> JSONResponse:
+    """Create a pending approval for publishing this playbook.
+
+    Unblocks the publish gate: while a pending approval row exists for
+    (gate=publish, resource_id=playbook_id), ``POST .../publish`` is allowed.
+    """
+    db = db_manager.get_db()
+    if db is None:
+        return JSONResponse({"error": "database unavailable"}, status_code=500)
+
+    from kmcp.studio import approvals
+
+    playbook_id = request.path_params["id"]
+    aid = approvals.request_approval(
+        db,
+        gate=approvals.GATE_PUBLISH,
+        resource_id=playbook_id,
+        requested_by="studio",
+    )
+    return JSONResponse(
+        {
+            "approval_id": aid,
+            "playbook_id": playbook_id,
+            "gate": approvals.GATE_PUBLISH,
+            "status": "pending",
         }
     )
 
@@ -650,6 +686,7 @@ async def list_tools_api(request: Request) -> JSONResponse:
                 "visibility": r["visibility"],
                 "enabled": bool(r["enabled"]),
                 "input_schema": r["input_schema"],
+                "default_timeout": r.get("default_timeout"),
             }
         )
     return JSONResponse({"tools": tools, "count": len(tools)})
@@ -841,6 +878,7 @@ def mount_studio_routes(app) -> None:
     app.add_route("/api/playbooks/{id}/definition", put_definition, methods=["PUT"])
     app.add_route("/api/playbooks/{id}/definition", get_definition_api, methods=["GET"])
     app.add_route("/api/playbooks/{id}/publish", put_definition_publish, methods=["POST"])
+    app.add_route("/api/playbooks/{id}/approval-request", approval_request_api, methods=["POST"])
     app.add_route("/api/playbooks/{id}/validate-definition", put_definition, methods=["POST"])
     app.add_route("/api/playbooks/{id}/versions", list_versions, methods=["GET"])
     app.add_route("/api/playbooks/{id}/rollback", rollback_playbook, methods=["POST"])

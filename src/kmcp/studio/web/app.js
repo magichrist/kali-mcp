@@ -135,6 +135,62 @@ function headActionsHtml(buttons) {
   return buttons.map((b) => `<button class="btn ${b.cls || "ghost"}" id="${b.id}">${esc(b.label)}</button>`).join("");
 }
 
+/* Generic form modal — replaces bare prompt() dialogs.
+ * fields: [{ name, label, type: "text"|"select"|"area", value, placeholder,
+ *            options, required (default true), hint }]
+ * Resolves with {name: value} on submit, or null on cancel / backdrop / Escape. */
+function formModal({ title, subtitle, fields, submitLabel = "Save", wide = false }) {
+  return new Promise((resolve) => {
+    const bd = document.createElement("div");
+    bd.className = "modal-backdrop show";
+    const control = (f) => {
+      const id = `fm_${f.name}`;
+      if (f.type === "select") {
+        return `<select class="select" id="${id}">${(f.options || []).map((o) => {
+          const val = String(o.value ?? o);
+          return `<option value="${esc(val)}" ${String(f.value ?? "") === val ? "selected" : ""}>${esc(o.label ?? o)}</option>`;
+        }).join("")}</select>`;
+      }
+      if (f.type === "area") {
+        return `<textarea class="select area" id="${id}" placeholder="${esc(f.placeholder || "")}" spellcheck="false" style="min-height:72px;font-family:ui-monospace,Menlo,monospace">${esc(f.value ?? "")}</textarea>`;
+      }
+      return `<input class="select" id="${id}" value="${esc(f.value ?? "")}" placeholder="${esc(f.placeholder || "")}" autocomplete="off" spellcheck="false" />`;
+    };
+    bd.innerHTML = `
+      <div class="modal ${wide ? "new-pb-modal" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <h3>${esc(title)}</h3>
+        ${subtitle ? `<p class="dim">${esc(subtitle)}</p>` : ""}
+        ${fields.map((f) => `
+          <label style="display:block;margin:10px 0 0">
+            <span class="np-label" style="display:block;font-size:12px;margin-bottom:4px">${esc(f.label)}${f.required === false ? ' <em class="dim">optional</em>' : ""}</span>
+            ${control(f)}
+            ${f.hint ? `<span class="dim" style="display:block;font-size:11px;margin-top:3px">${esc(f.hint)}</span>` : ""}
+          </label>`).join("")}
+        <div class="modal-actions">
+          <button class="btn" id="fmCancel">Cancel</button>
+          <button class="btn primary" id="fmSubmit">${esc(submitLabel)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(bd);
+    const close = (val) => { document.removeEventListener("keydown", escKey); bd.remove(); resolve(val); };
+    const escKey = (e) => { if (e.key === "Escape") close(null); };
+    document.addEventListener("keydown", escKey);
+    bd.addEventListener("mousedown", (e) => { if (e.target === bd) close(null); });
+    bd.querySelector("#fmCancel").addEventListener("click", () => close(null));
+    bd.querySelector("#fmSubmit").addEventListener("click", () => {
+      const out = {};
+      for (const f of fields) {
+        const v = (bd.querySelector(`#fm_${f.name}`)?.value ?? "").trim();
+        if (f.required !== false && !v) { toast(`${f.label} is required`, true); return; }
+        out[f.name] = v;
+      }
+      close(out);
+    });
+    const first = bd.querySelector(".select");
+    if (first) first.focus();
+  });
+}
+
 /* ── shared widgets ────────────────────────────────────────────────── */
 
 function kpis(items) {
@@ -263,7 +319,7 @@ async function pageOverview() {
         <div style="padding:8px">${table(["Execution", "Playbook", "Status", "Completed"],
           (o.recent_executions || []).map((e) => ({
             cells: [esc(e.execution_id), esc(e.playbook_id || "—"), BADGE(e.status), fmtTs(e.completed_at)],
-            menu: `<a href="#/executions/${esc(e.execution_id)}">view</a>`,
+            menu: `<a href="#/executions/${encodeURIComponent(e.execution_id)}">view</a>`,
           })), "No executions yet.")}
         </div>
       </div>
@@ -329,7 +385,7 @@ function renderPlaybookGrid() {
     return;
   }
   el.innerHTML = rows.map((p) => `
-    <a class="pb-card ${p.playbook_id === selectedId ? "active" : ""}" href="#/playbooks/${esc(p.playbook_id)}">
+    <a class="pb-card ${p.playbook_id === selectedId ? "active" : ""}" href="#/playbooks/${encodeURIComponent(p.playbook_id)}">
       <div class="pb-card-top">
         <span class="pb-card-name">${esc(p.name)}</span>${BADGE(p.status)}
       </div>
@@ -2132,9 +2188,9 @@ async function runModal(id) {
     }
     if (!ok) return;
     Object.assign(inputs, extra || {});
-    bd.remove();
     const debug = bd.querySelector("#runDebug")?.checked === true;
-    await startRun(id, inputs, { debug: true, trigger: "studio" });
+    bd.remove();
+    await startRun(id, inputs, { debug, trigger: "studio" });
   });
 }
 
@@ -2451,11 +2507,20 @@ async function showVersions() {
     const d = await api(`/playbooks/${encodeURIComponent(selectedId)}/versions`);
     const list = d.versions || [];
     if (!list.length) return toast("No versions published yet");
-    const pick = list.map((v) => `${v.version_id}. ${v.version}`).join("\n");
-    const choice = prompt(`Versions:\n${pick}\n\nEnter version_id to roll back:`, "");
-    if (!choice) return;
+    const v = await formModal({
+      title: `Versions of “${selectedId}”`,
+      subtitle: "Pick a version to move the published pointer back to.",
+      fields: [{
+        name: "version_id",
+        label: "Roll back to version",
+        type: "select",
+        options: list.map((x) => ({ value: String(x.version_id), label: `#${x.version_id} · v${x.version}` })),
+      }],
+      submitLabel: "Roll back",
+    });
+    if (!v) return;
     await api(`/playbooks/${encodeURIComponent(selectedId)}/rollback`, {
-      method: "POST", body: JSON.stringify({ version_id: choice }),
+      method: "POST", body: JSON.stringify({ version_id: v.version_id }),
     });
     toast("Rolled back");
     await pagePlaybookEditor(selectedId);
@@ -2515,24 +2580,54 @@ async function refreshExecutions(status) {
   el.innerHTML = table(["Execution", "Playbook", "Trigger", "Status", "Completed"],
     list.map((e) => ({
       cells: [
-        `<a href="#/executions/${esc(e.execution_id)}">${esc(e.execution_id)}</a>`,
+        `<a href="#/executions/${encodeURIComponent(e.execution_id)}">${esc(e.execution_id)}</a>`,
         esc(e.playbook_id || "—"),
         `${esc(e.trigger || "—")}${Number(e.debug) ? " <span class=\"chip ck\">debug</span>" : ""}`,
         BADGE(e.status),
         fmtTs(e.completed_at),
       ],
-      menu: `<a href="#/executions/${esc(e.execution_id)}">detail</a>`,
+      menu: `<a href="#/executions/${encodeURIComponent(e.execution_id)}">detail</a>`,
     })), "No executions match this filter.");
 }
 
 async function runPlaybook(pid) {
-  const id = pid || selectedId;
-  if (!id) return toast("Select a playbook first", true);
+  let id = pid || selectedId;
   let inputs = {};
-  const raw = prompt(`Run "${id}" now (runs the published version).\nInputs JSON (optional, e.g. {"target":"127.0.0.1"}):`, "{}");
-  if (raw === null) return;
-  if (raw.trim()) {
-    try { inputs = JSON.parse(raw); } catch { return toast("Inputs must be valid JSON", true); }
+  if (!id) {
+    // no playbook chosen yet — offer a picker modal instead of a bare prompt
+    let opts = (playbooksCache || []).map((p) => p.playbook_id).filter(Boolean);
+    if (!opts.length) {
+      try {
+        const d = await api("/playbooks");
+        opts = (d.playbooks || []).map((p) => p.playbook_id).filter(Boolean);
+      } catch { /* none */ }
+    }
+    if (!opts.length) return toast("No playbooks available to run", true);
+    const v = await formModal({
+      title: "Run playbook",
+      subtitle: "Runs the published version of the selected playbook.",
+      fields: [
+        { name: "playbook_id", label: "Playbook", type: "select", options: opts },
+        { name: "inputs", label: "Inputs JSON", type: "area", value: "{}", required: false, hint: 'e.g. {"target":"127.0.0.1"}' },
+      ],
+      submitLabel: "▶ Run",
+    });
+    if (!v) return;
+    id = v.playbook_id;
+    if (v.inputs && v.inputs.trim()) {
+      try { inputs = JSON.parse(v.inputs); } catch { return toast("Inputs must be valid JSON", true); }
+    }
+  } else {
+    const v = await formModal({
+      title: `Run “${id}”`,
+      subtitle: "Runs the published version.",
+      fields: [{ name: "inputs", label: "Inputs JSON", type: "area", value: "{}", required: false, hint: 'e.g. {"target":"127.0.0.1"}' }],
+      submitLabel: "▶ Run",
+    });
+    if (!v) return;
+    if (v.inputs && v.inputs.trim()) {
+      try { inputs = JSON.parse(v.inputs); } catch { return toast("Inputs must be valid JSON", true); }
+    }
   }
   toast(`Starting ${id}…`);
   try {
@@ -2547,7 +2642,7 @@ async function runPlaybook(pid) {
 async function pageExecutions() {
   setPageMeta({
     crumb: "Executions", title: "Executions", subtitle: "Live workflow runs",
-    actions: [{ label: "▶ Run…", fn: () => runPlaybook(prompt("Playbook id to run:", "")) }, { label: "Refresh", fn: () => refreshExecutions($("#execFilter")?.value || "all") }],
+    actions: [{ label: "▶ Run…", fn: () => runPlaybook() }, { label: "Refresh", fn: () => refreshExecutions($("#execFilter")?.value || "all") }],
   });
   $("#pageHeadInfo").innerHTML = `
     <div class="eyebrow">EXECUTIONS</div><h1>Executions</h1>
@@ -2562,7 +2657,7 @@ async function pageExecutions() {
         <option value="failed">failed</option>
         <option value="cancelled">cancelled</option>
       </select>
-      <label class="checkline"><input type="checkbox" id="execAuto" /> auto-refresh every 5s</label>
+      <label class="checkline"><input type="checkbox" id="execAuto" checked /> auto-refresh every 5s</label>
     </div>
     <div id="execTable">Loading…</div>`;
   $("#execFilter").addEventListener("change", () => refreshExecutions($("#execFilter").value));
@@ -2570,13 +2665,12 @@ async function pageExecutions() {
     if ($("#execAuto").checked) execTimer = setInterval(() => refreshExecutions($("#execFilter").value), 5000);
     else if (execTimer) { clearInterval(execTimer); execTimer = null; }
   });
+  // default on: start the live timer immediately (route() clears it on navigation)
+  if (!execTimer) execTimer = setInterval(() => refreshExecutions($("#execFilter")?.value || "all"), 5000);
   await refreshExecutions("all");
 }
 
-async function pageExecutionDetail(id) {
-  setPageMeta({ crumb: "Executions", title: id, subtitle: "Execution detail" });
-  const d = await api(`/executions/${encodeURIComponent(id)}`);
-  const e = d.execution;
+function renderExecutionDetail(id, e) {
   $("#pageHeadInfo").innerHTML = `
     <div class="eyebrow">EXECUTIONS</div><h1>${esc(id)}</h1>
     <div class="subtitle">${esc(e.playbook_id || "")} <span style="margin-left:8px">${BADGE(e.status)}</span>
@@ -2629,6 +2723,41 @@ async function pageExecutionDetail(id) {
     try { await api(`/executions/${encodeURIComponent(id)}/resume`, { method: "POST" }); toast("Resume requested"); pageExecutionDetail(id); }
     catch (err) { toast(err.message, true); }
   });
+}
+
+let execDetailTimer = null;
+
+async function pageExecutionDetail(id) {
+  setPageMeta({ crumb: "Executions", title: id, subtitle: "Execution detail" });
+  let d;
+  try {
+    d = await api(`/executions/${encodeURIComponent(id)}`);
+  } catch (err) {
+    $("#pageBody").innerHTML = `<div class="panel" style="margin-top:10px;padding:16px"><p class="empty">Execution “${esc(id)}” could not be loaded: ${esc(err.message)}</p></div>`;
+    return;
+  }
+  const e = d?.execution;
+  if (!e) {
+    $("#pageBody").innerHTML = `<div class="panel" style="margin-top:10px;padding:16px"><p class="empty">No execution with id “${esc(id)}”. <a href="#/executions">← back to executions</a></p></div>`;
+    return;
+  }
+  renderExecutionDetail(id, e);
+  // live-poll while the run is still in flight (route() clears the timer)
+  if (execDetailTimer) { clearInterval(execDetailTimer); execDetailTimer = null; }
+  if (e.status === "running" || e.status === "pending") {
+    execDetailTimer = setInterval(async () => {
+      try {
+        const det = await api(`/executions/${encodeURIComponent(id)}`);
+        const ex = det?.execution;
+        if (!ex) return;
+        renderExecutionDetail(id, ex);
+        if (ex.status !== "running" && ex.status !== "pending") {
+          clearInterval(execDetailTimer); execDetailTimer = null;
+          toast(ex.status === "completed" ? "Run completed" : `Run ${ex.status}`);
+        }
+      } catch { /* keep polling */ }
+    }, 2000);
+  }
 }
 
 /* ── route: tool registry ──────────────────────────────────────────── */
@@ -2688,11 +2817,7 @@ function renderTools() {
   $$(".sel-vis", el).forEach((sel) => sel.addEventListener("change", async () => {
     try {
       const id = sel.dataset.tool;
-      if (sel.value === "agent_callable") {
-        await api(`/tools/${encodeURIComponent(id)}/visibility`, { method: "PUT", body: JSON.stringify({ visibility: sel.value }) });
-      } else {
-        await api(`/tools/${encodeURIComponent(id)}/visibility`, { method: "PUT", body: JSON.stringify({ visibility: sel.value }) });
-      }
+      await api(`/tools/${encodeURIComponent(id)}/visibility`, { method: "PUT", body: JSON.stringify({ visibility: sel.value }) });
       toast(`${id} → ${sel.value}`);
     } catch (err) { toast(err.message, true); }
   }));
@@ -2730,7 +2855,7 @@ function renderConnections() {
   el.innerHTML = table(["Connection", "Transport", "Endpoint", "Health", "Exported tools"],
     connectionsCache.map((c) => ({
       cells: [
-        `<a href="#/connections/${esc(c.connection_id)}">${esc(c.connection_id)}</a><br/><small class="dim">${esc(c.name || "")}</small>`,
+        `<a href="#/connections/${encodeURIComponent(c.connection_id)}">${esc(c.connection_id)}</a><br/><small class="dim">${esc(c.name || "")}</small>`,
         esc(c.transport || "—"),
         esc(c.endpoint_url || c.command || "—"),
         c.enabled ? BADGE(c.health_status || "unknown") : "disabled",
@@ -2754,18 +2879,28 @@ function renderConnections() {
   }));
 }
 
-function connectionModal() {
-  const id = prompt("connection_id (unique):"); if (!id) return;
-  const name = prompt("Friendly name:"); if (!name) return;
-  const transport = prompt("transport (sse | streamable-http | stdio):", "sse"); if (!transport) return;
-  const endpointUrl = transport !== "stdio" ? prompt("endpoint_url:") : "";
-  const command = transport === "stdio" ? prompt("command (e.g. npx mcp-server-fs):") : "";
-  const payload = { connection_id: id, name, transport };
-  if (endpointUrl) payload.endpoint_url = endpointUrl;
-  if (command) payload.command = command;
-  api("/connections", { method: "POST", body: JSON.stringify(payload) })
-    .then(() => { toast("Connection added"); return refreshConnections(); })
-    .catch((err) => toast(err.message, true));
+async function connectionModal() {
+  const v = await formModal({
+    title: "Add MCP connection",
+    subtitle: "Registers an external MCP server. Test connectivity and import tools from its detail page afterwards.",
+    fields: [
+      { name: "connection_id", label: "connection_id (unique)", placeholder: "e.g. fs-local" },
+      { name: "name", label: "Friendly name", placeholder: "e.g. Local filesystem server" },
+      { name: "transport", label: "Transport", type: "select", value: "sse", options: ["sse", "streamable-http", "stdio"] },
+      { name: "endpoint_url", label: "endpoint_url", required: false, placeholder: "http://127.0.0.1:9000/sse", hint: "Required for sse / streamable-http transports." },
+      { name: "command", label: "command", required: false, placeholder: "e.g. npx mcp-server-fs", hint: "Required for the stdio transport." },
+    ],
+    submitLabel: "Add connection",
+  });
+  if (!v) return;
+  const payload = { connection_id: v.connection_id, name: v.name, transport: v.transport };
+  if (v.endpoint_url) payload.endpoint_url = v.endpoint_url;
+  if (v.command) payload.command = v.command;
+  try {
+    await api("/connections", { method: "POST", body: JSON.stringify(payload) });
+    toast("Connection added");
+    await refreshConnections();
+  } catch (err) { toast(err.message, true); }
 }
 
 async function pageConnections() {
@@ -2816,7 +2951,7 @@ async function refreshAgents() {
   el.innerHTML = table(["Profile", "Description", "Default visibility", "Parallel / Timeout", "Grants"],
     agents.map((a) => ({
       cells: [
-        `<a href="#/agents/${esc(a.profile_id)}">${esc(a.profile_id)}</a><br/><small class="dim">${esc(a.name || "")}</small>`,
+        `<a href="#/agents/${encodeURIComponent(a.profile_id)}">${esc(a.profile_id)}</a><br/><small class="dim">${esc(a.name || "")}</small>`,
         esc(a.description || "—"),
         esc(a.default_visibility || "internal"),
         `${a.max_parallel_operations ?? "—"} / ${a.max_execution_seconds ?? "—"}s`,
@@ -2825,12 +2960,25 @@ async function refreshAgents() {
     })), "No agent profiles. One is created for you on first tool grant.");
 }
 
-function agentModal() {
-  const id = prompt("profile_id (unique):"); if (!id) return;
-  const name = prompt("Friendly name:"); if (!name) return;
-  api("/agents", { method: "POST", body: JSON.stringify({ profile_id: id, name }) })
-    .then(() => { toast("Agent profile created"); refreshAgents(); })
-    .catch((err) => toast(err.message, true));
+async function agentModal() {
+  const v = await formModal({
+    title: "New agent profile",
+    subtitle: "Deny-by-default: grant tools and playbooks explicitly from the profile page.",
+    fields: [
+      { name: "profile_id", label: "profile_id (unique)", placeholder: "e.g. redteam-agent" },
+      { name: "name", label: "Friendly name", placeholder: "e.g. Red team agent" },
+      { name: "description", label: "Description", type: "area", required: false, placeholder: "What this agent is allowed to do…" },
+    ],
+    submitLabel: "Create profile",
+  });
+  if (!v) return;
+  const payload = { profile_id: v.profile_id, name: v.name };
+  if (v.description) payload.description = v.description;
+  try {
+    await api("/agents", { method: "POST", body: JSON.stringify(payload) });
+    toast("Agent profile created");
+    refreshAgents();
+  } catch (err) { toast(err.message, true); }
 }
 
 async function pageAgents() {
@@ -2881,17 +3029,39 @@ async function pageAgentDetail(id) {
           menu: `<button class="btn mini danger" data-pb="${esc(x.playbook_id)}" data-pbact="unassign">Unassign</button>`,
         })), "No playbook assignments yet.")}</div>
     </div>`;
-  $("#grantBtn").addEventListener("click", () => {
-    const toolId = prompt("tool_id to grant:"); if (!toolId) return;
-    api(`/agents/${encodeURIComponent(id)}/tools/${encodeURIComponent(toolId)}`, { method: "PUT", body: "{}" })
-      .then(() => { toast("Granted"); pageAgentDetail(id); })
-      .catch((err) => toast(err.message, true));
+  $("#grantBtn").addEventListener("click", async () => {
+    try {
+      const d = await api("/tools?limit=500");
+      const opts = (d.tools || []).map((t) => t.tool_id).filter(Boolean).sort();
+      if (!opts.length) return toast("No tools registered to grant", true);
+      const v = await formModal({
+        title: "Grant tool",
+        subtitle: `Allows profile “${id}” to call this tool.`,
+        fields: [{ name: "tool_id", label: "Tool", type: "select", options: opts }],
+        submitLabel: "Grant",
+      });
+      if (!v) return;
+      await api(`/agents/${encodeURIComponent(id)}/tools/${encodeURIComponent(v.tool_id)}`, { method: "PUT", body: "{}" });
+      toast("Granted");
+      pageAgentDetail(id);
+    } catch (err) { toast(err.message, true); }
   });
-  $("#assignBtn").addEventListener("click", () => {
-    const pbId = prompt("playbook_id to assign:"); if (!pbId) return;
-    api(`/agents/${encodeURIComponent(id)}/playbooks/${encodeURIComponent(pbId)}`, { method: "PUT", body: "{}" })
-      .then(() => { toast("Assigned"); pageAgentDetail(id); })
-      .catch((err) => toast(err.message, true));
+  $("#assignBtn").addEventListener("click", async () => {
+    try {
+      const d = await api("/playbooks");
+      const opts = (d.playbooks || []).map((p) => p.playbook_id).filter(Boolean).sort();
+      if (!opts.length) return toast("No playbooks available to assign", true);
+      const v = await formModal({
+        title: "Assign playbook",
+        subtitle: `Allows profile “${id}” to run this playbook.`,
+        fields: [{ name: "playbook_id", label: "Playbook", type: "select", options: opts }],
+        submitLabel: "Assign",
+      });
+      if (!v) return;
+      await api(`/agents/${encodeURIComponent(id)}/playbooks/${encodeURIComponent(v.playbook_id)}`, { method: "PUT", body: "{}" });
+      toast("Assigned");
+      pageAgentDetail(id);
+    } catch (err) { toast(err.message, true); }
   });
   $("#delAgentBtn").addEventListener("click", () => {
     if (!confirm(`Delete agent profile ${id}?`)) return;
@@ -2911,7 +3081,6 @@ async function pageAgentDetail(id) {
 
 /* ── route: findings ───────────────────────────────────────────────── */
 
-let findingsTimer = null;
 /* rows cached by id so the row click can open the full detail modal */
 let findingsCache = [];
 
@@ -3099,6 +3268,7 @@ function parseHash() {
 async function route() {
   if (execTimer) { clearInterval(execTimer); execTimer = null; }
   if (runStatusTimer) { clearInterval(runStatusTimer); runStatusTimer = null; }
+  if (execDetailTimer) { clearInterval(execDetailTimer); execDetailTimer = null; }
   // persist any unsaved inspector edits when leaving the editor page
   const { route: currRoute, id: currId } = parseHash();
   if (currRoute === "playbooks" && currId && graphSel) {
