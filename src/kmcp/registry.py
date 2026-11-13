@@ -52,6 +52,8 @@ class ToolDefinition:
 class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolDefinition] = {}
+        # alias -> canonical tool name (e.g. "search" -> "searchsploit")
+        self._aliases: dict[str, str] = {}
 
     def register(
         self,
@@ -76,16 +78,60 @@ class ToolRegistry:
             visibility=visibility,
             metadata=metadata or {},
         )
+        # Auto-register the tool's declared aliases so name-guesses resolve
+        # everywhere (server registration additionally exposes them as real
+        # MCP tools).
+        for alias in tool.aliases:
+            self.register_alias(alias, tool.name)
         logger.info("Registered tool: %s (visibility=%s)", tool.name, visibility)
 
+    def register_alias(self, alias: str, target: str) -> bool:
+        """Register an alternate name that resolves to an existing tool.
+
+        Agents frequently guess tool names ("search", "scan", "shell");
+        aliases make those guesses resolve instead of erroring. Returns
+        True if the alias was registered, False if ``target`` is unknown.
+        Aliases are never registered as canonical names and do not collide
+        with real tool names (a real name always wins).
+        """
+        if target not in self._tools:
+            logger.warning("Cannot register alias %r: target tool %r not registered", alias, target)
+            return False
+        if alias in self._tools:
+            logger.warning("Refusing alias %r: a real tool with that name exists", alias)
+            return False
+        self._aliases[alias] = target
+        logger.info("Registered alias: %s -> %s", alias, target)
+        return True
+
+    def resolve_name(self, name: str) -> str | None:
+        """Resolve ``name`` (canonical or alias) to a canonical tool name."""
+        if name in self._tools:
+            return name
+        return self._aliases.get(name)
+
+    def aliases_for(self, name: str) -> list[str]:
+        """Return all aliases registered for canonical tool ``name``."""
+        return sorted(a for a, t in self._aliases.items() if t == name)
+
+    def alias_map(self) -> dict[str, str]:
+        """Return a copy of the full alias -> canonical-name mapping."""
+        return dict(self._aliases)
+
     def get(self, name: str) -> BaseTool | None:
-        """Return the BaseTool for ``name``, or None if not registered."""
-        defn = self._tools.get(name)
+        """Return the BaseTool for ``name`` (alias-resolved), or None."""
+        canonical = self.resolve_name(name)
+        if canonical is None:
+            return None
+        defn = self._tools.get(canonical)
         return defn.tool if defn is not None else None
 
     def get_definition(self, name: str) -> ToolDefinition | None:
         """Return the full :class:`ToolDefinition` for ``name``, or None."""
-        return self._tools.get(name)
+        canonical = self.resolve_name(name)
+        if canonical is None:
+            return None
+        return self._tools.get(canonical)
 
     def list_all(self) -> list[BaseTool]:
         """Return all registered BaseTool instances (ignores visibility)."""

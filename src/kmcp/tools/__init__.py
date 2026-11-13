@@ -38,6 +38,7 @@ from kmcp.tools.flowlyt import FlowlytTool
 from kmcp.tools.generic_command import GenericCommandTool
 from kmcp.tools.gobuster import GobusterTool
 from kmcp.tools.hashcat import HashcatTool
+from kmcp.tools.help_tool import KmcpHelpTool
 from kmcp.tools.httpx import HttpxTool
 from kmcp.tools.hydra import HydraTool
 from kmcp.tools.john import JohnTool
@@ -90,6 +91,7 @@ from kmcp.tools.zizmor import ZizmorTool
 
 # Ordered list of tool instances (full inventory)
 ALL_TOOLS = [
+    KmcpHelpTool(),
     GenericCommandTool(),
     PythonCommandTool(),
     FileReadTool(),

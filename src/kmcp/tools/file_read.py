@@ -24,6 +24,10 @@ class FileReadTool(BaseTool):
         return "file_read"
 
     @property
+    def aliases(self) -> tuple[str, ...]:
+        return ("read_file",)
+
+    @property
     def description(self) -> str:
         return (
             "Read a file from the Kali machine. Returns the file content, "

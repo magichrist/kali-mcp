@@ -143,6 +143,15 @@ class BaseTool(abc.ABC):
         return 300
 
     @property
+    def aliases(self) -> tuple[str, ...]:
+        """Alternate tool names agents commonly guess ("search", "scan", ...).
+
+        Registered in the registry and as real MCP tools so guesses resolve
+        instead of erroring. Override per tool; default: no aliases.
+        """
+        return ()
+
+    @property
     def binary(self) -> str:
         """Return the binary name this tool wraps, for existence checks.
 
@@ -196,7 +205,7 @@ class BaseTool(abc.ABC):
         # error via its FileNotFoundError path, so here we only log so that
         # orchestration/utility tools (which wrap no binary) are not broken.
         binary = shutil.which(self.binary)
-        if binary is None:
+        if binary is None and not getattr(self, "_skip_binary_check", False):
             logger.warning(
                 "Tool '%s' wraps binary '%s' which was not found in PATH; "
                 "execution will return a binary-not-found error at runtime.",
@@ -213,12 +222,117 @@ class BaseTool(abc.ABC):
                     details=f"{type(e).__name__}: {e}",
                 )
             )
+        # Friendlier validation errors: enrich "Validation error" responses
+        # with usage hints (required fields + omit-to-use-default notes) so
+        # agents can self-correct in one retry instead of several.
+        if isinstance(result, dict) and result.get("isError"):
+            try:
+                result = self._augment_validation_error(normalized, result)
+            except Exception:  # noqa: BLE001 — hints must never break the response
+                logger.debug("validation hint augmentation failed for %s", self.name)
         # Central persistence (best-effort, never breaks the tool response)
         if not getattr(self, "_persisted", False):
             try:
                 self._central_persist(normalized, result)
             except Exception:  # noqa: BLE001 — persistence must never break execution
                 logger.debug("central persistence failed for %s", self.name)
+        return result
+
+    # ── Validation-error enrichment (friendlier agent self-correction) ────
+
+    def _example_arguments(self, schema: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Build an example arguments dict from a tool's input schema.
+
+        Required fields get a placeholder value guessed from the field name
+        and type; optional fields with defaults are shown with their default.
+        Defaults to this tool's own schema.
+        """
+        schema = schema if schema is not None else self.input_schema()
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        example: dict[str, Any] = {}
+
+        for name, prop in properties.items():
+            ptype = prop.get("type", "string")
+            if isinstance(ptype, list):
+                ptype = ptype[0]
+            if name in required:
+                lname = name.lower()
+                desc = str(prop.get("description", "")).lower()
+                if "url" in lname or "url" in desc:
+                    example[name] = "http://example.com"
+                elif "target" in lname or "host" in lname or "ip" in lname:
+                    example[name] = "192.168.1.1"
+                elif "domain" in lname:
+                    example[name] = "example.com"
+                elif "path" in lname or "file" in lname:
+                    example[name] = "/etc/hostname"
+                elif "command" in lname:
+                    example[name] = "whoami"
+                elif "code" in lname:
+                    example[name] = "print('hello')"
+                elif "query" in lname or "search" in lname:
+                    example[name] = "apache"
+                elif ptype == "object":
+                    example[name] = {"key": "value"}
+                elif ptype == "array":
+                    example[name] = ["item1", "item2"]
+                elif ptype == "integer":
+                    example[name] = 1
+                else:
+                    example[name] = f"<{name}>"
+            elif "default" in prop:
+                example[name] = prop["default"]
+        return example
+
+    def _validation_hints(self) -> str:
+        """Build a usage-hints string from the tool's input schema."""
+        schema = self.input_schema()
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+
+        parts: list[str] = []
+        for name in required:
+            prop = properties.get(name, {})
+            desc = str(prop.get("description", "")).strip()
+            parts.append(f"'{name}': {desc}" if desc else f"'{name}' is required")
+        for name, prop in properties.items():
+            if name in required:
+                continue
+            if "default" in prop:
+                parts.append(
+                    f"omit '{name}' to use default {prop['default']!r}"
+                )
+        return "; ".join(parts)
+
+    def _augment_validation_error(
+        self, arguments: dict[str, Any], result: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Enrich a Validation error response with usage hints + an example.
+
+        Tools return ``error_response(ToolError(error="Validation error",
+        details=...))`` on bad arguments. This appends required-field hints
+        and an example call so the agent can self-correct immediately.
+        """
+        if not result.get("content"):
+            return result
+        block = result["content"][0]
+        text = block.get("text") if isinstance(block, dict) else None
+        payload: dict[str, Any]
+        if isinstance(text, str):
+            payload = json.loads(text)
+        elif isinstance(text, dict):
+            payload = text
+        else:
+            return result
+        if payload.get("error") != "Validation error":
+            return result
+
+        hints = self._validation_hints()
+        details = str(payload.get("details", "")).rstrip(". ")
+        payload["details"] = f"{details}. Required usage: {hints}." if hints else details
+        payload["example_arguments"] = self._example_arguments()
+        block["text"] = json.dumps(payload, indent=2)
         return result
 
     def _central_persist(

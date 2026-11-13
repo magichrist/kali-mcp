@@ -34,7 +34,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from kmcp.agent_context import agent_context
 from kmcp.db import manager as dbm
@@ -267,7 +267,7 @@ class AssessmentRunTool(BaseTool):
     # Workflow name -> YAML playbook definition file. These are executed
     # through the DAG engine by assessment_run (replacing the old hardcoded
     # if/elif chain).
-    _WORKFLOW_PLAYBOOKS: dict[str, str] = {
+    _WORKFLOW_PLAYBOOKS: ClassVar[dict[str, str]] = {
         "web_assessment": "web_assessment.yaml",
         "network_assessment": "network_assessment.yaml",
         "external_recon": "external_recon.yaml",
@@ -1377,8 +1377,11 @@ class EvidenceGetTool(BaseTool):
                 content = ""
                 if content_path and os.path.isfile(content_path):
                     try:
-                        with open(content_path, "r", encoding="utf-8", errors="replace") as fh:
-                            content = fh.read()
+                        content = await asyncio.to_thread(
+                            Path(content_path).read_text,
+                            encoding="utf-8",
+                            errors="replace",
+                        )
                     except OSError:
                         content = ""
                 payload = {
@@ -2273,7 +2276,7 @@ class ReportGenerateTool(BaseTool):
 # ── 9. finding_transition ──────────────────────────────────────────────────
 
 
-class FindingTransitionTool:
+class FindingTransitionTool(BaseTool):
     """Change the validation_status (lifecycle state) of a finding."""
 
     @property
@@ -2424,7 +2427,7 @@ class FindingTransitionTool:
 # ── 10. assessment_diff ────────────────────────────────────────────────────
 
 
-class AssessmentDiffTool:
+class AssessmentDiffTool(BaseTool):
     """Compare two assessment runs and surface what changed."""
 
     @property
@@ -2507,7 +2510,7 @@ class AssessmentDiffTool:
 # ── 11. coverage_summary ───────────────────────────────────────────────────
 
 
-class CoverageSummaryTool:
+class CoverageSummaryTool(BaseTool):
     """Show coverage gaps and summary for an assessment."""
 
     @property

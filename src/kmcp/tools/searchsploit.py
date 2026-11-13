@@ -21,6 +21,10 @@ class SearchsploitTool(BaseTool):
         return "searchsploit"
 
     @property
+    def aliases(self) -> tuple[str, ...]:
+        return ("search",)
+
+    @property
     def description(self) -> str:
         return "Search Exploit-DB for exploits. Search by keyword, CVE, EDB-ID, or title."
 

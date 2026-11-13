@@ -12,10 +12,11 @@ import pytest
 
 from kmcp.tools import ALL_TOOLS
 
-EXPECTED_TOOL_COUNT = 75
+EXPECTED_TOOL_COUNT = 76
 
 VALID_ARGS = {
     "generic_command": {"command": "echo hello"},
+    "kmcp_help": {"query": "vault"},
     "python_command": {"code": "print('test')"},
     "file_read": {"path": "/etc/hostname"},
     "file_write": {"path": "/tmp/mcp_test_write", "content": "test"},

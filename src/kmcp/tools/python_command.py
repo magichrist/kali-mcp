@@ -22,6 +22,10 @@ class PythonCommandTool(BaseTool):
         return "python_command"
 
     @property
+    def aliases(self) -> tuple[str, ...]:
+        return ("python",)
+
+    @property
     def description(self) -> str:
         return (
             "Execute Python code on the Kali machine. "

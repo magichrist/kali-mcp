@@ -12,6 +12,7 @@ TOOL_MAP = {t.name: t for t in ALL_TOOLS}
 COMMAND_MATRIX = {
     "generic_command": ({"command": "echo hi"}, "echo"),
     "python_command": ({"code": "print(1)"}, "python3"),
+    "kmcp_help": ({"query": "vault"}, "kmcp_help"),
     "file_read": ({"path": "/etc/hosts"}, "cat"),
     "file_write": (
         {"path": "/tmp/x", "content": "y"},

@@ -18,6 +18,10 @@ class NmapTool(BaseTool):
         return "nmap"
 
     @property
+    def aliases(self) -> tuple[str, ...]:
+        return ("scan",)
+
+    @property
     def description(self) -> str:
         return "Run nmap port scans. Supports target specification, scan types, timing, and output options."
 

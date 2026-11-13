@@ -447,6 +447,26 @@ for tool_instance in ALL_TOOLS:
     )
     mcp._tool_manager._tools[tool_instance.name] = mcp_tool
 
+    # ── Alias registration: make common agent name-guesses resolve ──
+    # Each alias is a real MCP tool (same schema/handler) so clients that
+    # only see listed tool names accept the call; registry.resolve_name()
+    # also resolves aliases for catalog/batch paths.
+    for alias in tool_instance.aliases:
+        if not registry.register_alias(alias, tool_instance.name):
+            continue
+        alias_fn = _make_handler(tool_instance)
+        alias_fn.__name__ = alias
+        alias_fm = func_metadata(alias_fn)
+        mcp._tool_manager._tools[alias] = MCPTool(
+            fn=alias_fn,
+            name=alias,
+            description=f"(alias for {tool_instance.name}) {tool_instance.description}",
+            parameters=tool_instance.input_schema(),
+            fn_metadata=alias_fm,
+            is_async=True,
+            context_kwarg="ctx",
+        )
+
 
 # ── Health Check Tool ───────────────────────────────────────────
 @mcp.tool()

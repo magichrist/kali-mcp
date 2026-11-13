@@ -27,6 +27,10 @@ class FileWriteTool(BaseTool):
         return "file_write"
 
     @property
+    def aliases(self) -> tuple[str, ...]:
+        return ("write_file",)
+
+    @property
     def description(self) -> str:
         return (
             "Write content to a file on the Kali machine. Creates parent "

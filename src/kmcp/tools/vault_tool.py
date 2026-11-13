@@ -272,6 +272,10 @@ class VaultQueryTool(BaseTool):
         return "vault_query"
 
     @property
+    def aliases(self) -> tuple[str, ...]:
+        return ("vault_search", "find")
+
+    @property
     def description(self) -> str:
         return (
             "Search the shared vault for rows another agent stored. "

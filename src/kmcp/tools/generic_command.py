@@ -21,6 +21,10 @@ class GenericCommandTool(BaseTool):
         return "generic_command"
 
     @property
+    def aliases(self) -> tuple[str, ...]:
+        return ("shell",)
+
+    @property
     def description(self) -> str:
         return (
             "Execute an arbitrary shell command on the Kali machine. "

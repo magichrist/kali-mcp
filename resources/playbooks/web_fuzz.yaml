@@ -1,0 +1,168 @@
+id: web_fuzz
+name: "Web Content Fuzzing (tiered wordlists)"
+description: "Directory/file fuzzing with tiered wordlists available on the box: quick (dirb common), medium (dirbuster small), big (dirbuster medium), server_specific (dirb vulns lists) plus a supplemental wfuzz admin-panel sweep. Explicit 'wordlist' input overrides the tier default."
+version: "1.0.0"
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Target URL (e.g. http://target.local:8080)"
+  tier:
+    type: string
+    description: "Wordlist tier: quick | medium | big | server_specific (default quick)"
+    default: "quick"
+  wordlist:
+    type: string
+    description: "Optional explicit wordlist path — overrides the tier default (e.g. /usr/share/wordlists/dirb/vulns/tomcat.txt)"
+  extensions:
+    type: string
+    description: "Optional comma-separated extensions for gobuster (e.g. php,html,txt)"
+  timeout:
+    type: integer
+    description: "Optional per-tool timeout in seconds"
+execution:
+  max_parallel: 4
+  timeout: 3600
+  resume: true
+steps:
+  - id: validate
+    type: scope_check
+    depends_on: []
+    checkpoint: true
+    description: "Validate target against active assessment scope"
+
+  - id: wordlist_inventory
+    type: shell
+    depends_on: [validate]
+    on_failure: continue
+    description: "Enumerate available alternative wordlists (dirb tiers, dirbuster lists, wfuzz stacks)"
+    command: "ls -1 {dirb} {dirbuster} {wfuzz_general}"
+    inputs:
+      dirb: "/usr/share/wordlists/dirb"
+      dirbuster: "/usr/share/wordlists/dirbuster"
+      wfuzz_general: "/usr/share/wfuzz/wordlist/general"
+    filter:
+      type: grep
+      pattern: "\\S+\\.txt"
+    checkpoint: true
+
+  # ── Tier-gated primary scans (exactly one runs per tier) ──────────────
+  # Output_mapping injects explicit wordlist/extensions/timeout inputs when
+  # provided (None keeps the declared default), letting the operator override
+  # any tier default without authoring four variants.
+  - id: dirb_quick
+    type: tool
+    tool: dirb
+    depends_on: [validate]
+    when: "inputs.tier == quick"
+    parallel: true
+    on_failure: continue
+    output_mapping:
+      wordlist: "{{inputs.wordlist}}"
+      timeout: "{{inputs.timeout}}"
+    args:
+      target: "{{target}}"
+      wordlist: "/usr/share/wordlists/dirb/common.txt"
+    budget:
+      timeout: 600
+    checkpoint: true
+    description: "dirb quick sweep — dirb common.txt (~4600 entries)"
+
+  - id: gobuster_medium
+    type: tool
+    tool: gobuster
+    depends_on: [validate]
+    when: "inputs.tier == medium"
+    parallel: true
+    on_failure: continue
+    output_mapping:
+      wordlist: "{{inputs.wordlist}}"
+      extensions: "{{inputs.extensions}}"
+      timeout: "{{inputs.timeout}}"
+    args:
+      target: "{{target}}"
+      mode: dir
+      threads: 20
+      wordlist: "/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt"
+    budget:
+      timeout: 900
+    checkpoint: true
+    description: "gobuster medium sweep — dirbuster directory-list-2.3-small (~87k entries)"
+
+  - id: gobuster_big
+    type: tool
+    tool: gobuster
+    depends_on: [validate]
+    when: "inputs.tier == big"
+    parallel: true
+    on_failure: continue
+    output_mapping:
+      wordlist: "{{inputs.wordlist}}"
+      extensions: "{{inputs.extensions}}"
+      timeout: "{{inputs.timeout}}"
+    args:
+      target: "{{target}}"
+      mode: dir
+      threads: 30
+      wordlist: "/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt"
+    budget:
+      timeout: 2400
+    checkpoint: true
+    description: "gobuster big sweep — dirbuster directory-list-2.3-medium (~600k entries)"
+
+  - id: ffuf_server_specific
+    type: tool
+    tool: ffuf
+    depends_on: [validate]
+    when: "inputs.tier == server_specific"
+    parallel: true
+    on_failure: continue
+    output_mapping:
+      wordlist: "{{inputs.wordlist}}"
+      timeout: "{{inputs.timeout}}"
+    args:
+      target: "{{target}}/FUZZ"
+      wordlist: "/usr/share/wordlists/dirb/vulns/apache.txt"
+      filter: "-fc 404"
+    budget:
+      timeout: 900
+    checkpoint: true
+    description: "ffuf server-specific sweep — dirb vulns/apache.txt default; pass 'wordlist' for tomcat/iis/weblogic/etc lists under /usr/share/wordlists/dirb/vulns/"
+
+  # ── Supplemental sweep (all tiers except quick) ───────────────────────
+  - id: wfuzz_admin_panels
+    type: tool
+    tool: wfuzz
+    depends_on: [validate]
+    when: "inputs.tier != quick"
+    parallel: true
+    on_failure: continue
+    output_mapping:
+      wordlist: "{{inputs.wordlist}}"
+      timeout: "{{inputs.timeout}}"
+    args:
+      target: "{{target}}/FUZZ"
+      wordlist: "/usr/share/wfuzz/wordlist/general/admin-panels.txt"
+      filters: "--hc 404"
+    budget:
+      timeout: 600
+    checkpoint: true
+    description: "wfuzz supplemental admin-panel discovery (wfuzz general stack)"
+
+  # ── Correlate + report ────────────────────────────────────────────────
+  - id: correlate
+    type: finding_correlation
+    depends_on:
+      - wordlist_inventory
+      - dirb_quick
+      - gobuster_medium
+      - gobuster_big
+      - ffuf_server_specific
+      - wfuzz_admin_panels
+    checkpoint: true
+    description: "Deduplicate and correlate discovered paths across scanners"
+
+  - id: report
+    type: assessment_report
+    depends_on: [correlate]
+    description: "Generate the fuzzing assessment report"
