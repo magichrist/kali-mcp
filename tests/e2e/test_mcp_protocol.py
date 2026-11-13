@@ -21,8 +21,23 @@ from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-# 72 tools from ALL_TOOLS + force_cleanup + health_check (registered in server.py)
-EXPECTED_MCP_TOOL_COUNT = 77
+
+
+def _expected_mcp_tool_count() -> int:
+    """Compute the expected MCP tool count from the live tool inventory.
+
+    Server-side registered tools =
+      len(ALL_TOOLS) + len(declared aliases, exposed as real MCP tools)
+      + health_check + force_cleanup.
+    Computed dynamically so adding a tool/alias never desyncs this test.
+    """
+    from kmcp.tools import ALL_TOOLS
+
+    return (
+        len(ALL_TOOLS)
+        + sum(len(tool.aliases) for tool in ALL_TOOLS)
+        + 2  # health_check + force_cleanup (registered in server.py)
+    )
 
 
 def _free_port() -> int:
@@ -90,7 +105,8 @@ async def test_mcp_handshake_and_tool_listing(server_url):
 
         tools = await session.list_tools()
         names = {t.name for t in tools.tools}
-        assert len(names) == EXPECTED_MCP_TOOL_COUNT, f"got {len(names)} tools"
+        expected = _expected_mcp_tool_count()
+        assert len(names) == expected, f"got {len(names)} tools, expected {expected}"
         assert {
             "nmap",
             "generic_command",
