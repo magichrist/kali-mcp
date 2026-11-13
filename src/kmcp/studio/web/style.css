@@ -462,6 +462,33 @@ label > .select, label > .inp, label.ins-field > .select { margin-top: 6px; }
 .modal input { height: 42px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
 
+/* findings detail modal */
+.fnd-detail-modal { width: min(640px, calc(100vw - 32px)); }
+.fnd-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.fnd-detail-kv {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  align-items: baseline;
+}
+.fnd-detail-kv + .fnd-detail-kv { border-top: 1px solid var(--line); }
+.fnd-detail-k { min-width: 120px; color: var(--muted); flex-shrink: 0; }
+.fnd-detail-v { min-width: 0; word-break: break-word; }
+.fnd-detail-v a { color: var(--blue); text-decoration: underline; }
+
+/* findings table rows are clickable */
+#findingTable .table-row { cursor: pointer; }
+#findingTable .table-row:hover { background: var(--panel2); }
+
 .run-row {
   background: var(--panel2);
   border: 1px solid var(--line);

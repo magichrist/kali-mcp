@@ -785,7 +785,13 @@ class DBManager:
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         total = cur.execute(f"SELECT COUNT(*) FROM findings {where}", params).fetchone()[0]
         rows = cur.execute(
-            f"SELECT * FROM findings {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            f"""
+            SELECT f.*, t.target AS target
+            FROM findings f
+            LEFT JOIN targets t ON f.target_id = t.id
+            {where}
+            ORDER BY f.created_at DESC LIMIT ? OFFSET ?
+            """,
             (*params, limit, offset),
         ).fetchall()
         return {"count": total, "findings": [dict(r) for r in rows]}

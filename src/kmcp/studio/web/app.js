@@ -2912,6 +2912,51 @@ async function pageAgentDetail(id) {
 /* ── route: findings ───────────────────────────────────────────────── */
 
 let findingsTimer = null;
+/* rows cached by id so the row click can open the full detail modal */
+let findingsCache = [];
+
+function findingDetailModal(f) {
+  const bd = document.createElement("div");
+  bd.className = "modal-backdrop show";
+  const rows = [
+    ["Severity", BADGE(f.severity) || esc(f.severity || "—")],
+    ["Tool", esc(f.tool || "—")],
+    ["Target", esc(f.target || `#${f.target_id ?? "—"}`)],
+    ["Type", esc(f.finding_type || "—")],
+    ["Status", esc(f.status || f.validation_status || "—")],
+    ["Port / service", f.port ? `${esc(String(f.port))}${f.service ? " · " + esc(f.service) : ""}` : esc(f.service || "—")],
+    ["URL", f.url
+      ? `<a href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.url)}</a>`
+      : "—"],
+    ["Source tools", esc(f.source_tools || "—")],
+    ["Created", fmtTs(f.created_at)],
+    ["Updated", fmtTs(f.updated_at)],
+  ];
+  const block = (label, content, emptyNote) => `
+    <div class="run-row">
+      <div class="run-row-head"><b>${esc(label)}</b></div>
+      ${content || `<p class="dim" style="margin:0">${esc(emptyNote)}</p>`}
+    </div>`;
+  bd.innerHTML = `
+    <div class="modal fnd-detail-modal">
+      <h3>${esc(f.title || f.test_name || f.checkname || f.name || "Finding")}</h3>
+      <div class="fnd-detail-grid">
+        ${rows.map(([k, v]) => `<div class="fnd-detail-kv"><span class="fnd-detail-k">${esc(k)}</span><span class="fnd-detail-v">${v}</span></div>`).join("")}
+      </div>
+      ${block("Description", f.description ? `<p style="margin:0;white-space:pre-wrap;font-size:12.5px;line-height:1.55">${esc(f.description)}</p>` : "", "No description recorded.")}
+      ${block("Evidence", f.evidence
+        ? `<pre class="mono" style="margin:0;white-space:pre-wrap;font-size:11.5px;max-height:220px;overflow:auto">${esc(f.evidence)}</pre>`
+        : "", "No evidence captured.")}
+      <div class="modal-actions">
+        <button class="btn" id="fndDetailClose">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bd);
+  bd.addEventListener("click", (e) => {
+    if (e.target === bd) bd.remove();
+  });
+  bd.querySelector("#fndDetailClose").addEventListener("click", () => bd.remove());
+}
 
 async function refreshFindings() {
   const params = new URLSearchParams();
@@ -2924,10 +2969,23 @@ async function refreshFindings() {
   const d = await api(`/findings?${params}`);
   const el = $("#findingTable");
   if (!el) return;
-  el.innerHTML = `${table(["Test", "Severity", "Tool", "Status", "Created"],
-    (d.findings || []).map((f) => ({
-      cells: [esc(f.test_name || f.checkname || f.name || "—"), BADGE(f.severity), esc(f.tool), esc(f.status || f.validation_status || "—"), fmtTs(f.created_at)],
+  findingsCache = d.findings || [];
+  const byId = new Map(findingsCache.map((f) => [String(f.id), f]));
+  el.innerHTML = `${table(["Title", "Severity", "Tool", "Target", "Status", "Created"],
+    findingsCache.map((f) => ({
+      cells: [esc(f.title || f.test_name || f.checkname || f.name || "—"), BADGE(f.severity), esc(f.tool), esc(f.target || "—"), esc(f.status || f.validation_status || "—"), fmtTs(f.created_at)],
+      menu: `<button class="btn ghost fnd-view" data-fid="${esc(String(f.id))}">View</button>`,
     })), "No findings match these filters.")}`;
+  /* row click opens the detail modal — delegation survives table re-render */
+  el.onclick = (e) => {
+    const btn = e.target.closest(".fnd-view");
+    const row = e.target.closest(".table-row");
+    if (btn || row) {
+      const fid = btn?.dataset.fid || row?.querySelector(".fnd-view")?.dataset.fid;
+      const f = byId.get(String(fid));
+      if (f) findingDetailModal(f);
+    }
+  };
   // move the matching count to the page-top right corner (minimal number badge)
   const headRight = $(".head-right");
   if (headRight) {
