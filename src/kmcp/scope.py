@@ -125,12 +125,15 @@ def check_scope(
                 raise ValueError(f"target '{target}' is excluded by scope pattern '{pattern}'")
 
     # Check allowed targets (if any are configured, target must match one)
-    if scope.allowed_targets and target:
-        if not any(_matches_pattern(target, p) for p in scope.allowed_targets):
-            raise ValueError(
-                f"target '{target}' is not in allowed scope targets: "
-                f"{', '.join(scope.allowed_targets)}"
-            )
+    if (
+        scope.allowed_targets
+        and target
+        and not any(_matches_pattern(target, p) for p in scope.allowed_targets)
+    ):
+        raise ValueError(
+            f"target '{target}' is not in allowed scope targets: "
+            f"{', '.join(scope.allowed_targets)}"
+        )
 
     # Check allowed operations (if any are configured, tool must be in list)
     if scope.allowed_operations and tool_name and tool_name not in scope.allowed_operations:

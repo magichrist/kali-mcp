@@ -174,9 +174,12 @@ class PlaybookEngine:
             step = steps[idx]
             if idx in skip_indices:
                 return idx, {"step": step.id, "skipped": True, "reason": "resume skip"}
-            if aborted_flag["value"] and step.on_failure == "abort":
-                if self._depends_on_failed(step, steps, idx):
-                    return idx, {"step": step.id, "skipped": True, "reason": "aborted"}
+            if (
+                aborted_flag["value"]
+                and step.on_failure == "abort"
+                and self._depends_on_failed(step, steps, idx)
+            ):
+                return idx, {"step": step.id, "skipped": True, "reason": "aborted"}
             step_budget = int((step.budget or {}).get("timeout", budget_default))
             async with sem:
                 try:
@@ -317,10 +320,7 @@ class PlaybookEngine:
             if mod is not None:
                 tool_name = mod.get("tool")
                 args_for_gate = self._merge_module_args(step, mod)
-        try:
-            gate_step_args(args_for_gate, step_id=step.id, tool_name=tool_name)
-        except ScopeViolationError:
-            raise
+        gate_step_args(args_for_gate, step_id=step.id, tool_name=tool_name)
 
         if step.module:
             return await self._run_module_step(step, state)
@@ -412,10 +412,7 @@ class PlaybookEngine:
 
         # Scope gate on the *resolved* values (placeholder keys such as
         # ip/hosts/domain are checked against the active scope policy).
-        try:
-            gate_step_args(resolved, step_id=step.id, tool_name="shell")
-        except ScopeViolationError:
-            raise
+        gate_step_args(resolved, step_id=step.id, tool_name="shell")
 
         timeout = 300
         if isinstance(step.args, dict) and step.args.get("timeout"):

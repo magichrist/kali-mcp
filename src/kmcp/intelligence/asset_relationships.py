@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, ClassVar
 
 
 def _now_utc() -> str:
@@ -73,7 +73,7 @@ class AssetRelationshipBuilder:
     """Builds and queries asset graph relationships."""
 
     # Valid relationship types
-    VALID_RELATIONSHIPS = {
+    VALID_RELATIONSHIPS: ClassVar[set[str]] = {
         "resolves_to",
         "contains",
         "uses_technology",
