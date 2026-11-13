@@ -513,13 +513,20 @@ def success_response_from_dict(data: dict[str, Any]) -> dict[str, Any]:
 
 def wrap_execution_result(res: Any, name: str) -> dict[str, Any]:
     """Attach the standard payload contract to an ExecutionResult and wrap it."""
-    payload = {
-        "raw": res.to_dict(),
-        "normalized": {"playbook": name},
-        "parsed_at": now_iso(),
-        "parse_success": True,
-    }
-    res.stdout = json.dumps(payload, indent=2)
     from kmcp.responses import success_response
 
-    return success_response(res)
+    # Build the full structured payload once. ``res.stdout`` is already a JSON
+    # string (level-1 serialization in the DAG engine) that callers parse with
+    # json.loads(); do NOT re-serialize it here. Let success_response perform
+    # the single json.dumps() on the final dict.
+    class _Wrapped:
+        def to_dict(self) -> dict[str, Any]:
+            return {
+                **res.to_dict(),
+                "raw": res.to_dict(),
+                "normalized": {"playbook": name},
+                "parsed_at": now_iso(),
+                "parse_success": True,
+            }
+
+    return success_response(_Wrapped())
