@@ -181,11 +181,12 @@ def test_parser_tools_execute_contract(tool_name, tmp_path, monkeypatch):
 
     assert result["isError"] is False
     outer = json.loads(result["content"][0]["text"])
-    contract = json.loads(outer["stdout"])
-    assert contract["parse_success"] is True
-    assert contract["persistence"]["db_recorded"] is True
-    assert contract["persistence"]["vault_deposited"] is True
-    assert len(contract[payload_key]) == expected_count
+    # Contract metadata is surfaced at the top level (not nested inside
+    # stdout, which stays as raw tool output — avoids double serialization).
+    assert outer["parse_success"] is True
+    assert outer["persistence"]["db_recorded"] is True
+    assert outer["persistence"]["vault_deposited"] is True
+    assert len(outer[payload_key]) == expected_count
 
     # Vault received the run — targeted runs deposit under findings/<target>,
     # target-less runs (john, hashcat, responder) under runs/<tool>

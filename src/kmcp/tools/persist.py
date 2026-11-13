@@ -443,7 +443,7 @@ async def run_tool_with_persistence(
     """
     from kmcp.execution import engine
     from kmcp.models import ToolError
-    from kmcp.responses import error_response
+    from kmcp.responses import error_response, success_response
 
     try:
         tool.validate(arguments)
@@ -493,22 +493,18 @@ async def run_tool_with_persistence(
         "findings": findings,
         "credentials": credentials,
     }
-    data["stdout"] = json.dumps(payload, indent=2)
-    return success_response_from_dict(data)
-
-
-def success_response_from_dict(data: dict[str, Any]) -> dict[str, Any]:
-    """Wrap an ExecutionResult dict into the MCP success response shape."""
-    from kmcp.responses import success_response
-
-    class _Shim:
-        def __init__(self, d: dict[str, Any]) -> None:
-            self.__dict__.update(d)
-
+    # Do NOT pre-serialize data["stdout"] into json.dumps(payload) — that
+    # double-encodes stdout (once here, again in success_response). Leave
+    # stdout as-is and surface the metadata at the top level, serialized
+    # exactly once by success_response. Same contract as wrap_execution_result.
+    class _Wrapped:
         def to_dict(self) -> dict[str, Any]:
-            return self.__dict__
+            return {
+                **data,
+                **payload,
+            }
 
-    return success_response(_Shim(data))  # type: ignore[arg-type]
+    return success_response(_Wrapped())
 
 
 def wrap_execution_result(res: Any, name: str) -> dict[str, Any]:
