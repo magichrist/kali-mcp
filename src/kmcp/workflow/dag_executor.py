@@ -103,7 +103,11 @@ class PlaybookEngine:
         """Execute the full playbook DAG and return an ExecutionResult."""
         name = playbook.name
         steps = playbook.steps
-        subst_target = playbook.inputs.get("targets")
+        # ``targets`` is the Studio service's mirror of ``target`` (set by
+        # ``_merge_required_inputs``); fall back to ``target`` itself so
+        # playbooks that run directly (e.g. ``playbook_recon``) still get
+        # ``{{target}}`` substituted into step args.
+        subst_target = playbook.inputs.get("targets", playbook.inputs.get("target"))
         self._subst_target = subst_target
         # Concrete run inputs: scalar values provided at run time (merged by
         # the studio service) or declared defaults from the input specs.
